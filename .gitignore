@@ -1,8 +1,3 @@
-# ============================================================
-# Looper_MultiModal — root .gitignore
-# Policy: the ONLY markdown tracked on GitHub is /README.md.
-# All other *.md stay local (ignored + untracked).
-# ============================================================
 
 # --- Markdown policy: ignore everything, re-allow only root README.md ---
 *.md
@@ -120,3 +115,4 @@ build/
 
 # --- Docker volumes / local overrides ---
 docker-compose.override.yml
+*.zip
