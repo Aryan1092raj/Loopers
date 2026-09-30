@@ -1,0 +1,53 @@
+# Content Studio (RAG) — OPT-IN overlay that runs the generation service on THIS
+# VM (CPU). Bring it up together with the base file:
+#
+#     docker compose -f docker-compose.yml -f docker-compose.rag.yml up -d --build
+#
+# (Combine with docker-compose.mysql.yml too if you run MySQL — list all three.)
+#
+# ── FUTURE GPU MACHINE ────────────────────────────────────────────────────────
+# When RAG moves to a separate GPU host on the network, do NOT use this overlay.
+# Instead, on that host run the RAG service (GPU build), and on the app VM set
+#     RAG_DB_URL=http://<gpu-host>:8000
+# in .env and bring up the base stack alone. The app needs no other change —
+# RAG_DB_URL is the single switch. See docs/deployment-guide,
+# "Deploying Content Studio (RAG)".
+
+services:
+  rag:
+    build:
+      context: ./RAG_DB
+    restart: unless-stopped
+    # Reuse the app's .env for the LLM keys (ANTHROPIC_API_KEY is enough; GROQ /
+    # GEMINI / OPENAI are optional fallbacks the RAG service will use if present).
+    env_file: .env
+    environment:
+      QDRANT_URL: ""        # embedded mode — reads the baked prebuilt corpus
+      USE_GPU_OCR: "0"
+      HF_HOME: /models
+    volumes:
+      - rag-models:/models  # BGE-M3 + reranker cache — downloaded once (~3.5 GB)
+      - rag-output:/app/output
+    # No published ports: only the app reaches it over the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://localhost:8000/api/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 180s    # first boot downloads the models
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Point the app at the bundled RAG service. (Do NOT add depends_on: rag — the
+  # app must boot even while RAG is still pulling models; Content Studio simply
+  # reports "unavailable" until RAG's healthcheck passes.)
+  app:
+    environment:
+      RAG_DB_URL: "http://rag:8000"
+
+volumes:
+  rag-models:
+  rag-output:
