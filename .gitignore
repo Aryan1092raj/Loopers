@@ -1,0 +1,122 @@
+# ============================================================
+# Looper_MultiModal — root .gitignore
+# Policy: the ONLY markdown tracked on GitHub is /README.md.
+# All other *.md stay local (ignored + untracked).
+# ============================================================
+
+# --- Markdown policy: ignore everything, re-allow only root README.md ---
+*.md
+*.markdown
+*.mdown
+*.mkd
+!/README.md
+
+# --- Secrets / local environment ---
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# --- Python caches / envs ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+ENV/
+
+# --- Editors / OS / agents ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.agents/
+.claude/
+.serena/
+.playwright-mcp/
+
+# --- Logs ---
+*.log
+server.log
+logs/
+
+# --- Runtime DBs / vector stores ---
+.brain/
+chroma_db/*
+!chroma_db/.gitkeep
+qdrant_db/*
+!qdrant_db/.gitkeep
+!qdrant_db/meta.json
+qdrant_storage/
+*.sqlite
+*.sqlite-journal
+*.db
+
+# --- Pipeline inputs / generated artifacts (regeneratable, often huge) ---
+raw/*
+!raw/.gitkeep
+processed/*
+!processed/.gitkeep
+metadata/*
+!metadata/.gitkeep
+output/*
+!output/.gitkeep
+RAG_DB/raw/*
+!RAG_DB/raw/.gitkeep
+RAG_DB/processed/*
+!RAG_DB/processed/.gitkeep
+RAG_DB/metadata/*
+!RAG_DB/metadata/.gitkeep
+RAG_DB/output/*
+!RAG_DB/output/.gitkeep
+RAG_DB/qdrant_db/*
+!RAG_DB/qdrant_db/.gitkeep
+!RAG_DB/qdrant_db/meta.json
+.notes-manual/
+scratch/
+docs/
+debug*.py
+
+# Keep scaffold placeholders if they ever exist at root level
+
+# --- Large local uploads / media (never commit binaries) ---
+*.pdf
+*.docx
+*.pptx
+*.mp3
+*.mp4
+*.wav
+*.mov
+*.mkv
+*.png
+*.jpg
+*.jpeg
+
+# --- Models / caches ---
+models/
+rag-models/
+.cache/
+.huggingface/
+*.pt
+*.bin
+*.onnx
+
+# --- Node (future frontend) ---
+node_modules/
+.next/
+dist/
+build/
+
+# --- Docker volumes / local overrides ---
+docker-compose.override.yml
