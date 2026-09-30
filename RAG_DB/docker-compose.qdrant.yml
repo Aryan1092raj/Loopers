@@ -1,0 +1,17 @@
+# Migration steps:
+# 1. docker compose -f docker-compose.qdrant.yml up -d
+# 2. Set QDRANT_URL=http://localhost:6333 in .env
+# 3. python src/pipeline.py embed --full   (~10-15 min on RTX 4050, re-embeds ~164 docs)
+# 4. Archive old qdrant_db/ directory
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.6
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+    restart: unless-stopped

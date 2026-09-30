@@ -1,0 +1,40 @@
+# Build-context excludes for the RAG generation image. Keep only what the image
+# COPYs: src/, templates/, qdrant_db/, requirements.docker.txt.
+
+# Python envs & caches
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Secrets / local env (keys are injected at runtime via compose env_file)
+.env
+.env.*
+!.env.example
+
+# Stale embedded-Qdrant locks must not be baked in (would block startup).
+qdrant_db/**/*.lock
+qdrant_db/.lock
+
+# Ingestion inputs & generated artifacts (not needed to generate)
+raw
+processed
+metadata
+output
+.notes-manual
+
+# Dev / docs / misc
+tests
+docs
+scratch
+*.log
+brain.config.json
+docker-compose.qdrant.yml
+README.md
+UPDATES.md
+INTEGRATION.md
+requirements.txt

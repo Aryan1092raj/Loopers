@@ -1,0 +1,75 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Local tool / editor / agent state
+.agents/
+.claude/
+.serena/
+.playwright-mcp/
+.vscode/
+.idea/
+
+# Logs
+*.log
+server.log
+
+# Runtime databases and vector stores
+.brain/
+chroma_db/*
+!chroma_db/.gitkeep
+qdrant_db/.lock
+qdrant_db/**/*.lock
+qdrant_db/**/storage.sqlite
+qdrant_storage/
+
+# Pipeline inputs and generated artifacts
+raw/*
+!raw/.gitkeep
+processed/*
+!processed/.gitkeep
+metadata/*
+!metadata/.gitkeep
+output/*
+!output/.gitkeep
+
+# Debug and test files
+debug*.py
+test_*.py
+*_test.py
+tests/
+
+# Experimental scratch files
+scratch/
+
+# Dev-phase cost logs (see src/cost_logger.py) — regeneratable, per-run.
+.notes-manual/
+
+# Local planning / generated documentation drafts
+docs/
+
+# Large local document uploads
+*.pdf
+*.docx
+*.pptx
+*.mp3
+*.mp4
+*.wav
+
+
+INTEGRATION.md
+.commandcode/
