@@ -51,4 +51,4 @@ python src/server.py             # dashboard at http://localhost:8000
 Base pipeline (text/PDF ingestion, hybrid retrieval, generation, dashboard)
 is in place. In progress: video ingestion with timestamps, calibrated refusal,
 exact-coordinate citations, generator–verifier assessment loop, BKT/IRT
-learner model, RAGAS/DeepEval benchmark, and demo corpus + video.
+learner model, RAGAS/DeepEval benchmark, and demo corpus + video..
