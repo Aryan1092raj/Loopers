@@ -116,3 +116,5 @@ build/
 # --- Docker volumes / local overrides ---
 docker-compose.override.yml
 *.zip
+entities.json
+mempalace.yaml
