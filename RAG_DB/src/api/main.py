@@ -6,11 +6,16 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+from api.routes import router
+from core.db import init_db
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Loopers Multimodal API")
+init_db()
+app.include_router(router)
 
 # CORS configuration (Updated per TRD spec)
 cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:3000")
