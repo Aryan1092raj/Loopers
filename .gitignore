@@ -116,3 +116,20 @@ build/
 # --- Docker volumes / local overrides ---
 docker-compose.override.yml
 *.zip
+# Ignore local data processing folders
+raw/
+processed/
+metadata/
+qdrant_db/
+RAG_DB/raw/
+RAG_DB/processed/
+RAG_DB/metadata/
+RAG_DB/qdrant_db/
+
+# Ignore Python virtual environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
