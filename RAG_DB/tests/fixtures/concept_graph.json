@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {"id": "vectors", "name": "Vectors", "level": "topic", "parent_id": null, "aliases": []},
+    {"id": "matrices", "name": "Matrices", "level": "topic", "parent_id": null, "aliases": []},
+    {"id": "linear_systems", "name": "Linear systems", "level": "topic", "parent_id": null, "aliases": []},
+    {"id": "eigenvalues", "name": "Eigenvalues and eigenvectors", "level": "topic", "parent_id": null, "aliases": []},
+
+    {"id": "vector", "name": "Vector", "level": "concept", "parent_id": "vectors", "aliases": ["column vector"]},
+    {"id": "dot_product", "name": "Dot product", "level": "concept", "parent_id": "vectors", "aliases": ["inner product", "scalar product"]},
+    {"id": "linear_combination", "name": "Linear combination", "level": "concept", "parent_id": "vectors", "aliases": []},
+    {"id": "span", "name": "Span", "level": "concept", "parent_id": "vectors", "aliases": []},
+    {"id": "linear_independence", "name": "Linear independence", "level": "concept", "parent_id": "vectors", "aliases": ["linearly independent"]},
+
+    {"id": "matrix_multiplication", "name": "Matrix multiplication", "level": "concept", "parent_id": "matrices", "aliases": ["matrix product"]},
+    {"id": "determinant", "name": "Determinant", "level": "concept", "parent_id": "matrices", "aliases": ["det"]},
+    {"id": "matrix_inverse", "name": "Matrix inverse", "level": "concept", "parent_id": "matrices", "aliases": ["inverse matrix", "invertible"]},
+
+    {"id": "gaussian_elimination", "name": "Gaussian elimination", "level": "concept", "parent_id": "linear_systems", "aliases": ["row reduction", "echelon form"]},
+    {"id": "rank", "name": "Rank", "level": "concept", "parent_id": "linear_systems", "aliases": []},
+
+    {"id": "eigenvalue", "name": "Eigenvalue", "level": "concept", "parent_id": "eigenvalues", "aliases": []},
+    {"id": "eigenvector", "name": "Eigenvector", "level": "concept", "parent_id": "eigenvalues", "aliases": ["eigenspace"]},
+    {"id": "characteristic_polynomial", "name": "Characteristic polynomial", "level": "concept", "parent_id": "eigenvalues", "aliases": ["characteristic equation"]},
+    {"id": "algebraic_multiplicity", "name": "Algebraic multiplicity", "level": "concept", "parent_id": "eigenvalues", "aliases": ["repeated eigenvalue"]},
+    {"id": "geometric_multiplicity", "name": "Geometric multiplicity", "level": "concept", "parent_id": "eigenvalues", "aliases": []},
+    {"id": "diagonalization", "name": "Diagonalization", "level": "concept", "parent_id": "eigenvalues", "aliases": ["diagonalizable"]}
+  ],
+  "edges": [
+    {"src": "vector", "dst": "dot_product", "weight": 0.9},
+    {"src": "vector", "dst": "linear_combination", "weight": 0.9},
+    {"src": "vector", "dst": "matrix_multiplication", "weight": 0.7},
+    {"src": "linear_combination", "dst": "span", "weight": 0.85},
+    {"src": "linear_combination", "dst": "linear_independence", "weight": 0.85},
+    {"src": "matrix_multiplication", "dst": "determinant", "weight": 0.6},
+    {"src": "determinant", "dst": "matrix_inverse", "weight": 0.8},
+    {"src": "gaussian_elimination", "dst": "rank", "weight": 0.8},
+    {"src": "linear_independence", "dst": "rank", "weight": 0.75},
+    {"src": "matrix_multiplication", "dst": "eigenvalue", "weight": 0.7},
+    {"src": "determinant", "dst": "characteristic_polynomial", "weight": 0.83},
+    {"src": "eigenvalue", "dst": "characteristic_polynomial", "weight": 0.8},
+    {"src": "characteristic_polynomial", "dst": "algebraic_multiplicity", "weight": 0.8},
+    {"src": "eigenvalue", "dst": "eigenvector", "weight": 0.9},
+    {"src": "gaussian_elimination", "dst": "eigenvector", "weight": 0.65},
+    {"src": "eigenvector", "dst": "geometric_multiplicity", "weight": 0.85},
+    {"src": "rank", "dst": "geometric_multiplicity", "weight": 0.7},
+    {"src": "algebraic_multiplicity", "dst": "diagonalization", "weight": 0.8},
+    {"src": "geometric_multiplicity", "dst": "diagonalization", "weight": 0.85},
+    {"src": "linear_independence", "dst": "diagonalization", "weight": 0.7}
+  ]
+}
