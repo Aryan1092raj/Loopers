@@ -1,0 +1,79 @@
+# Standalone Content Studio (RAG) stack — run this ON THE RAG SERVER (e.g. the
+# separate GPU box), NOT on the app VM. It builds and runs the generation service
+# and publishes :8000 so the app VM can reach it via
+#
+#     RAG_DB_URL=http://<this-host>:8000
+#
+# (The root-level docker-compose.rag.yml is a different thing: an overlay that
+# runs RAG on the SAME VM as the app. Use exactly one of the two.)
+#
+# ── CPU (default, no GPU needed — generation runs fine on CPU) ─────────────────
+#   cd RAG_DB
+#   cp .env.example .env && nano .env      # add ANTHROPIC_API_KEY (+ optional fallbacks)
+#   docker compose up -d --build           # first boot downloads ~3.5 GB of models
+#
+# ── GPU (speeds up query embedding + reranking) ───────────────────────────────
+#   Host needs: NVIDIA driver + NVIDIA Container Toolkit (see the deployment guide).
+#   1. uncomment `dockerfile: Dockerfile.gpu` below
+#   2. uncomment the `deploy:` block below
+#   3. docker compose up -d --build
+#
+# Full walkthrough: docs/deployment-guide, "Deploying Content Studio (RAG)".
+
+services:
+  rag:
+    build:
+      context: .
+      # dockerfile: Dockerfile.gpu     # <-- GPU: build the CUDA image instead of the CPU one
+    restart: unless-stopped
+    # LLM keys come from RAG_DB/.env (ANTHROPIC_API_KEY is enough; GROQ / GEMINI /
+    # OPENAI / AGENTROUTER are optional fallbacks used if present).
+    env_file: .env
+    environment:
+      QDRANT_URL: ""          # "" = embedded mode: reads the baked qdrant_db/ corpus.
+                              # For the Qdrant SERVER option, set http://qdrant:6333
+                              # and enable the qdrant service + volume below.
+      USE_GPU_OCR: "0"        # generation does no OCR; leave 0 even on the GPU box
+      HF_HOME: /models
+    ports:
+      # Reachable by the app VM. SECURITY: the service has NO built-in auth and
+      # binds all interfaces, so prefer pinning it to the private interface and
+      # firewalling to the app VM's IP, e.g.  "10.0.0.5:8000:8000".
+      - "8000:8000"
+    volumes:
+      - rag-models:/models    # BGE-M3 + reranker cache (~3.5 GB), downloaded once
+      - rag-output:/app/output
+    # ── GPU: uncomment to hand the container the NVIDIA GPU ──────────────────────
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://localhost:8000/api/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 180s      # first boot downloads the models
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── OPTIONAL: persistent Qdrant server instead of the baked embedded corpus ──
+  # Enable this, set QDRANT_URL=http://qdrant:6333 above, then load vectors into
+  # it with `python src/pipeline.py embed --full` (see the guide's corpus-refresh
+  # steps). Without this, the service uses the corpus committed under qdrant_db/.
+  # qdrant:
+  #   image: qdrant/qdrant:v1.12.6
+  #   restart: unless-stopped
+  #   volumes:
+  #     - qdrant-storage:/qdrant/storage
+
+volumes:
+  rag-models:
+  rag-output:
+  # qdrant-storage:
