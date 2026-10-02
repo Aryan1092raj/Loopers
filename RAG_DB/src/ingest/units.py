@@ -131,3 +131,22 @@ def write_units(units: List[SourceUnit]) -> None:
     except Exception as e:
         logger.error(f"Qdrant insertion failed for units: {e}")
         raise
+
+
+def slide_pages(source_id: str) -> list[dict]:
+    """Seam for slide matching (PLAN §4.2): [{page_no, text, image_path}] for a slide deck, ordered.
+
+    Text is the concatenation of the deck's units per slide. image_path follows the A1 page
+    render layout `pages/<source_id>/<n>.webp` under MEDIA_DIR and may not exist before A1 lands.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT COALESCE(slide_no, page_no) AS n, GROUP_CONCAT(text, '\n') FROM units"
+            " WHERE source_id = ? AND kind = 'text' AND COALESCE(slide_no, page_no) IS NOT NULL"
+            " GROUP BY n ORDER BY n",
+            (source_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"page_no": n, "text": text, "image_path": f"pages/{source_id}/{n}.webp"} for n, text in rows]
