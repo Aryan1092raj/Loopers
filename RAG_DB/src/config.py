@@ -57,7 +57,8 @@ def _setup_nvidia_libs():
                 os.environ["LD_LIBRARY_PATH"] = f"{new_ld}:{ld_path}" if ld_path else new_ld
                 restart_needed = True
 
-    if restart_needed:
+    # Under uvicorn the re-exec restarts the server process; set LOOPERS_NO_REEXEC=1 there.
+    if restart_needed and not os.environ.get("LOOPERS_NO_REEXEC"):
         os.execve(sys.executable, [sys.executable] + sys.argv, os.environ)
 
 _setup_nvidia_libs()
