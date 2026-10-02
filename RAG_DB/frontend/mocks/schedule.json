@@ -1,0 +1,12 @@
+[
+  {
+    "date": "2026-10-02",
+    "tasks": [
+      {
+        "concept_id": "characteristic_polynomial",
+        "minutes": 25,
+        "reason": "retrievability 0.78"
+      }
+    ]
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "job_id": "j1",
+  "source_id": "a1b2",
+  "status": "running",
+  "stage": "transcribe",
+  "progress": 0.42,
+  "units_created": 0,
+  "error": null
+}

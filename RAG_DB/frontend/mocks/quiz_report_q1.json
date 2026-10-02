@@ -1,0 +1,30 @@
+{
+  "quiz_id": "q1",
+  "score": 0.625,
+  "mastery_delta": [
+    {
+      "concept_id": "eigenvalues",
+      "before": 0.31,
+      "after": 0.47
+    }
+  ],
+  "weak_topics": [
+    {
+      "topic_id": "linear_algebra",
+      "p_know": 0.28
+    }
+  ],
+  "misconceptions": [
+    {
+      "label": "sign inversion in det(A - lambda I)",
+      "concept_id": "eigenvalues",
+      "citation": {}
+    }
+  ],
+  "next_steps": [
+    {
+      "concept_id": "characteristic_polynomial",
+      "reason": "prerequisite below 0.4"
+    }
+  ]
+}

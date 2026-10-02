@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "id": "characteristic_polynomial",
+      "name": "Characteristic polynomial",
+      "level": "concept",
+      "parent_id": "eigenvalues",
+      "p_know": 0.31
+    }
+  ],
+  "edges": [
+    {
+      "src": "determinant",
+      "dst": "characteristic_polynomial",
+      "weight": 0.83
+    }
+  ]
+}

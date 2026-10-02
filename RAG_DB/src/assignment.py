@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from config import OUTPUT
+from .config import OUTPUT
 from generate import retrieve, build_context, call_llm_with_fallback, _parse_json, _slug
 
 QUESTIONS_SYSTEM_PROMPT = """You are a senior university professor creating exam-ready assignments from retrieved academic content. Your questions test deep understanding, not surface recall.
@@ -63,6 +63,7 @@ HARD RULES:
    Escape `\"` as `\\\"`, `\\` as `\\\\`, newlines as `\\n`.
    Graphviz labels use single quotes inside DOT: `label='...'`.
    No markdown blocks, backticks, or explanation. Start directly with `{`.
+"""
 
 SOLUTIONS_SYSTEM_PROMPT = """You are a senior university professor writing model solutions and marking rubrics. Answers go in text mode — wrap inline math fragments like $x^2$, $c^T x$, $x_i$, $\\alpha$ in $...$ delimiters so pdflatex renders them correctly.
 
