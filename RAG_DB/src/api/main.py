@@ -2,7 +2,7 @@ import os
 import logging
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -30,6 +30,11 @@ app.add_middleware(
 )
 
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "../../processed/media")).resolve()
+
+@app.get("/", include_in_schema=False)
+def console():
+    """Dev console for ingestion and pipeline runs; the product UI is the Next.js app in frontend/."""
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 @app.get("/api/status")
 def get_status():
