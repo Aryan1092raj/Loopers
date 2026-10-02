@@ -1,15 +1,21 @@
 """Every endpoint in TRD §6 under /api.
 
-Real now: chat (retrieval, score gate, stored citations), sources list, jobs, graph,
-concepts, citations. The rest serve `frontend/mocks/*.json` or return 501 until their
+Real now: chat (retrieval, score gate, stored citations), document upload and the
+pipeline runner (plus job logs), sources list, jobs, graph, concepts, citations. The rest serve `frontend/mocks/*.json` or return 501 until their
 owner lands them (B: students, quizzes, voice; C: revision, eval).
 """
+import hashlib
 import json
+import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from api import runner
 from concepts import api as concepts
 from core.db import get_connection
 from core.models import Citation, Refusal, Segment, TutorResponse
@@ -113,6 +119,10 @@ class SimulateRequest(BaseModel):
 
 # --- 6.1 sources and jobs ---
 
+DOC_EXTS = {".pdf", ".pptx", ".docx", ".md", ".txt"}
+MAX_UPLOAD = 200 * 1024 * 1024
+
+
 @router.post("/sources", status_code=202)
 def create_source(
     file: UploadFile = File(...),
@@ -120,8 +130,79 @@ def create_source(
     title: str | None = Form(None),
     lecture_no: int | None = Form(None),
     lang: str = Form("en"),
+    subject: str = Form("general"),
 ):
-    _todo()  # A6 (documents), B1 (video); JSON {url, kind} variant arrives with B1
+    """Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.
+
+    Videos and the JSON {url, kind} variant arrive with B1.
+    """
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in DOC_EXTS:
+        raise HTTPException(415, f"Unsupported file type {ext or '(none)'}; allowed: {sorted(DOC_EXTS)}")
+    if runner._busy.locked():
+        raise HTTPException(409, "A pipeline job is already running")
+    title = title or Path(file.filename).stem
+    subject = re.sub(r"[^a-z0-9_-]", "_", subject.lower()) or "general"
+    dest_dir = runner.ROOT / "raw" / subject
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    tmp = dest_dir / f".upload_{uuid.uuid4().hex}"
+    digest, size = hashlib.sha256(), 0
+    with open(tmp, "wb") as out:
+        while chunk := file.file.read(1 << 20):
+            size += len(chunk)
+            if size > MAX_UPLOAD:
+                out.close()
+                tmp.unlink()
+                raise HTTPException(413, "File larger than 200 MB")
+            digest.update(chunk)
+            out.write(chunk)
+    source_id = digest.hexdigest()[:16]
+    # Never write the client's file name: sanitized title plus content hash.
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", title)[:40]
+    dest = dest_dir / f"{safe}_{source_id[:8]}{ext}"
+    tmp.replace(dest)
+
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO sources (source_id, kind, title, file_name, media_path, lecture_no, lang, status, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)"
+            " ON CONFLICT(source_id) DO UPDATE SET status = 'running', title = excluded.title",
+            (source_id, kind or ("slides" if ext == ".pptx" else "textbook"), title, dest.name,
+             str(dest.relative_to(runner.ROOT)), lecture_no, lang, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        job_id = runner.start(runner.DOCUMENT_STAGES, source_id)
+    except runner.Busy:
+        raise HTTPException(409, "A pipeline job is already running; the file is saved, run the pipeline later")
+    return {"source_id": source_id, "job_id": job_id}
+
+
+class PipelineRun(BaseModel):
+    stages: list[Literal["ingest", "extract", "label", "embed", "eval"]]
+
+
+@router.post("/pipeline", status_code=202)
+def run_pipeline(body: PipelineRun):
+    """Run pipeline.py stages over everything in raw/ as one job (dev console)."""
+    if not body.stages:
+        raise HTTPException(422, "No stages given")
+    try:
+        return {"job_id": runner.start(body.stages)}
+    except runner.Busy:
+        raise HTTPException(409, "A pipeline job is already running")
+
+
+@router.get("/jobs/{job_id}/log")
+def get_job_log(job_id: str, tail: int = 200):
+    path = runner.log_path(job_id)
+    if not re.fullmatch(r"j_[0-9a-f]{12}", job_id) or not path.is_file():
+        raise HTTPException(404, "Log not found")
+    return {"lines": path.read_text(errors="replace").splitlines()[-tail:]}
 
 
 @router.get("/sources")
