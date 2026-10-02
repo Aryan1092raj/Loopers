@@ -22,6 +22,7 @@
       },
       "post": {
         "summary": "Create Source",
+        "description": "Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.\n\nVideos and the JSON {url, kind} variant arrive with B1.",
         "operationId": "create_source_api_sources_post",
         "requestBody": {
           "content": {
@@ -35,6 +36,90 @@
         },
         "responses": {
           "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pipeline": {
+      "post": {
+        "summary": "Run Pipeline",
+        "description": "Run pipeline.py stages over everything in raw/ as one job (dev console).",
+        "operationId": "run_pipeline_api_pipeline_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/log": {
+      "get": {
+        "summary": "Get Job Log",
+        "operationId": "get_job_log_api_jobs__job_id__log_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "tail",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 200,
+              "title": "Tail"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -936,6 +1021,11 @@
             "type": "string",
             "title": "Lang",
             "default": "en"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "default": "general"
           }
         },
         "type": "object",
@@ -1331,6 +1421,29 @@
           "p_after"
         ],
         "title": "MasteryUpdate"
+      },
+      "PipelineRun": {
+        "properties": {
+          "stages": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ingest",
+                "extract",
+                "label",
+                "embed",
+                "eval"
+              ]
+            },
+            "type": "array",
+            "title": "Stages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stages"
+        ],
+        "title": "PipelineRun"
       },
       "QuizCreate": {
         "properties": {
