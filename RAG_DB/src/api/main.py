@@ -2,15 +2,20 @@ import os
 import logging
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+
+from api.routes import router
+from core.db import init_db
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Loopers Multimodal API")
+init_db()
+app.include_router(router)
 
 # CORS configuration (Updated per TRD spec)
 cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:3000")
@@ -25,6 +30,11 @@ app.add_middleware(
 )
 
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "../../processed/media")).resolve()
+
+@app.get("/", include_in_schema=False)
+def console():
+    """Dev console for ingestion and pipeline runs; the product UI is the Next.js app in frontend/."""
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 @app.get("/api/status")
 def get_status():

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loopers — Ingest Console</title>
+<style>
+  :root {
+    --ink: #111; --paper: #fffdf5; --yellow: #ffe14d; --pink: #ff8fab;
+    --cyan: #7df9ff; --lime: #b8ff5c; --red: #ff5c5c;
+    --border: 3px solid var(--ink); --shadow: 6px 6px 0 var(--ink);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: var(--paper); color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background-image: radial-gradient(var(--ink) 1px, transparent 1px); background-size: 22px 22px;
+  }
+  h1, h2 { margin: 0; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; }
+  h1 { font-size: clamp(28px, 5vw, 44px); }
+  h2 { font-size: 20px; margin-bottom: 14px; }
+  header {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;
+    background: var(--yellow); border: var(--border); box-shadow: var(--shadow); padding: 16px 20px; margin-bottom: 28px;
+  }
+  header a { color: var(--ink); font-weight: 800; }
+  .grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 28px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .col { display: grid; gap: 28px; }
+  .card { background: #fff; border: var(--border); box-shadow: var(--shadow); padding: 20px; }
+  .card.pink { background: var(--pink); } .card.cyan { background: var(--cyan); } .card.lime { background: var(--lime); }
+  label { display: block; font-weight: 800; font-size: 13px; text-transform: uppercase; margin: 12px 0 4px; }
+  input, select {
+    width: 100%; padding: 10px 12px; font: inherit; background: #fff; border: var(--border); border-radius: 0;
+  }
+  input:focus, select:focus, button:focus-visible, .drop:focus-within { outline: 4px solid var(--ink); outline-offset: 2px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .drop {
+    position: relative; display: grid; place-items: center; text-align: center; min-height: 130px; padding: 16px; cursor: pointer;
+    background: #fff; border: 3px dashed var(--ink); font-weight: 800;
+  }
+  .drop.over { background: var(--yellow); border-style: solid; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop small { display: block; font-weight: 500; margin-top: 6px; }
+  button {
+    font: inherit; font-weight: 900; text-transform: uppercase; cursor: pointer; padding: 12px 16px;
+    background: var(--yellow); color: var(--ink); border: var(--border); box-shadow: 4px 4px 0 var(--ink);
+    transition: transform .06s, box-shadow .06s;
+  }
+  button:hover { background: #fff; }
+  button:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
+  button:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--ink); }
+  button.wide { width: 100%; margin-top: 16px; }
+  .stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+  .stages button.all { grid-column: 1 / -1; background: var(--ink); color: var(--lime); }
+  .badge {
+    display: inline-block; padding: 4px 10px; border: var(--border); font-weight: 900; font-size: 13px;
+    text-transform: uppercase; background: #fff;
+  }
+  .badge.ok, .badge.done { background: var(--lime); } .badge.running { background: var(--yellow); }
+  .badge.failed, .badge.down { background: var(--red); } .badge.queued { background: var(--cyan); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .chip { padding: 4px 10px; border: var(--border); font-weight: 800; font-size: 13px; background: #fff; }
+  .chip.active { background: var(--yellow); } .chip.passed { background: var(--lime); }
+  .bar { height: 26px; border: var(--border); background: #fff; }
+  .bar > div { height: 100%; width: 0; background: var(--pink); border-right: var(--border); transition: width .3s; }
+  pre.log {
+    margin: 14px 0 0; height: 320px; overflow: auto; padding: 12px; background: var(--ink); color: var(--lime);
+    border: var(--border); font: 13px/1.45 ui-monospace, "JetBrains Mono", Menlo, monospace; white-space: pre-wrap;
+  }
+  table { width: 100%; border-collapse: collapse; background: #fff; }
+  th, td { border: var(--border); padding: 8px 10px; text-align: left; font-size: 14px; }
+  th { background: var(--ink); color: #fff; text-transform: uppercase; font-size: 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .err {
+    display: none; margin-top: 14px; padding: 10px 12px; background: var(--red); border: var(--border); font-weight: 800;
+  }
+  .muted { font-size: 14px; }
+  code { background: #fff; border: 2px solid var(--ink); padding: 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Loopers // Ingest</h1>
+  <div class="meta">
+    <span>API</span><span id="api" class="badge">…</span>
+    <a href="/docs">/docs</a>
+  </div>
+</header>
+
+<main class="grid">
+  <div class="col">
+    <section class="card pink" aria-labelledby="up-h">
+      <h2 id="up-h">1. Upload a document</h2>
+      <form id="upload">
+        <label class="drop" id="drop">
+          <input type="file" id="file" name="file" accept=".pdf,.pptx,.docx,.md,.txt" required>
+          <span id="drop-text">Drop a PDF / PPTX / DOCX here<small>or click to pick · max 200 MB</small></span>
+        </label>
+        <label for="title">Title</label>
+        <input id="title" name="title" placeholder="Lecture 04 — Eigenvalues">
+        <div class="row">
+          <div>
+            <label for="kind">Kind</label>
+            <select id="kind" name="kind">
+              <option value="">Auto</option><option value="textbook">Textbook</option><option value="slides">Slides</option>
+            </select>
+          </div>
+          <div>
+            <label for="lecture_no">Lecture no.</label>
+            <input id="lecture_no" name="lecture_no" type="number" min="0">
+          </div>
+        </div>
+        <label for="subject">Subject folder</label>
+        <input id="subject" name="subject" value="general">
+        <button class="wide" type="submit" id="up-btn">Upload + ingest</button>
+      </form>
+      <div class="err" id="up-err" role="alert"></div>
+    </section>
+
+    <section class="card cyan" aria-labelledby="pl-h">
+      <h2 id="pl-h">2. Run pipeline stages</h2>
+      <p class="muted">Runs <code>pipeline.py</code> over everything in <code>raw/</code>. Incremental: unchanged files are skipped.</p>
+      <div class="stages">
+        <button data-stages="ingest">Ingest</button>
+        <button data-stages="extract">Extract</button>
+        <button data-stages="label">Label</button>
+        <button data-stages="embed">Embed</button>
+        <button data-stages="eval">Eval @5</button>
+        <button class="all" data-stages="ingest,extract,label,embed">Run all → embed</button>
+      </div>
+      <div class="err" id="pl-err" role="alert"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card" aria-labelledby="job-h">
+      <h2 id="job-h">Current job</h2>
+      <div class="meta" aria-live="polite">
+        <span id="job-id" class="muted">No job yet</span>
+        <span id="job-status" class="badge">idle</span>
+        <span id="job-err" class="muted"></span>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="bar"><div id="bar"></div></div>
+      <pre class="log" id="log">Waiting for a job…</pre>
+    </section>
+
+    <section class="card lime" aria-labelledby="src-h">
+      <div class="meta" style="justify-content: space-between; margin-bottom: 14px;">
+        <h2 id="src-h" style="margin: 0">Sources</h2>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+      <table>
+        <thead><tr><th>Title</th><th>Kind</th><th>Status</th><th>Units</th></tr></thead>
+        <tbody id="sources"><tr><td colspan="4">Loading…</td></tr></tbody>
+      </table>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const STAGES = ["parse", "figures", "embed", "eval"];
+let polling = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : `${res.status} ${res.statusText}`);
+  return body;
+}
+
+function showErr(el, msg) { el.textContent = msg; el.style.display = msg ? "block" : "none"; }
+
+function cell(text) { const td = document.createElement("td"); td.textContent = text ?? "—"; return td; }
+
+async function loadSources() {
+  const tbody = $("sources");
+  try {
+    const rows = await api("/api/sources");
+    tbody.replaceChildren(...(rows.length ? rows.map((s) => {
+      const tr = document.createElement("tr");
+      const status = cell(""); const b = document.createElement("span");
+      b.className = `badge ${s.status}`; b.textContent = s.status; status.replaceChildren(b);
+      tr.append(cell(s.title), cell(s.kind), status, cell(s.unit_count));
+      return tr;
+    }) : [Object.assign(document.createElement("tr"), { innerHTML: '<td colspan="4">No sources yet — upload one.</td>' })]));
+  } catch (e) {
+    tbody.replaceChildren(Object.assign(document.createElement("tr"), { innerHTML: '<td colspan="4"></td>' }));
+    tbody.querySelector("td").textContent = e.message;
+  }
+}
+
+function renderJob(job) {
+  $("job-id").textContent = job.job_id;
+  const s = $("job-status"); s.textContent = job.status; s.className = `badge ${job.status}`;
+  $("job-err").textContent = job.error || "";
+  $("bar").style.width = `${Math.round((job.progress || 0) * 100)}%`;
+  const at = STAGES.indexOf(job.stage);
+  $("chips").replaceChildren(...STAGES.map((name, i) => {
+    const c = document.createElement("span");
+    c.className = "chip" + (job.status === "done" || i < at ? " passed" : i === at ? " active" : "");
+    c.textContent = name; return c;
+  }));
+}
+
+function setBusy(busy) { document.querySelectorAll("button[data-stages], #up-btn").forEach((b) => (b.disabled = busy)); }
+
+async function watch(jobId) {
+  localStorage.setItem("lastJob", jobId);
+  clearInterval(polling);
+  const tick = async () => {
+    try {
+      const [job, log] = await Promise.all([api(`/api/jobs/${jobId}`), api(`/api/jobs/${jobId}/log?tail=300`).catch(() => ({ lines: [] }))]);
+      renderJob(job);
+      const pre = $("log"); const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+      pre.textContent = log.lines.join("\n") || "Starting…";
+      if (atBottom) pre.scrollTop = pre.scrollHeight;
+      const finished = job.status === "done" || job.status === "failed";
+      setBusy(!finished);
+      if (finished) { clearInterval(polling); loadSources(); }
+    } catch (e) { clearInterval(polling); setBusy(false); $("job-err").textContent = e.message; }
+  };
+  await tick();
+  polling = setInterval(tick, 1500);
+}
+
+$("upload").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); showErr($("up-err"), "");
+  const fd = new FormData(ev.target);
+  for (const k of ["kind", "lecture_no", "title"]) if (!fd.get(k)) fd.delete(k);
+  try {
+    const { job_id } = await api("/api/sources", { method: "POST", body: fd });
+    ev.target.reset(); $("drop-text").firstChild.textContent = "Drop a PDF / PPTX / DOCX here";
+    loadSources(); watch(job_id);
+  } catch (e) { showErr($("up-err"), e.message); }
+});
+
+document.querySelectorAll("button[data-stages]").forEach((btn) => btn.addEventListener("click", async () => {
+  showErr($("pl-err"), "");
+  try {
+    const { job_id } = await api("/api/pipeline", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stages: btn.dataset.stages.split(",") }),
+    });
+    watch(job_id);
+  } catch (e) { showErr($("pl-err"), e.message); }
+}));
+
+const drop = $("drop"), file = $("file");
+["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) { file.files = e.dataTransfer.files; file.dispatchEvent(new Event("change")); } });
+file.addEventListener("change", () => {
+  const f = file.files[0]; if (!f) return;
+  $("drop-text").firstChild.textContent = f.name;
+  if (!$("title").value) $("title").value = f.name.replace(/\.[^.]+$/, "");
+});
+$("refresh").addEventListener("click", loadSources);
+
+api("/api/status").then(() => { $("api").textContent = "up"; $("api").className = "badge ok"; })
+  .catch(() => { $("api").textContent = "down"; $("api").className = "badge down"; });
+loadSources();
+const last = localStorage.getItem("lastJob");
+if (last) watch(last).catch(() => localStorage.removeItem("lastJob"));
+</script>
+</body>
+</html>
