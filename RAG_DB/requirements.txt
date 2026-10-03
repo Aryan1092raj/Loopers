@@ -39,3 +39,5 @@ deepeval
 textstat
 scikit-learn
 networkx
+requests
+yt-dlp

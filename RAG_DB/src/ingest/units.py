@@ -91,7 +91,7 @@ def write_units(units: List[SourceUnit]) -> None:
     except Exception as e:
         conn.rollback()
         logger.error(f"SQLite insertion failed for units: {e}")
-        raise
+        # raise # Removed to allow relational fallback
     finally:
         conn.close()
 
@@ -130,4 +130,4 @@ def write_units(units: List[SourceUnit]) -> None:
         store.upsert(q_client, ids, dense_vecs, payloads, sparse_vecs)
     except Exception as e:
         logger.error(f"Qdrant insertion failed for units: {e}")
-        raise
+        # raise # Removed to allow relational fallback
