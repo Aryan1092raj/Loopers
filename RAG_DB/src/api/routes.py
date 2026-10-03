@@ -327,6 +327,38 @@ def get_mastery(student_id: str):
         "next_review": r[5]
     } for r in rows]
 
+# --- 6.6 voice (B6) ---
+from fastapi import UploadFile, File, Form
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+import tempfile
+import os
+from voice.services import transcribe_audio, synthesize_speech
+
+@router.post("/voice/stt")
+def voice_stt(audio: UploadFile = File(...)):
+    # Write to temp file
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    with os.fdopen(fd, 'wb') as f:
+        f.write(audio.file.read())
+        
+    try:
+        res = transcribe_audio(path)
+    finally:
+        os.remove(path)
+        
+    return res
+
+class TTSRequest(BaseModel):
+    text: str
+
+@router.post("/voice/tts")
+def voice_tts(req: TTSRequest):
+    out_dir = Path("/home/pentxp/Downloads/Loopers_pranshu/RAG_DB/processed/media/tts_cache")
+    path = synthesize_speech(req.text, out_dir)
+    return FileResponse(path, media_type="audio/wav")
+
+
 # --- 6.5 quizzes (B5) ---
 from pydantic import BaseModel
 from assess.generate import generate_item
