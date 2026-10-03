@@ -328,54 +328,52 @@ def get_mastery(student_id: str):
     } for r in rows]
 
 # --- 6.5 quizzes (B5) ---
+from pydantic import BaseModel
+from assess.generate import generate_item
+from assess.dedup import check_duplicate
+from assess.verify import blind_verify
+from assess.grade import grade_submission
+from assess.report import generate_report
 
-@router.post("/quizzes")
-def create_quiz(body: QuizCreate):
-    return _mock("quiz_q1")
+class QuizGenerateReq(BaseModel):
+    concept_id: str
+    topic_id: str
+    stem_override: str | None = None
+    mock_solver_answer: str | None = None
 
+@router.post("/quiz/generate")
+def quiz_generate(req: QuizGenerateReq):
+    item = generate_item(req.concept_id, req.topic_id, req.stem_override)
+    
+    # Dedup
+    if check_duplicate(req.concept_id, item["stem"]):
+        return {"status": "rejected", "reason": "duplicate"}
+        
+    # Verify
+    if not blind_verify(item["stem"], item["options_json"], item["answer_json"], req.mock_solver_answer):
+        return {"status": "rejected", "reason": "solver_conflict"}
+        
+    # Commit item
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO items (item_id, concept_id, topic_id, type, bloom, stem, options_json, answer_json, rubric_json, unit_ids_json, difficulty_b, discrimination_a, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        (item["item_id"], item["concept_id"], item["topic_id"], item["type"], item["bloom"], item["stem"], item["options_json"], item["answer_json"], item["rubric_json"], item["unit_ids_json"], item["difficulty_b"], item["discrimination_a"])
+    )
+    conn.commit()
+    conn.close()
+    
+    return {"status": "success", "item": item}
 
-@router.post("/quizzes/{quiz_id}/answers")
-def submit_answers(quiz_id: str, body: AnswerSubmit):
-    _todo()
+class QuizSubmitReq(BaseModel):
+    quiz_id: str
+    item_id: str
+    student_answer: list[str]
 
+@router.post("/quiz/submit")
+def quiz_submit(student_id: str, req: QuizSubmitReq):
+    correct = grade_submission(student_id, req.quiz_id, req.item_id, req.student_answer)
+    return {"status": "success", "correct": correct}
 
-@router.get("/quizzes/{quiz_id}/report")
-def quiz_report(quiz_id: str):
-    return _mock("quiz_report_q1")
-
-
-# --- 6.6 revision, voice, evaluation ---
-
-@router.post("/revision/flashcards")
-def flashcards(body: FlashcardRequest):
-    _todo()
-
-
-@router.post("/revision/brief")
-def revision_brief(body: FlashcardRequest):
-    _todo()
-
-
-@router.post("/voice/stt")
-def stt(audio: UploadFile = File(...)):
-    _todo()
-
-
-@router.post("/voice/tts")
-def tts(body: TtsRequest):
-    _todo()
-
-
-@router.post("/eval/run")
-def eval_run(body: EvalRunRequest):
-    _todo()
-
-
-@router.post("/eval/simulate")
-def eval_simulate(body: SimulateRequest):
-    _todo()
-
-
-@router.get("/eval/runs/{run_id}")
-def eval_status(run_id: str):
-    _todo()
+@router.get("/quiz/report/{session_id}")
+def quiz_report(student_id: str, session_id: str):
+    return generate_report(student_id, session_id)
