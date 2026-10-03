@@ -284,26 +284,48 @@ def chat(req: ChatRequest):
 
 
 # --- 6.4 students (B4, B3, B6) ---
+from pydantic import BaseModel
+from learner.cold_start import onboard_student, get_next_diagnostic_item, process_diagnostic_response
+from learner.state import get_learner_state
 
-@router.post("/students")
-def create_student(body: StudentCreate):
-    _todo()
+class OnboardReq(BaseModel):
+    student_id: str
+    background: str
 
+@router.post("/students/onboard")
+def onboard(req: OnboardReq):
+    theta = onboard_student(req.student_id, req.background)
+    return {"status": "success", "theta_0": theta}
 
-@router.post("/students/{student_id}/intake")
-def intake(student_id: str, body: IntakeMessage):
-    _todo()
+@router.get("/students/{student_id}/diagnostic")
+def get_diagnostic(student_id: str):
+    item = get_next_diagnostic_item(student_id)
+    if not item:
+        return {"status": "complete"}
+    return item
 
+class RespondReq(BaseModel):
+    item_id: str
+    correct: bool
+
+@router.post("/students/{student_id}/diagnostic/respond")
+def respond_diagnostic(student_id: str, req: RespondReq):
+    new_theta = process_diagnostic_response(student_id, req.item_id, req.correct)
+    return {"status": "success", "new_theta": new_theta}
 
 @router.get("/students/{student_id}/mastery")
 def get_mastery(student_id: str):
-    return _mock("mastery")
-
-
-@router.get("/students/{student_id}/schedule")
-def get_schedule(student_id: str, minutes_per_day: int = 60):
-    return _mock("schedule")
-
+    conn = get_connection()
+    rows = conn.execute("SELECT concept_id, p_mastery, stability, difficulty, last_reviewed, next_review FROM learner_state WHERE student_id=?", (student_id,)).fetchall()
+    conn.close()
+    return [{
+        "concept_id": r[0],
+        "p_mastery": r[1],
+        "stability": r[2],
+        "difficulty": r[3],
+        "last_reviewed": r[4],
+        "next_review": r[5]
+    } for r in rows]
 
 # --- 6.5 quizzes (B5) ---
 
