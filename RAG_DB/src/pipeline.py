@@ -40,6 +40,8 @@ def main() -> None:
     emb.add_argument("--reset-collection", action="store_true",
                      help="Drop and recreate Qdrant collection (migrates to hybrid schema) then re-embed all")
 
+    sub.add_parser("concepts", help="Phase 4b — concept graph + tag every unit (needs an LLM key in .env)")
+
     g = sub.add_parser("generate", help="Phase 5 — RAG topic -> .pdf via OpenRouter and LaTeX")
     g.add_argument("query", nargs="+", help="topic query")
     g.add_argument("--subject", default=None,
@@ -98,6 +100,14 @@ def main() -> None:
         label.run()
     elif args.cmd == "embed":
         embed.run(force_full=args.full or args.reset_collection)
+    elif args.cmd == "concepts":
+        from concepts import build
+        from tutor.answer import NoProvider
+
+        try:
+            build.run()
+        except NoProvider as e:  # not a failure of the upload: units are searchable, only concept tags are missing
+            print(f"[concepts] skipped, no LLM provider answered: {e}")
     elif args.cmd == "generate":
         query_str = " ".join(args.query)
         # generate.run() now produces student notes + assignment only (no teacher pptx).

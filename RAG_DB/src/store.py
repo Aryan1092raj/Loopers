@@ -91,13 +91,12 @@ def _try_create_payload_indexes(c) -> None:
     from qdrant_client import models
     import logging
 
-    for field in ("doc", "kind", "subject", "doc_type"):
+    keyword = ("doc", "kind", "subject", "doc_type", "source_id", "source_type", "topic_id", "concept_ids", "lang")
+    for field, schema in [(f, models.PayloadSchemaType.KEYWORD) for f in keyword] + [
+        (f, models.PayloadSchemaType.INTEGER) for f in ("page_no", "slide_no")
+    ]:
         try:
-            c.create_payload_index(
-                collection_name=COLLECTION,
-                field_name=field,
-                field_schema=models.PayloadSchemaType.KEYWORD,
-            )
+            c.create_payload_index(collection_name=COLLECTION, field_name=field, field_schema=schema)
         except Exception:
             pass
 

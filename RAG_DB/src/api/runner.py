@@ -21,11 +21,12 @@ STAGE_ARGS = {
     "extract": ["extract"],
     "label": ["label"],
     "embed": ["embed"],
+    "concepts": ["concepts"],
     "eval": ["eval", "--k", "5"],
 }
-# Job stage names reported to the UI (TRD §6.1 document stages)
-STAGE_LABEL = {"ingest": "parse", "extract": "parse", "label": "figures", "embed": "embed", "eval": "eval"}
-DOCUMENT_STAGES = ["ingest", "extract", "label", "embed"]
+# Job stage names reported to the UI (TRD §6.1 document stages; `embed` also writes the units)
+STAGE_LABEL = {"ingest": "parse", "extract": "parse", "label": "figures", "embed": "embed", "concepts": "concepts", "eval": "eval"}
+DOCUMENT_STAGES = ["ingest", "extract", "label", "embed", "concepts"]
 
 _busy = threading.Lock()
 
