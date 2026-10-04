@@ -115,6 +115,8 @@ def _outside(question: str, history: list[dict], lang: str, gate) -> TutorRespon
     except NoProvider:
         return _refused(gate, "out_of_material")
     sentences = split_sentences(MARKER.sub("", text))
+    if not sentences:
+        return _refused(gate, "out_of_material")
     return TutorResponse(
         mode="outside_syllabus", answer=" ".join(sentences),
         segments=[Segment(text=s.rstrip("."), outside=True) for s in sentences], citations=[], gate=gate,
