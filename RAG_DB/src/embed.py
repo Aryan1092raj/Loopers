@@ -120,6 +120,26 @@ def _split_avoiding_math(body: str, chunk_words: int, overlap_words: int) -> lis
     return chunks
 
 
+# extract.py writes `<!-- page N -->` / `<!-- slide N -->` before each page's text. They become
+# one-token sentinels so word-splitting keeps them intact, then _locate() reads and strips them.
+PAGE_MARK = re.compile(r"<!-- (page|slide) (\d+) -->")
+SENTINEL = re.compile(r"[ ]*⟦(page|slide):(\d+)⟧[ ]*")
+
+
+def _locate(chunk: str, cur: tuple | None) -> tuple[str, tuple | None, tuple | None]:
+    """Strip sentinels from a packed chunk. Returns (clean_text, (kind, n) of the page holding most
+    of its words, last page seen). `cur` is the page in effect when the chunk starts."""
+    counts: dict[tuple, int] = {}
+    for w in chunk.split():
+        m = SENTINEL.fullmatch(w)
+        if m:
+            cur = (m[1], int(m[2]))
+        elif cur:
+            counts[cur] = counts.get(cur, 0) + 1
+    loc = max(counts, key=counts.get) if counts else cur
+    return SENTINEL.sub(" ", chunk).strip(), loc, cur
+
+
 def pack(body: str) -> list[str]:
     """Greedily pack paragraph pieces to ~CHUNK_WORDS, carrying OVERLAP_WORDS."""
     chunks, cur = [], ""
@@ -283,8 +303,9 @@ def build_text_chunks(
         # paragraph that lost its "which chapter am I" signal.
         # Parent-child: embed the small chunk for precise matching; store the
         # full section body as parent_text so the LLM gets richer context.
-        text = md.read_text()
+        text = PAGE_MARK.sub(lambda m: f"⟦{m[1]}:{m[2]}⟧", md.read_text())
         breadcrumb = f"{subject} > " if subject else ""
+        cur_page = None  # page in effect, carried across sections and chunks
 
         # Transcript concept files get doc_type/source_type metadata so slides
         # can distinguish textbook vs. classroom-recorded content.
@@ -301,8 +322,14 @@ def build_text_chunks(
                 parent_text = text[:3000]  # full concept content as parent
             else:
                 parent_text = f"{breadcrumb}{heading}\n{body}"[:3000]
+            parent_text = SENTINEL.sub(" ", parent_text)
             section_has_math = _has_math(body)
-            for ci, chunk in enumerate(pack_with_math_awareness(body, section_has_math)):
+            ci = -1
+            for chunk in pack_with_math_awareness(body, section_has_math):
+                chunk, loc, cur_page = _locate(chunk, cur_page)
+                if not chunk:  # a bare page marker
+                    continue
+                ci += 1
                 chunk_text = f"{breadcrumb}{heading}\n{chunk}"
                 has_math = "$$" in chunk_text or "$" in chunk_text or "\\" in chunk_text
                 has_table = "|" in chunk_text and "---" in chunk_text
@@ -315,6 +342,8 @@ def build_text_chunks(
                     "section_index": si,
                     "chunk_index": ci,
                     "heading": heading,
+                    "page_no": loc[1] if loc and loc[0] == "page" else None,
+                    "slide_no": loc[1] if loc and loc[0] == "slide" else None,
                     "text": chunk_text,
                     "parent_text": parent_text,
                     "has_math": has_math,
@@ -325,6 +354,44 @@ def build_text_chunks(
                 })
                 ids.append(f"{md.stem}::{si}::{ci}")
     return docs_out, metas, ids
+
+
+def _write_units(metas: list[dict], ids: list[str]) -> None:
+    """Mirror document chunks into the SQLite `units` table through write_units (Qdrant is written above)."""
+    from datetime import datetime, timezone
+    from core.db import get_connection, init_db
+    from core.models import Locator, SourceUnit
+    from ingest.units import write_units
+
+    units = [
+        SourceUnit(
+            unit_id=uid, source_id=m["doc"], source_type="slides" if m.get("slide_no") else "textbook",
+            kind="text", title=m["doc"], heading=m.get("heading"), text=m["text"], parent_text=m.get("parent_text"),
+            locator=Locator(page_no=m.get("page_no"), slide_no=m.get("slide_no")), has_math=m["has_math"],
+        )
+        for uid, m in zip(ids, metas)
+        if m.get("kind") == "text" and m.get("doc_type") == "pdf"
+    ]
+    if not units:
+        return
+    init_db()
+    conn = get_connection()
+    try:
+        for stem in {u.source_id for u in units}:
+            # chunk ids shift when a doc changes, so drop its old rows first (mirrors store.delete_by_doc)
+            conn.execute("DELETE FROM unit_concepts WHERE unit_id IN (SELECT unit_id FROM units WHERE source_id = ?)", (stem,))
+            conn.execute("DELETE FROM units WHERE source_id = ?", (stem,))
+            conn.execute(
+                "INSERT OR IGNORE INTO sources (source_id, kind, title, file_name, status, created_at)"
+                " VALUES (?, ?, ?, ?, 'done', ?)",
+                (stem, next(u.source_type for u in units if u.source_id == stem), stem, stem,
+                 datetime.now(timezone.utc).isoformat()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    write_units(units, qdrant=False)
+    print(f"[embed] {len(units)} document units written to SQLite")
 
 
 def build_image_chunks(
@@ -485,6 +552,7 @@ def run(force_full: bool = False) -> None:
     dense_vecs, sparse_vecs = encode_hybrid(all_docs)
 
     store.upsert(c, all_ids, dense_vecs, all_metas, sparse_vectors=sparse_vecs)
+    _write_units(metas, ids)
 
     # Optional knowledge graph extraction (gated by KG_EXTRACTION=1 env var)
     if KG_EXTRACTION and all_docs:

@@ -14,10 +14,11 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
-def write_units(units: List[SourceUnit]) -> None:
+def write_units(units: List[SourceUnit], qdrant: bool = True) -> None:
     """
     Persists SourceUnit records to the SQLite relational database and the Qdrant vector store.
-    Transactional safety is prioritized for relational data.
+    Transactional safety is prioritized for relational data. qdrant=False skips the vector write
+    for callers (embed.py) that already upsert their own payloads.
     """
     if not units:
         return
@@ -94,6 +95,9 @@ def write_units(units: List[SourceUnit]) -> None:
         raise
     finally:
         conn.close()
+
+    if not qdrant:
+        return
 
     # 2. Write to Qdrant
     try:
