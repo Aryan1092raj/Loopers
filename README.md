@@ -52,7 +52,7 @@ Interim text corpus while the demo course is undecided: OpenStax *Calculus
 Volume 1* (Strang, Herman et al., Rice University), licensed CC BY-NC-SA 4.0.
 Fetched with `python src/pipeline.py download --source openstax --subjects calculus-vol1`
 into `RAG_DB/raw/openstax_calculus-vol1.pdf` (gitignored, not redistributed here).
-The planned demo course is MIT OCW 18.06 Linear Algebra (CC BY-NC-SA 4.0).
+The pipeline is subject-agnostic; any course material dropped into `raw/` works.
 
 ## Status
 
