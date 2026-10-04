@@ -25,6 +25,7 @@ import fitz  # PyMuPDF
 
 from config import RAW, PROCESSED, IMAGES, METADATA, classify
 from ingest import load_registry
+from ingest.figures import caption_figures
 from ingest.pages import ZOOM as PAGE_ZOOM
 
 # A page whose extracted text is shorter than this is treated as a scan
@@ -316,6 +317,21 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
             except Exception as e:
                 print(f"[extract] Warning: failed to extract image xref {xref} on page {pno}: {e}")
                 
+        # 2a. Vector figures found by their "Figure N.M" caption (graphs are drawn with paths, not embedded images)
+        for rect in caption_figures(page, [fitz.Rect(e["bbox"]) for e in image_elements]):
+            short_fname = f"p{pno}_figure_{img_idx}.png"
+            pix = page.get_pixmap(clip=rect + (-6, -6, 6, 6), dpi=200)
+            if is_solid_color(pix):
+                continue
+            (IMAGES / stem).mkdir(parents=True, exist_ok=True)
+            pix.save(IMAGES / stem / short_fname)
+            image_elements.append({
+                "type": "image",
+                "bbox": (rect.x0, rect.y0, rect.x1, rect.y1),
+                "content": f"\n![figure]({Path('images') / stem / short_fname})\n",
+            })
+            img_idx += 1
+
         # 2b. Vector figure fallback — older PDFs draw figures with paths,
         # not embedded raster images. Detect pages with significant drawing
         # content but no extracted raster images, and render the drawing
