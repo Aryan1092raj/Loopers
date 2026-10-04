@@ -121,6 +121,21 @@ def call_groq(messages: list, max_tokens: int = 1000, model: str | None = None) 
     return _post_request(GROQ_BASE_URL, headers, payload, auth_keys=keys)
 
 
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
+
+def call_gemini(messages: list, max_tokens: int = 1000, model: str = "gemini-2.5-flash") -> str:
+    """Gemini through its OpenAI-compatible endpoint (accepts image_url data URIs)."""
+    import config
+    keys = [k for k in config.GEMINI_KEYS if k]
+    if not keys:
+        raise Exception("GEMINI_API_KEY is not set in .env. Please set it to proceed.")
+
+    headers = {"Content-Type": "application/json"}
+    payload = {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.01}
+    return _post_request(GEMINI_BASE_URL, headers, payload, auth_keys=keys)
+
+
 def call_groq_orchestrator(messages: list, max_tokens: int = 4096, model: str | None = None) -> str:
     """Groq call using the dedicated Orchestrator key (key index 0)."""
     import config

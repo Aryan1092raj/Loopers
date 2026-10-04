@@ -164,6 +164,7 @@ def __getattr__(name: str):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_KEYS = [k.strip() for k in GEMINI_API_KEY.split(",")] if GEMINI_API_KEY else []
 
 
 # File type buckets keyed off extension.
