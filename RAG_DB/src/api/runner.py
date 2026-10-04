@@ -69,13 +69,21 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
                 if code != 0:
                     fail_job(job_id, f"{stage} exited with code {code}")
                     return
-            update_job_progress(job_id, "done", 1.0)
+            update_job_progress(job_id, "done", 1.0, units_created=_count_units(source_id) if source_id else 0)
             if source_id:
                 _set_source_status(source_id, "done")
     except Exception as e:
         fail_job(job_id, str(e))
     finally:
         _busy.release()
+
+
+def _count_units(source_id: str) -> int:
+    conn = get_connection()
+    try:
+        return conn.execute("SELECT COUNT(*) FROM units WHERE source_id = ?", (source_id,)).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def _set_source_status(source_id: str, status: str) -> None:
