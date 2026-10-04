@@ -16,6 +16,7 @@ PARALLEL EXECUTION:
 import base64
 import json
 import mimetypes
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -72,7 +73,25 @@ def save_labels(labels: dict) -> None:
     LABELS.write_text(json.dumps(labels, indent=2), encoding="utf-8")
 
 
-def label_image(path: Path) -> dict:
+def _figure_info(key: str) -> dict:
+    """page_no and bbox (page-image pixels) that extract recorded for `<stem>/<file>` in metadata/figures/<stem>.json."""
+    stem, _, name = key.partition("/")
+    path = METADATA / "figures" / f"{stem}.json"
+    return json.loads(path.read_text()).get(name, {}) if name and path.is_file() else {}
+
+
+def _page_context(key: str, limit: int = 1200) -> str:
+    """Text printed on the page a figure sits on (from the `<!-- page N -->` markers), to ground its caption."""
+    page = _figure_info(key).get("page_no")
+    md = PROCESSED / f"{key.split('/')[0]}.md"
+    if not page or not md.is_file():
+        return ""
+    found = re.search(rf"<!-- page {page} -->(.*?)(?=<!-- page \d+ -->|\Z)", md.read_text(encoding="utf-8"), re.S)
+    text = re.sub(r"!\[figure\]\([^)]*\)", "", found.group(1)) if found else ""
+    return " ".join(text.split())[:limit]
+
+
+def label_image(path: Path, context: str = "") -> dict:
     # Use specialized prompts depending on the type detected by PPStructure
     if "_equation_" in path.name:
         prompt = """You are transcribing a mathematical equation from an academic document.
@@ -94,6 +113,14 @@ Respond with ONLY a JSON object, no prose, matching:
 }"""
     else:
         prompt = PROMPT
+
+    # A figure's caption is searched by students' questions: begin it with the printed figure number and
+    # use the page's own wording, so "what does Figure 2.14 show" and textbook terms both match.
+    prompt += "\nIf a figure number such as 'Figure 2.14' is printed, begin the caption with it."
+    if context:
+        prompt += (
+            "\nText printed on the same page (use it only to name terms and quantities as the book does): " + context
+        )
 
     text = label_image_with_vision(path, prompt)
     result = _parse_json(text)
@@ -126,8 +153,9 @@ def _label_one(img: Path, labels: dict) -> tuple[str, dict | None, str]:
     """Worker: label a single image. Returns (img.name, result_or_None, error_msg)."""
     key = img.relative_to(IMAGES).as_posix()
     try:
-        result = label_image(img)
+        result = label_image(img, _page_context(key))
         result["image"] = str(img.relative_to(PROCESSED))
+        result.update(_figure_info(key))  # page_no and bbox for the figure unit's locator
         return key, result, ""
     except Exception as e:  # noqa: BLE001
         return key, None, str(e)
