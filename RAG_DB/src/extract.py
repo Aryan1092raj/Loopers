@@ -156,6 +156,13 @@ def is_solid_color(pix) -> bool:
     return True
 
 
+def _add_page(parts: list, pno: int, page_parts: list) -> None:
+    """Append one page's text behind a `<!-- page N -->` marker; embed.py turns it into page_no."""
+    body = "\n\n".join(p for p in page_parts if p)
+    if body:
+        parts.append(f"<!-- page {pno} -->\n\n{body}")
+
+
 def extract_pdf_digital(path: Path, stem: str) -> str:
     from collections import Counter
     doc = fitz.open(path)
@@ -423,7 +430,7 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
         for el in final_elements:
             page_parts.append(el["content"])
             
-        parts.append("\n\n".join(p for p in page_parts if p))
+        _add_page(parts, pno, page_parts)
         
     doc.close()
     return "\n\n".join(p for p in parts if p)
@@ -667,7 +674,7 @@ def _extract_pdf_ppstructure(path: Path, stem: str) -> str:
                     else:
                         page_parts.append(text)
 
-        parts.append("\n\n".join(p for p in page_parts if p))
+        _add_page(parts, pno, page_parts)
 
     doc.close()
     return "\n\n".join(p for p in parts if p)
@@ -697,7 +704,7 @@ def extract_pptx(path: Path, stem: str) -> str:
     md_lines = []
     
     for idx, slide in enumerate(prs.slides, 1):
-        md_lines.append(f"\n## Slide {idx}")
+        md_lines.append(f"\n<!-- slide {idx} -->\n## Slide {idx}")
         
         # Extract title if present
         title = ""
@@ -755,6 +762,8 @@ def _extract_one(args: tuple) -> tuple[str, str, str]:
     try:
         if ftype == "pdf":
             md = extract_pdf(src, stem)
+            from ingest.pages import render_pages
+            render_pages(src, stem)
         elif ftype == "image":
             md = extract_image(src, stem)
         elif ftype == "md":
