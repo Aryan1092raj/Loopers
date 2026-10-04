@@ -88,13 +88,14 @@ def generate_eval_questions() -> None:
         raise
 
 
-def load_questions() -> list[dict]:
-    if not EVAL_QUESTIONS.exists():
+def load_questions(figures: bool = False) -> list[dict]:
+    path = EVAL_QUESTIONS.with_name("figure_questions.json") if figures else EVAL_QUESTIONS
+    if not path.exists():
         raise SystemExit(
-            f"No eval set at {EVAL_QUESTIONS}. Copy "
+            f"No eval set at {path}. Copy "
             "templates/eval_questions.example.json there and edit for your chapter."
         )
-    return json.loads(EVAL_QUESTIONS.read_text())
+    return json.loads(path.read_text())
 
 
 def _hit(retrieved_text: str, must_contain: list[str]) -> bool:
@@ -102,10 +103,12 @@ def _hit(retrieved_text: str, must_contain: list[str]) -> bool:
     return all(phrase.lower() in hay for phrase in must_contain)
 
 
-def run(k: int = 5, judge: bool = False) -> dict:
+def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
+    """figures=True runs metadata/figure_questions.json: [{"q": ..., "figure": "<crop file name>"}], a hit when a
+    retrieved figure chunk is that crop."""
     from generate import retrieve
 
-    questions = load_questions()
+    questions = load_questions(figures)
     hits = 0
     rows = []
     
@@ -119,6 +122,8 @@ def run(k: int = 5, judge: bool = False) -> dict:
         chunks, _ = retrieve(q, k, subject=subject)
         joined = "\n".join(c.get("text", "") for c in chunks)
         hit = _hit(joined, item.get("must_contain", []))
+        if item.get("figure"):
+            hit = hit and any(str(c.get("image", "")).endswith(item["figure"]) for c in chunks)
         hits += hit
         rows.append({"q": q, "hit": hit, "chunks": chunks})
         print(f"{i:>2}  {'✓' if hit else '✗':>5}  {q[:56]}")
@@ -158,5 +163,6 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--judge", action="store_true")
+    ap.add_argument("--figures", action="store_true", help="run metadata/figure_questions.json")
     a = ap.parse_args()
-    run(k=a.k, judge=a.judge)
+    run(k=a.k, judge=a.judge, figures=a.figures)

@@ -64,6 +64,7 @@ def main() -> None:
     e = sub.add_parser("eval", help="retrieval hit@k over eval_questions.json")
     e.add_argument("--k", type=int, default=5)
     e.add_argument("--judge", action="store_true", help="also Groq-score answers (API)")
+    e.add_argument("--figures", action="store_true", help="run metadata/figure_questions.json (needs labelled figures)")
 
     sub.add_parser("eval-gen", help="Auto-generate relevant evaluation questions from processed content")
 
@@ -126,7 +127,7 @@ def main() -> None:
         print(f"[assignment] student: {out[0]}")
         print(f"[assignment] teacher: {out[1]}")
     elif args.cmd == "eval":
-        evaluate.run(k=args.k, judge=args.judge)
+        evaluate.run(k=args.k, judge=args.judge, figures=args.figures)
     elif args.cmd == "eval-gen":
         evaluate.generate_eval_questions()
     elif args.cmd == "download":
