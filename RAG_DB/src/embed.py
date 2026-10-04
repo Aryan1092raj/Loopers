@@ -341,7 +341,10 @@ def build_image_chunks(
     for name, lab in load_labels().items():
         kws = ", ".join(lab.get("keywords", []))
         text = f"{lab.get('caption', '')} [{lab.get('type', '')}] {kws}"
-        parent_stem = name.split("_p")[0] if "_p" in name else Path(name).stem
+        if "/" in name:  # <stem>/<file>, as written by extract and label
+            parent_stem = name.split("/")[0]
+        else:
+            parent_stem = name.split("_p")[0] if "_p" in name else Path(name).stem
         docs_out.append(text)
         metas.append({
             "kind": "image",

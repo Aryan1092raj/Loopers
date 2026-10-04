@@ -114,26 +114,30 @@ Respond with ONLY a JSON object, no prose, matching:
 
 def _parent_md(image_name: str) -> Path | None:
     """Figure name is <stem>_p<n>_<i>.png or <stem>.<ext>; parent md is <stem>.md."""
-    stem = image_name.split("_p")[0] if "_p" in image_name else Path(image_name).stem
+    if "/" in image_name:  # <stem>/<file>: extract writes figures per document
+        stem = image_name.split("/")[0]
+    else:
+        stem = image_name.split("_p")[0] if "_p" in image_name else Path(image_name).stem
     md = PROCESSED / f"{stem}.md"
     return md if md.exists() else None
 
 
 def _label_one(img: Path, labels: dict) -> tuple[str, dict | None, str]:
     """Worker: label a single image. Returns (img.name, result_or_None, error_msg)."""
+    key = img.relative_to(IMAGES).as_posix()
     try:
         result = label_image(img)
         result["image"] = str(img.relative_to(PROCESSED))
-        return img.name, result, ""
+        return key, result, ""
     except Exception as e:  # noqa: BLE001
-        return img.name, None, str(e)
+        return key, None, str(e)
 
 
 def run() -> None:
     labels = load_labels()
 
     imgs = [
-        p for p in sorted(IMAGES.glob("*"))
+        p for p in sorted(IMAGES.rglob("*"))
         if p.is_file() and p.name != ".gitkeep"
     ]
     if not imgs:
@@ -142,7 +146,7 @@ def run() -> None:
 
     todo = [
         img for img in imgs
-        if img.name not in labels
+        if img.relative_to(IMAGES).as_posix() not in labels
         and "_equation_" not in img.name  # equations → LaTeX text, skip Moondream
     ]
     if not todo:
