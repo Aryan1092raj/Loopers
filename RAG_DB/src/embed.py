@@ -122,7 +122,7 @@ def _split_avoiding_math(body: str, chunk_words: int, overlap_words: int) -> lis
 
 # extract.py writes `<!-- page N -->` / `<!-- slide N -->` before each page's text. They become
 # one-token sentinels so word-splitting keeps them intact, then _locate() reads and strips them.
-PAGE_MARK = re.compile(r"<!-- (page|slide) (\d+) -->")
+PAGE_MARK = re.compile(r"<!-- (page|slide) (\d+) -->", re.IGNORECASE)  # glmocr writes "Page"
 SENTINEL = re.compile(r"[ ]*⟦(page|slide):(\d+)⟧[ ]*")
 
 
@@ -270,7 +270,9 @@ def build_text_chunks(
                 from parsers.docling_parser import semantic_chunks
                 docling_doc = pickle.loads(sidecar.read_bytes())
                 sem_chunks = semantic_chunks(docling_doc)
+                page = None
                 for ci, chunk_data in enumerate(sem_chunks):
+                    page = chunk_data.get("page_no") or page  # a chunk without provenance stays on the previous page
                     heading = " > ".join(chunk_data.get("headings", [])) or "Intro"
                     breadcrumb = f"{subject} > " if subject else ""
                     chunk_text = f"{breadcrumb}{heading}\n{chunk_data['text']}"
@@ -285,7 +287,7 @@ def build_text_chunks(
                         "subject": subject,
                         "chunk_index": ci,
                         "heading": heading,
-                        "page_no": chunk_data.get("page_no"),
+                        "page_no": page,
                         "text": chunk_text,
                         "has_math": has_math,
                         "has_table": has_table,
@@ -303,7 +305,7 @@ def build_text_chunks(
         # paragraph that lost its "which chapter am I" signal.
         # Parent-child: embed the small chunk for precise matching; store the
         # full section body as parent_text so the LLM gets richer context.
-        text = PAGE_MARK.sub(lambda m: f"⟦{m[1]}:{m[2]}⟧", md.read_text())
+        text = PAGE_MARK.sub(lambda m: f"⟦{m[1].lower()}:{m[2]}⟧", md.read_text())
         breadcrumb = f"{subject} > " if subject else ""
         cur_page = None  # page in effect, carried across sections and chunks
 
@@ -360,13 +362,31 @@ def build_text_chunks(
 def _add_ids(metas: list[dict], ids: list[str]) -> None:
     """Give every payload the unit_id and source_id that the `units` table and citations key on.
     source_id is the registry sha256[:16] (what POST /api/sources returns), or the file stem if unregistered."""
-    from ingest.registry import source_ids
-    sids = source_ids()
+    from ingest.registry import by_stem
+    registered = by_stem()
     for m, uid in zip(metas, ids):
         m["unit_id"] = uid
-        m["source_id"] = sids.get(m["doc"], m["doc"])
-        if m.get("doc_type") == "pdf":
+        m["source_id"] = registered.get(m["doc"], {}).get("source_id", m["doc"])
+        if m.get("doc_type") in ("pdf", "image"):
             m["source_type"] = "slides" if m.get("slide_no") else "textbook"
+
+
+def _check_locators(metas: list[dict]) -> None:
+    """TRD §3.3: a unit without a locator fails ingestion. Plain .md and .txt sources have no pages and are exempt."""
+    from collections import Counter
+    from ingest.registry import by_stem
+
+    registered = by_stem()
+    missing = Counter(
+        m["doc"] for m in metas
+        if m.get("doc_type") == "pdf" and registered.get(m["doc"], {}).get("type") in ("pdf", "pptx")
+        and m.get("page_no") is None and m.get("slide_no") is None
+    )
+    if missing:
+        raise RuntimeError(
+            "chunks without page_no or slide_no: " + ", ".join(f"{d} ({n})" for d, n in missing.items())
+            + ". Re-run extract so every page carries a `<!-- page N -->` marker."
+        )
 
 
 def _write_units(metas: list[dict], ids: list[str]) -> None:
@@ -379,22 +399,25 @@ def _write_units(metas: list[dict], ids: list[str]) -> None:
     units = [
         SourceUnit(
             unit_id=uid, source_id=m["source_id"], source_type=m["source_type"],
-            kind="text", title=m["doc"], heading=m.get("heading"), text=m["text"], parent_text=m.get("parent_text"),
-            locator=Locator(page_no=m.get("page_no"), slide_no=m.get("slide_no")), has_math=m["has_math"],
+            kind="figure" if m["kind"] == "image" else "text", title=m["doc"], heading=m.get("heading"),
+            text=m["text"], parent_text=m.get("parent_text"), image_path=m.get("image"),
+            locator=Locator(page_no=m.get("page_no"), slide_no=m.get("slide_no"), bbox=m.get("bbox")),
+            has_math=bool(m.get("has_math")),
         )
         for uid, m in zip(ids, metas)
-        if m.get("kind") == "text" and m.get("doc_type") == "pdf"
+        if m["kind"] in ("text", "image") and m.get("doc_type") in ("pdf", "image")
     ]
     if not units:
         return
     init_db()
     conn = get_connection()
     try:
-        for sid in {u.source_id for u in units}:
+        for sid, kind in {(u.source_id, u.kind) for u in units}:
             first = next(u for u in units if u.source_id == sid)
-            # chunk ids shift when a doc changes, so drop its old rows first (mirrors store.delete_by_doc)
-            conn.execute("DELETE FROM unit_concepts WHERE unit_id IN (SELECT unit_id FROM units WHERE source_id = ?)", (sid,))
-            conn.execute("DELETE FROM units WHERE source_id = ?", (sid,))
+            # chunk ids shift when a doc changes, so drop its old rows of this kind first (mirrors store.delete_by_doc)
+            conn.execute(
+                "DELETE FROM unit_concepts WHERE unit_id IN (SELECT unit_id FROM units WHERE source_id = ? AND kind = ?)", (sid, kind))
+            conn.execute("DELETE FROM units WHERE source_id = ? AND kind = ?", (sid, kind))
             conn.execute(
                 "INSERT OR IGNORE INTO sources (source_id, kind, title, file_name, status, created_at)"
                 " VALUES (?, ?, ?, ?, 'done', ?)",
@@ -405,6 +428,12 @@ def _write_units(metas: list[dict], ids: list[str]) -> None:
         conn.close()
     write_units(units, qdrant=False)
     print(f"[embed] {len(units)} document units written to SQLite")
+
+
+def _page_from_name(name: str) -> int | None:
+    """Figures are saved as p<page>_figure_<n>.png, so the page survives even without extract's bbox index."""
+    found = re.match(r"p(\d+)_", Path(name).name)
+    return int(found.group(1)) if found else None
 
 
 def build_image_chunks(
@@ -434,6 +463,8 @@ def build_image_chunks(
             "type": lab.get("type", ""),
             "image": lab.get("image", ""),
             "caption": lab.get("caption", ""),
+            "page_no": lab.get("page_no") or _page_from_name(name),
+            "bbox": lab.get("bbox"),
             "text": text,
         })
         ids.append(f"img::{name}")
@@ -485,9 +516,6 @@ def run(force_full: bool = False) -> None:
     state = _load_embed_state()
 
     if force_full:
-        print("[embed] --full rebuild: wiping collection and re-embedding everything...")
-        c = store.client()
-        store.reset_collection(c)
         changed_docs = None  # all
         images_changed = True
     else:
@@ -515,7 +543,16 @@ def run(force_full: bool = False) -> None:
         print(f"[embed] incremental: {len(changed_docs - {'__images__'})} doc(s) changed"
               + (", images changed" if images_changed else ""))
 
-        c = store.client()
+    # Build only what changed, before touching the index: a chunk without a locator must not leave it half rebuilt
+    docs, metas, ids = build_text_chunks(changed_docs)
+    _check_locators(metas)
+    idocs, imetas, iids = build_image_chunks(changed_docs)
+
+    c = store.client()
+    if force_full:
+        print("[embed] --full rebuild: wiping collection and re-embedding everything...")
+        store.reset_collection(c)
+    else:
         if not c.collection_exists(COLLECTION):
             # First run: collection doesn't exist yet — create it with the
             # right schema instead of crashing on the delete-stale-chunks step.
@@ -532,9 +569,6 @@ def run(force_full: bool = False) -> None:
         if images_changed:
             _delete_image_chunks(c)
 
-    # Build only what changed
-    docs, metas, ids = build_text_chunks(changed_docs)
-    idocs, imetas, iids = build_image_chunks(changed_docs)
     all_docs = docs + idocs
     all_metas = metas + imetas
     all_ids = ids + iids
@@ -566,7 +600,7 @@ def run(force_full: bool = False) -> None:
     dense_vecs, sparse_vecs = encode_hybrid(all_docs)
 
     store.upsert(c, all_ids, dense_vecs, all_metas, sparse_vectors=sparse_vecs)
-    _write_units(metas, ids)
+    _write_units(metas + imetas, ids + iids)
 
     # Optional knowledge graph extraction (gated by KG_EXTRACTION=1 env var)
     if KG_EXTRACTION and all_docs:
