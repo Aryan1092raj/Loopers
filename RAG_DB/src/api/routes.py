@@ -182,7 +182,7 @@ def create_source(
 
 
 class PipelineRun(BaseModel):
-    stages: list[Literal["ingest", "extract", "label", "embed", "eval"]]
+    stages: list[Literal["ingest", "extract", "label", "embed", "concepts", "eval"]]
 
 
 @router.post("/pipeline", status_code=202)
@@ -228,8 +228,11 @@ def get_job(job_id: str):
 @router.get("/graph")
 def get_graph(student_id: str | None = None):
     g = concepts.get_graph()
+    known = {}
+    if student_id:
+        known = {r["concept_id"]: r["p_mastery"] for r in _rows("SELECT concept_id, p_mastery FROM learner_state WHERE student_id = ?", (student_id,))}
     nodes = [
-        {"id": n["id"], "name": n["name"], "level": n["level"], "parent_id": n["parent_id"], "p_know": DEFAULT_P_KNOW}
+        {"id": n["id"], "name": n["name"], "level": n["level"], "parent_id": n["parent_id"], "p_know": known.get(n["id"], DEFAULT_P_KNOW)}
         for n in g["nodes"]
     ]
     return {"nodes": nodes, "edges": g["edges"]}
@@ -240,7 +243,10 @@ def get_concept(concept_id: str):
     concept = concepts.get_concept(concept_id)
     if concept is None:
         raise HTTPException(404, "Concept not found")
-    unit_ids = [r["unit_id"] for r in _rows("SELECT unit_id FROM unit_concepts WHERE concept_id = ?", (concept_id,))]
+    unit_ids = [
+        r["unit_id"] for r in
+        _rows("SELECT unit_id FROM unit_concepts WHERE concept_id = ? ORDER BY score DESC LIMIT 20", (concept_id,))
+    ]
     return {
         "concept": concept,
         "prerequisites": concepts.prerequisites(concept_id),
