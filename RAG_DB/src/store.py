@@ -208,6 +208,7 @@ def query(
     subject: str | None = None,
     kind: str | None = None,
     sparse_vector: dict | None = None,
+    math_boost: bool = True,
 ) -> list[dict]:
     """Hybrid search: RRF-fuse dense + sparse sub-queries via Qdrant Prefetch API.
 
@@ -220,6 +221,7 @@ def query(
         subject:       Optional Qdrant payload filter on 'subject' field.
         kind:          Optional Qdrant payload filter on 'kind' field.
         sparse_vector: {"indices": [...], "values": [...]} BM25 sparse vector.
+        math_boost:    Re-sort has_math chunks first (notes and decks). The tutor passes False to keep RRF order.
     """
     from qdrant_client import models
 
@@ -287,8 +289,9 @@ def query(
         payload["score"] = p.score
         out.append(payload)
     
-    # Boost math chunks: sort by has_math desc, then score desc
-    out.sort(key=lambda x: (0 if x.get("has_math") else 1, -x.get("score", 0)))
+    if math_boost:
+        # Boost math chunks: sort by has_math desc, then score desc
+        out.sort(key=lambda x: (0 if x.get("has_math") else 1, -x.get("score", 0)))
     return out
 
 

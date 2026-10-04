@@ -244,10 +244,14 @@ def retrieve(
     k: int = TOP_K,
     subject: str | None = None,
     learner_profile: dict | None = None,
+    tutor: bool = False,
 ) -> tuple[list[dict], bool]:
     """Two-stage hybrid retrieval:
       - Reranks text chunks via Cross-Encoder (BAAI/bge-reranker-base).
       - Preserves up to 2 high-scoring image chunks to ensure visual richness.
+
+    tutor=True keeps the RRF order (no has_math re-sort) and skips the last-word prerequisite
+    injection; tutor/retrieve.py adds prerequisites from tagged concepts instead.
     """
     import store
     from embeddings import encode_hybrid
@@ -259,7 +263,7 @@ def retrieve(
     # Stage 1: retrieve broadly via hybrid RRF (dense + sparse)
     broad = store.query(
         store.client(), qvec, k=max(BROAD_K, k * 3),
-        subject=subject, sparse_vector=qsparse,
+        subject=subject, sparse_vector=qsparse, math_boost=not tutor,
     )
 
     # Fallback: if subject-specific retrieval yields very few results, do unfiltered search
@@ -267,7 +271,7 @@ def retrieve(
         print(f"[generate] Subject-specific search for '{subject}' yielded only {len(broad)} chunks. Falling back to unfiltered database query.")
         broad = store.query(
             store.client(), qvec, k=max(BROAD_K, k * 3),
-            subject=None, sparse_vector=qsparse,
+            subject=None, sparse_vector=qsparse, math_boost=not tutor,
         )
 
     # Stage 2: CLAF rerank if learner profile provided
@@ -333,7 +337,7 @@ def retrieve(
     try:
         from knowledge_graph import build_graph, get_prerequisites
         G = build_graph()
-        if G.number_of_nodes() > 0:
+        if G.number_of_nodes() > 0 and not tutor:
             top_concept = query.strip().split()[-1]
             prereqs = get_prerequisites(G, top_concept, depth=2)
             if prereqs:
