@@ -14,15 +14,18 @@ PARALLEL EXECUTION:
   so multiple PDFs are extracted on separate cores simultaneously.
   Workers=min(cpu_count, 8) to avoid OOM on large PDFs.
 """
+import json
 import os
+import re
 import shutil
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import fitz  # PyMuPDF
 
-from config import RAW, PROCESSED, IMAGES, classify
+from config import RAW, PROCESSED, IMAGES, METADATA, classify
 from ingest import load_registry
+from ingest.pages import ZOOM as PAGE_ZOOM
 
 # A page whose extracted text is shorter than this is treated as a scan
 # and sent to OCR instead.
@@ -156,6 +159,18 @@ def is_solid_color(pix) -> bool:
     return True
 
 
+def _figure_entry(pno: int, bbox, scale: float) -> dict:
+    """Page and bbox of a saved figure in page-image pixels (ingest.pages.ZOOM); `scale` converts the bbox's units."""
+    return {"page_no": pno, "bbox": [round(v * scale, 1) for v in bbox]}
+
+
+def _write_figure_index(stem: str, figures: dict) -> None:
+    """metadata/figures/<stem>.json: {figure file: {page_no, bbox}}, merged into labels by label.py."""
+    path = METADATA / "figures" / f"{stem}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(figures, indent=1))
+
+
 def _add_page(parts: list, pno: int, page_parts: list) -> None:
     """Append one page's text behind a `<!-- page N -->` marker; embed.py turns it into page_no."""
     body = "\n\n".join(p for p in page_parts if p)
@@ -175,8 +190,9 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
             xref_page_counts[xref] += 1
             
     parts = []
+    figures = {}
     img_idx = 1
-    
+
     for pno, page in enumerate(doc, start=1):
         page_parts = []
         page_width = page.rect.width
@@ -377,6 +393,11 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
                 "block_no": block_no
             })
             
+        for el in image_elements:  # bbox is in PDF points
+            saved_as = re.search(r"(p\d+_figure_\d+\.png)", el["content"])
+            if saved_as:
+                figures[saved_as.group(1)] = _figure_entry(pno, el["bbox"], PAGE_ZOOM)
+
         # 4. Merge elements
         final_elements = list(text_elements)
         non_text_elements = table_elements + image_elements
@@ -433,6 +454,7 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
         _add_page(parts, pno, page_parts)
         
     doc.close()
+    _write_figure_index(stem, figures)
     return "\n\n".join(p for p in parts if p)
 
 
@@ -594,6 +616,7 @@ def _extract_pdf_ppstructure(path: Path, stem: str) -> str:
 
     doc = fitz.open(path)
     parts = []
+    figures = {}
     for pno, page in enumerate(doc, start=1):
         # Render page
         pix = page.get_pixmap(matrix=fitz.Matrix(OCR_ZOOM, OCR_ZOOM))
@@ -655,6 +678,7 @@ def _extract_pdf_ppstructure(path: Path, stem: str) -> str:
                 short_fname = f"p{pno}_figure_{fig_idx}.png"
                 img_dir = IMAGES / stem
                 _save_crop_img(elem['img'], img_dir, short_fname)
+                figures[short_fname] = _figure_entry(pno, bbox, PAGE_ZOOM / OCR_ZOOM)  # bbox is in OCR_ZOOM pixels
                 rel_path = Path('images') / stem / short_fname
                 page_parts.append(f"\n![figure]({rel_path})\n")
                 fig_idx += 1
@@ -677,6 +701,7 @@ def _extract_pdf_ppstructure(path: Path, stem: str) -> str:
         _add_page(parts, pno, page_parts)
 
     doc.close()
+    _write_figure_index(stem, figures)
     return "\n\n".join(p for p in parts if p)
 
 
