@@ -121,23 +121,26 @@ def _split_avoiding_math(body: str, chunk_words: int, overlap_words: int) -> lis
 
 
 # extract.py writes `<!-- page N -->` / `<!-- slide N -->` before each page's text. They become
-# one-token sentinels so word-splitting keeps them intact, then _locate() reads and strips them.
+# sentinels, and _page_segments() cuts each section at them so that no chunk crosses a page.
 PAGE_MARK = re.compile(r"<!-- (page|slide) (\d+) -->", re.IGNORECASE)  # glmocr writes "Page"
-SENTINEL = re.compile(r"[ ]*⟦(page|slide):(\d+)⟧[ ]*")
+SENTINEL = re.compile(r"[ ]*⟦(?:page|slide):\d+⟧[ ]*")
+SENTINEL_SPLIT = re.compile(r"⟦(page|slide):(\d+)⟧")
 
 
-def _locate(chunk: str, cur: tuple | None) -> tuple[str, tuple | None, tuple | None]:
-    """Strip sentinels from a packed chunk. Returns (clean_text, (kind, n) of the page holding most
-    of its words, last page seen). `cur` is the page in effect when the chunk starts."""
-    counts: dict[tuple, int] = {}
-    for w in chunk.split():
-        m = SENTINEL.fullmatch(w)
-        if m:
-            cur = (m[1], int(m[2]))
-        elif cur:
-            counts[cur] = counts.get(cur, 0) + 1
-    loc = max(counts, key=counts.get) if counts else cur
-    return SENTINEL.sub(" ", chunk).strip(), loc, cur
+def _page_segments(body: str, cur: tuple | None) -> tuple[list[tuple[tuple | None, str]], tuple | None]:
+    """Cut a section body at page sentinels. Returns ([((kind, n) or None, text)], page in effect after the body).
+
+    `cur` is the page in effect where the body starts. A chunk never spans two pages, so its page_no is exact.
+    """
+    parts = SENTINEL_SPLIT.split(body)  # text, kind, n, text, kind, n, text ...
+    segments, text = [], parts[0]
+    for i in range(1, len(parts), 3):
+        if text.strip():
+            segments.append((cur, text))
+        cur, text = (parts[i], int(parts[i + 1])), parts[i + 2]
+    if text.strip():
+        segments.append((cur, text))
+    return segments, cur
 
 
 def pack(body: str) -> list[str]:
@@ -325,36 +328,34 @@ def build_text_chunks(
             else:
                 parent_text = f"{breadcrumb}{heading}\n{body}"[:3000]
             parent_text = SENTINEL.sub(" ", parent_text)
-            section_has_math = _has_math(body)
             ci = -1
-            for chunk in pack_with_math_awareness(body, section_has_math):
-                chunk, loc, cur_page = _locate(chunk, cur_page)
-                if not chunk:  # a bare page marker
-                    continue
-                ci += 1
-                chunk_text = f"{breadcrumb}{heading}\n{chunk}"
-                has_math = "$$" in chunk_text or "$" in chunk_text or "\\" in chunk_text
-                has_table = "|" in chunk_text and "---" in chunk_text
-                has_tikz = "vector graphics" in chunk_text or "tikz" in chunk_text.lower()
-                docs_out.append(chunk_text)
-                metas.append({
-                    "kind": "text",
-                    "doc": md.stem,
-                    "subject": subject,
-                    "section_index": si,
-                    "chunk_index": ci,
-                    "heading": heading,
-                    "page_no": loc[1] if loc and loc[0] == "page" else None,
-                    "slide_no": loc[1] if loc and loc[0] == "slide" else None,
-                    "text": chunk_text,
-                    "parent_text": parent_text,
-                    "has_math": has_math,
-                    "has_table": has_table,
-                    "has_tikz": has_tikz,
-                    "chunker": "word_pack",
-                    **extra_meta,
-                })
-                ids.append(f"{md.stem}::{si}::{ci}")
+            segments, cur_page = _page_segments(body, cur_page)
+            for loc, segment in segments:
+                for chunk in pack_with_math_awareness(segment, _has_math(segment)):
+                    ci += 1
+                    chunk_text = f"{breadcrumb}{heading}\n{chunk}"
+                    has_math = "$$" in chunk_text or "$" in chunk_text or "\\" in chunk_text
+                    has_table = "|" in chunk_text and "---" in chunk_text
+                    has_tikz = "vector graphics" in chunk_text or "tikz" in chunk_text.lower()
+                    docs_out.append(chunk_text)
+                    metas.append({
+                        "kind": "text",
+                        "doc": md.stem,
+                        "subject": subject,
+                        "section_index": si,
+                        "chunk_index": ci,
+                        "heading": heading,
+                        "page_no": loc[1] if loc and loc[0] == "page" else None,
+                        "slide_no": loc[1] if loc and loc[0] == "slide" else None,
+                        "text": chunk_text,
+                        "parent_text": parent_text,
+                        "has_math": has_math,
+                        "has_table": has_table,
+                        "has_tikz": has_tikz,
+                        "chunker": "word_pack",
+                        **extra_meta,
+                    })
+                    ids.append(f"{md.stem}::{si}::{ci}")
     _add_ids(metas, ids)
     return docs_out, metas, ids
 
