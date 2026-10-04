@@ -4,9 +4,11 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from api.routes import router
+from config import PAGES_DIR
 from core.db import init_db
 
 # Setup logging
@@ -30,6 +32,9 @@ app.add_middleware(
 )
 
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "../../processed/media")).resolve()
+
+# Page images (A1): <source_id>/<n>.webp, written by ingest/pages.py under processed/media/pages.
+app.mount("/media/pages", StaticFiles(directory=PAGES_DIR, check_dir=False), name="pages")
 
 @app.get("/", include_in_schema=False)
 def console():

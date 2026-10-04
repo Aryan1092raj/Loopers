@@ -67,6 +67,7 @@ load_dotenv(ROOT / ".env")
 RAW = ROOT / "raw"
 PROCESSED = ROOT / "processed"
 IMAGES = PROCESSED / "images"
+PAGES_DIR = PROCESSED / "media" / "pages"  # <source_id>/<n>.webp, served at /media/pages
 FORMULA_DIR = PROCESSED / "formulas"
 TABLES_DIR = PROCESSED / "tables"
 METADATA = ROOT / "metadata"

@@ -763,7 +763,8 @@ def _extract_one(args: tuple) -> tuple[str, str, str]:
         if ftype == "pdf":
             md = extract_pdf(src, stem)
             from ingest.pages import render_pages
-            render_pages(src, stem)
+            from ingest.registry import sha256
+            render_pages(src, sha256(src)[:16])  # page images are keyed by source_id, like units
         elif ftype == "image":
             md = extract_image(src, stem)
         elif ftype == "md":
