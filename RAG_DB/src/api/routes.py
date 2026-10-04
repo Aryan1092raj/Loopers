@@ -316,16 +316,60 @@ def respond_diagnostic(student_id: str, req: RespondReq):
 @router.get("/students/{student_id}/mastery")
 def get_mastery(student_id: str):
     conn = get_connection()
-    rows = conn.execute("SELECT concept_id, p_mastery, stability, difficulty, last_reviewed, next_review FROM learner_state WHERE student_id=?", (student_id,)).fetchall()
+    rows = conn.execute('''
+        SELECT ls.concept_id, ls.p_mastery, ls.stability, ls.last_reviewed,
+               (SELECT COUNT(*) FROM attempts a JOIN items i ON a.item_id=i.item_id WHERE a.student_id=ls.student_id AND i.concept_id=ls.concept_id) as n_obs
+        FROM learner_state ls WHERE ls.student_id=?
+    ''', (student_id,)).fetchall()
     conn.close()
-    return [{
-        "concept_id": r[0],
-        "p_mastery": r[1],
-        "stability": r[2],
-        "difficulty": r[3],
-        "last_reviewed": r[4],
-        "next_review": r[5]
-    } for r in rows]
+    
+    result = []
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for r in rows:
+        cid, p, s, last_rev, nobs = r
+        r_val = 0.0
+        if last_rev:
+            try:
+                lr_dt = datetime.datetime.fromisoformat(last_rev)
+                if lr_dt.tzinfo is None:
+                    lr_dt = lr_dt.replace(tzinfo=datetime.timezone.utc)
+                t = max((now - lr_dt).total_seconds() / 86400, 0)
+                r_val = (9 * s) / (9 * s + t) if s > 0 else 0.0
+            except:
+                pass
+                
+        result.append({
+            "concept_id": cid,
+            "p_know": p,
+            "retrievability": round(r_val, 3),
+            "n_obs": nobs or 0,
+            "last_review": last_rev
+        })
+    return result
+
+@router.get("/students/{student_id}/schedule")
+def get_schedule(student_id: str, minutes_per_day: int = 60):
+    from learner.scheduler import get_next_schedule
+    import datetime
+    
+    sched = get_next_schedule(student_id, limit=10)
+    today = datetime.date.today().isoformat()
+    
+    tasks = []
+    for item in sched:
+        tasks.append({
+            "concept_id": item["concept_id"],
+            "minutes": 15,
+            "reason": "retrievability low" if item.get("is_overdue") else "mastery gap"
+        })
+        
+    return [
+        {
+            "date": today,
+            "tasks": tasks
+        }
+    ]
 
 # --- 6.6 voice (B6) ---
 from fastapi import UploadFile, File, Form
