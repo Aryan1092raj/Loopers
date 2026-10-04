@@ -1,6 +1,6 @@
 """Every endpoint in TRD §6 under /api.
 
-Real now: chat (retrieval, score gate, stored citations), document upload and the
+Real now: chat (retrieval, two-tier gate, cited answers, SQLite sessions), document upload and the
 pipeline runner (plus job logs), sources list, jobs, graph, concepts, citations. The rest serve `frontend/mocks/*.json` or return 501 until their
 owner lands them (B: students, quizzes, voice; C: revision, eval).
 """
@@ -18,9 +18,8 @@ from pydantic import BaseModel
 from api import runner
 from concepts import api as concepts
 from core.db import get_connection
-from core.models import Citation, Refusal, Segment, TutorResponse
-from tutor.cite import citation_from_payload, resolve
-from tutor.gate import decide
+from core.models import Citation, TutorResponse
+from tutor.cite import resolve
 
 router = APIRouter(prefix="/api")
 
@@ -260,27 +259,13 @@ def get_citation(unit_id: str):
 
 # --- 6.3 chat ---
 
-REFUSAL_MESSAGE = "I could not find this in your course material."
-
-
 @router.post("/chat", response_model=TutorResponse)
 def chat(req: ChatRequest):
-    from generate import retrieve  # heavy: loads BGE-M3, reranker and Qdrant on first call
+    from tutor.answer import respond  # heavy: retrieval loads BGE-M3, the reranker and Qdrant on first call
 
-    chunks, _ = retrieve(req.message)
-    # Gate on reranked text scores only; image and prerequisite chunks carry other score scales.
-    text_scores = [c.get("score", 0.0) for c in chunks if c.get("kind") == "text" and not c.get("_is_prerequisite")]
-    gate = decide(max(text_scores, default=0.0))
-    if gate.decision == "refuse":
-        return TutorResponse(
-            mode="refused", answer="", segments=[], citations=[], gate=gate,
-            refusal=Refusal(reason="out_of_material", message=REFUSAL_MESSAGE, offer_outside=True),
-        )
-    citations = [citation_from_payload(f"E{i}", c) for i, c in enumerate(chunks, 1)]
-    # ponytail: stub answer quotes the evidence; A5 replaces it with generation + marker validation
-    segments = [Segment(text=c.excerpt, evidence_ids=[c.id]) for c in citations]
-    answer = " ".join(f"{s.text} [{s.evidence_ids[0]}]" for s in segments)
-    return TutorResponse(mode="grounded", answer=answer, segments=segments, citations=citations, gate=gate)
+    return respond(
+        req.message, req.student_id, req.session_id, req.scope.model_dump(), req.lang, req.allow_outside,
+    )
 
 
 # --- 6.4 students (B4, B3, B6) ---
