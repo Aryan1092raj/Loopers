@@ -9,7 +9,7 @@ import re
 import config
 from core.models import Evidence, Refusal, Segment, TutorResponse
 from tutor import session
-from tutor.cite import MARKER, citations_for, sentence_ok, split_sentences
+from tutor.cite import MARKER, body, citations_for, sentence_ok, split_sentences
 from tutor.gate import decide, tier2, top_score
 from tutor.retrieve import retrieve_evidence
 
@@ -58,7 +58,7 @@ def _evidence_block(evidence: list[Evidence]) -> str:
     for e in evidence:
         head = f" - {e.unit.heading}" if e.unit.heading else ""
         tag = " (background)" if e.is_prerequisite else ""
-        parts.append(f"[{e.id}] {e.unit.title}{head}{tag}\n{e.unit.text[:EVIDENCE_CHARS]}")
+        parts.append(f"[{e.id}] {e.unit.title}{head}{tag}\n{body(e.unit.text, e.unit.heading)[:EVIDENCE_CHARS]}")
     return "\n\n".join(parts)
 
 
@@ -127,7 +127,10 @@ def _grounded(question: str, evidence: list[Evidence], history: list[dict], lang
         sentences = split_sentences(_generate(question, evidence, history, lang))
     except NoProvider:
         # no LLM configured: quote the best evidence so the API still returns cited, grounded text
-        sentences = [f"{e.unit.text[:EXTRACT_CHARS].strip()} [{e.id}]" for e in evidence if not e.is_prerequisite and e.unit.kind != "figure"][:3]
+        sentences = [
+            f"{body(e.unit.text, e.unit.heading)[:EXTRACT_CHARS].strip()} [{e.id}]"
+            for e in evidence if not e.is_prerequisite and e.unit.kind != "figure"
+        ][:3]
     bad = [i for i, s in enumerate(sentences) if not sentence_ok(s, ids)]
     fixed = _repair([sentences[i] for i in bad], evidence) if bad else []
     dropped = 0

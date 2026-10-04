@@ -17,6 +17,12 @@ MARKER = re.compile(r"\[(E\d+)\]")
 MIN_FACTUAL_WORDS = 7  # TRD §7.4: a sentence longer than 6 words is factual unless it is a question
 
 
+def body(text: str, heading: str | None) -> str:
+    """Chunk text without the "subject > heading" line that embed.py prepends for contextual retrieval."""
+    first, _, rest = text.partition("\n")
+    return rest if rest and heading and first.endswith(heading) else text
+
+
 def _page_image_url(source_id: str, loc: Locator) -> str | None:
     n = loc.page_no or loc.slide_no or loc.matched_slide_page
     if n and (config.PAGES_DIR / source_id / f"{n}.webp").is_file():
@@ -48,7 +54,7 @@ def citation_from_payload(eid: str, p: dict) -> Citation:
         locator=loc,
         seek_url=f"/media/video/{Path(media).name}#t={loc.t_start}" if media and loc.t_start is not None else None,
         page_image_url=_page_image_url(source_id, loc),
-        excerpt=(p.get("text") or "")[:EXCERPT_CHARS],
+        excerpt=body(p.get("text") or "", p.get("heading"))[:EXCERPT_CHARS],
     )
 
 
@@ -61,7 +67,7 @@ def resolve(unit_ids: list[str]) -> list[Citation]:
     try:
         marks = ",".join("?" * len(unit_ids))
         rows = conn.execute(
-            f"SELECT u.unit_id, u.source_id, u.text, u.page_no, u.slide_no, u.t_start, u.t_end,"
+            f"SELECT u.unit_id, u.source_id, u.text, u.heading, u.page_no, u.slide_no, u.t_start, u.t_end,"
             f" u.matched_slide_page, u.bbox_json AS bbox, s.title, s.kind AS source_type, s.media_path"
             f" FROM units u LEFT JOIN sources s ON s.source_id = u.source_id WHERE u.unit_id IN ({marks})",
             unit_ids,
@@ -80,7 +86,7 @@ def citations_for(evidence: list) -> list[Citation]:
     for e in evidence:
         c = by_unit.get(e.unit.unit_id) or citation_from_payload(e.id, {
             "unit_id": e.unit.unit_id, "source_id": e.unit.source_id, "source_type": e.unit.source_type,
-            "title": e.unit.title, "text": e.unit.text, **e.unit.locator.model_dump(),
+            "title": e.unit.title, "text": e.unit.text, "heading": e.unit.heading, **e.unit.locator.model_dump(),
         })
         out.append(c.model_copy(update={"id": e.id}))
     return out
