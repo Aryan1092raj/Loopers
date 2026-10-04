@@ -353,7 +353,20 @@ def build_text_chunks(
                     **extra_meta,
                 })
                 ids.append(f"{md.stem}::{si}::{ci}")
+    _add_ids(metas, ids)
     return docs_out, metas, ids
+
+
+def _add_ids(metas: list[dict], ids: list[str]) -> None:
+    """Give every payload the unit_id and source_id that the `units` table and citations key on.
+    source_id is the registry sha256[:16] (what POST /api/sources returns), or the file stem if unregistered."""
+    from ingest.registry import source_ids
+    sids = source_ids()
+    for m, uid in zip(metas, ids):
+        m["unit_id"] = uid
+        m["source_id"] = sids.get(m["doc"], m["doc"])
+        if m.get("doc_type") == "pdf":
+            m["source_type"] = "slides" if m.get("slide_no") else "textbook"
 
 
 def _write_units(metas: list[dict], ids: list[str]) -> None:
@@ -365,7 +378,7 @@ def _write_units(metas: list[dict], ids: list[str]) -> None:
 
     units = [
         SourceUnit(
-            unit_id=uid, source_id=m["doc"], source_type="slides" if m.get("slide_no") else "textbook",
+            unit_id=uid, source_id=m["source_id"], source_type=m["source_type"],
             kind="text", title=m["doc"], heading=m.get("heading"), text=m["text"], parent_text=m.get("parent_text"),
             locator=Locator(page_no=m.get("page_no"), slide_no=m.get("slide_no")), has_math=m["has_math"],
         )
@@ -377,15 +390,15 @@ def _write_units(metas: list[dict], ids: list[str]) -> None:
     init_db()
     conn = get_connection()
     try:
-        for stem in {u.source_id for u in units}:
+        for sid in {u.source_id for u in units}:
+            first = next(u for u in units if u.source_id == sid)
             # chunk ids shift when a doc changes, so drop its old rows first (mirrors store.delete_by_doc)
-            conn.execute("DELETE FROM unit_concepts WHERE unit_id IN (SELECT unit_id FROM units WHERE source_id = ?)", (stem,))
-            conn.execute("DELETE FROM units WHERE source_id = ?", (stem,))
+            conn.execute("DELETE FROM unit_concepts WHERE unit_id IN (SELECT unit_id FROM units WHERE source_id = ?)", (sid,))
+            conn.execute("DELETE FROM units WHERE source_id = ?", (sid,))
             conn.execute(
                 "INSERT OR IGNORE INTO sources (source_id, kind, title, file_name, status, created_at)"
                 " VALUES (?, ?, ?, ?, 'done', ?)",
-                (stem, next(u.source_type for u in units if u.source_id == stem), stem, stem,
-                 datetime.now(timezone.utc).isoformat()),
+                (sid, first.source_type, first.title, first.title, datetime.now(timezone.utc).isoformat()),
             )
         conn.commit()
     finally:
@@ -424,6 +437,7 @@ def build_image_chunks(
             "text": text,
         })
         ids.append(f"img::{name}")
+    _add_ids(metas, ids)
     return docs_out, metas, ids
 
 

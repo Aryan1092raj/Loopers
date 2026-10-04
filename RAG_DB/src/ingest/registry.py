@@ -25,6 +25,11 @@ def load_registry() -> dict:
     return {}
 
 
+def source_ids() -> dict[str, str]:
+    """{processed file stem: source_id}, where source_id is sha256[:16], the id POST /api/sources returns."""
+    return {Path(e["markdown"]).stem: e["sha256"][:16] for e in load_registry().values() if e.get("markdown")}
+
+
 def save_registry(reg: dict) -> None:
     METADATA.mkdir(parents=True, exist_ok=True)
     REGISTRY.write_text(json.dumps(reg, indent=2))
