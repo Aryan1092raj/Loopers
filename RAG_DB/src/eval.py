@@ -104,8 +104,8 @@ def _hit(retrieved_text: str, must_contain: list[str]) -> bool:
 
 
 def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
-    """figures=True runs metadata/figure_questions.json: [{"q": ..., "figure": "<crop file name>"}], a hit when a
-    retrieved figure chunk is that crop."""
+    """figures=True runs metadata/figure_questions.json: [{"q": ..., "figure_page": N}], a hit when a retrieved
+    figure chunk comes from page N (crop file names change whenever extraction finds more figures)."""
     from generate import retrieve
 
     questions = load_questions(figures)
@@ -122,8 +122,8 @@ def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
         chunks, _ = retrieve(q, k, subject=subject)
         joined = "\n".join(c.get("text", "") for c in chunks)
         hit = _hit(joined, item.get("must_contain", []))
-        if item.get("figure"):
-            hit = hit and any(str(c.get("image", "")).endswith(item["figure"]) for c in chunks)
+        if item.get("figure_page"):
+            hit = hit and any(c.get("kind") == "image" and c.get("page_no") == item["figure_page"] for c in chunks)
         hits += hit
         rows.append({"q": q, "hit": hit, "chunks": chunks})
         print(f"{i:>2}  {'✓' if hit else '✗':>5}  {q[:56]}")
