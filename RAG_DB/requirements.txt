@@ -39,3 +39,10 @@ deepeval
 textstat
 scikit-learn
 networkx
+requests
+yt-dlp
+rapidfuzz
+rapidocr-onnxruntime
+scenedetect[opencv]
+faster-whisper
+piper-tts

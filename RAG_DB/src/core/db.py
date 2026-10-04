@@ -105,6 +105,29 @@ def init_db(db_path: Path | None = None):
       created_at TEXT NOT NULL
     );
     
+    CREATE TABLE IF NOT EXISTS learner_state (
+      student_id TEXT NOT NULL,
+      concept_id TEXT NOT NULL,
+      p_mastery REAL NOT NULL,
+      stability REAL,
+      difficulty REAL,
+      last_reviewed TEXT,
+      next_review TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (student_id, concept_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS evidence (
+      evidence_id TEXT PRIMARY KEY,
+      student_id TEXT NOT NULL,
+      concept_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      correct REAL NOT NULL,
+      score REAL,
+      raw_data TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS mastery (
       student_id TEXT NOT NULL REFERENCES students(student_id), 
       concept_id TEXT NOT NULL REFERENCES concepts(concept_id),

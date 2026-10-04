@@ -284,76 +284,172 @@ def chat(req: ChatRequest):
 
 
 # --- 6.4 students (B4, B3, B6) ---
+from pydantic import BaseModel
+from learner.cold_start import onboard_student, get_next_diagnostic_item, process_diagnostic_response
+from learner.state import get_learner_state
 
-@router.post("/students")
-def create_student(body: StudentCreate):
-    _todo()
+class OnboardReq(BaseModel):
+    student_id: str
+    background: str
 
+@router.post("/students/onboard")
+def onboard(req: OnboardReq):
+    theta = onboard_student(req.student_id, req.background)
+    return {"status": "success", "theta_0": theta}
 
-@router.post("/students/{student_id}/intake")
-def intake(student_id: str, body: IntakeMessage):
-    _todo()
+@router.get("/students/{student_id}/diagnostic")
+def get_diagnostic(student_id: str):
+    item = get_next_diagnostic_item(student_id)
+    if not item:
+        return {"status": "complete"}
+    return item
 
+class RespondReq(BaseModel):
+    item_id: str
+    correct: bool
+
+@router.post("/students/{student_id}/diagnostic/respond")
+def respond_diagnostic(student_id: str, req: RespondReq):
+    new_theta = process_diagnostic_response(student_id, req.item_id, req.correct)
+    return {"status": "success", "new_theta": new_theta}
 
 @router.get("/students/{student_id}/mastery")
 def get_mastery(student_id: str):
-    return _mock("mastery")
-
+    conn = get_connection()
+    rows = conn.execute('''
+        SELECT ls.concept_id, ls.p_mastery, ls.stability, ls.last_reviewed,
+               (SELECT COUNT(*) FROM attempts a JOIN items i ON a.item_id=i.item_id WHERE a.student_id=ls.student_id AND i.concept_id=ls.concept_id) as n_obs
+        FROM learner_state ls WHERE ls.student_id=?
+    ''', (student_id,)).fetchall()
+    conn.close()
+    
+    result = []
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for r in rows:
+        cid, p, s, last_rev, nobs = r
+        r_val = 0.0
+        if last_rev:
+            try:
+                lr_dt = datetime.datetime.fromisoformat(last_rev)
+                if lr_dt.tzinfo is None:
+                    lr_dt = lr_dt.replace(tzinfo=datetime.timezone.utc)
+                t = max((now - lr_dt).total_seconds() / 86400, 0)
+                r_val = (9 * s) / (9 * s + t) if s > 0 else 0.0
+            except:
+                pass
+                
+        result.append({
+            "concept_id": cid,
+            "p_know": p,
+            "retrievability": round(r_val, 3),
+            "n_obs": nobs or 0,
+            "last_review": last_rev
+        })
+    return result
 
 @router.get("/students/{student_id}/schedule")
 def get_schedule(student_id: str, minutes_per_day: int = 60):
-    return _mock("schedule")
+    from learner.scheduler import get_next_schedule
+    import datetime
+    
+    sched = get_next_schedule(student_id, limit=10)
+    today = datetime.date.today().isoformat()
+    
+    tasks = []
+    for item in sched:
+        tasks.append({
+            "concept_id": item["concept_id"],
+            "minutes": 15,
+            "reason": "retrievability low" if item.get("is_overdue") else "mastery gap"
+        })
+        
+    return [
+        {
+            "date": today,
+            "tasks": tasks
+        }
+    ]
+
+# --- 6.6 voice (B6) ---
+from fastapi import UploadFile, File, Form
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+import tempfile
+import os
+from voice.services import transcribe_audio, synthesize_speech
+
+@router.post("/voice/stt")
+def voice_stt(audio: UploadFile = File(...)):
+    # Write to temp file
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    with os.fdopen(fd, 'wb') as f:
+        f.write(audio.file.read())
+        
+    try:
+        res = transcribe_audio(path)
+    finally:
+        os.remove(path)
+        
+    return res
+
+class TTSRequest(BaseModel):
+    text: str
+
+@router.post("/voice/tts")
+def voice_tts(req: TTSRequest):
+    out_dir = Path("/home/pentxp/Downloads/Loopers_pranshu/RAG_DB/processed/media/tts_cache")
+    path = synthesize_speech(req.text, out_dir)
+    return FileResponse(path, media_type="audio/wav")
 
 
 # --- 6.5 quizzes (B5) ---
+from pydantic import BaseModel
+from assess.generate import generate_item
+from assess.dedup import check_duplicate
+from assess.verify import blind_verify
+from assess.grade import grade_submission
+from assess.report import generate_report
 
-@router.post("/quizzes")
-def create_quiz(body: QuizCreate):
-    return _mock("quiz_q1")
+class QuizGenerateReq(BaseModel):
+    concept_id: str
+    topic_id: str
+    stem_override: str | None = None
+    mock_solver_answer: str | None = None
 
+@router.post("/quiz/generate")
+def quiz_generate(req: QuizGenerateReq):
+    item = generate_item(req.concept_id, req.topic_id, req.stem_override)
+    
+    # Dedup
+    if check_duplicate(req.concept_id, item["stem"]):
+        return {"status": "rejected", "reason": "duplicate"}
+        
+    # Verify
+    if not blind_verify(item["stem"], item["options_json"], item["answer_json"], req.mock_solver_answer):
+        return {"status": "rejected", "reason": "solver_conflict"}
+        
+    # Commit item
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO items (item_id, concept_id, topic_id, type, bloom, stem, options_json, answer_json, rubric_json, unit_ids_json, difficulty_b, discrimination_a, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        (item["item_id"], item["concept_id"], item["topic_id"], item["type"], item["bloom"], item["stem"], item["options_json"], item["answer_json"], item["rubric_json"], item["unit_ids_json"], item["difficulty_b"], item["discrimination_a"])
+    )
+    conn.commit()
+    conn.close()
+    
+    return {"status": "success", "item": item}
 
-@router.post("/quizzes/{quiz_id}/answers")
-def submit_answers(quiz_id: str, body: AnswerSubmit):
-    _todo()
+class QuizSubmitReq(BaseModel):
+    quiz_id: str
+    item_id: str
+    student_answer: list[str]
 
+@router.post("/quiz/submit")
+def quiz_submit(student_id: str, req: QuizSubmitReq):
+    correct = grade_submission(student_id, req.quiz_id, req.item_id, req.student_answer)
+    return {"status": "success", "correct": correct}
 
-@router.get("/quizzes/{quiz_id}/report")
-def quiz_report(quiz_id: str):
-    return _mock("quiz_report_q1")
-
-
-# --- 6.6 revision, voice, evaluation ---
-
-@router.post("/revision/flashcards")
-def flashcards(body: FlashcardRequest):
-    _todo()
-
-
-@router.post("/revision/brief")
-def revision_brief(body: FlashcardRequest):
-    _todo()
-
-
-@router.post("/voice/stt")
-def stt(audio: UploadFile = File(...)):
-    _todo()
-
-
-@router.post("/voice/tts")
-def tts(body: TtsRequest):
-    _todo()
-
-
-@router.post("/eval/run")
-def eval_run(body: EvalRunRequest):
-    _todo()
-
-
-@router.post("/eval/simulate")
-def eval_simulate(body: SimulateRequest):
-    _todo()
-
-
-@router.get("/eval/runs/{run_id}")
-def eval_status(run_id: str):
-    _todo()
+@router.get("/quiz/report/{session_id}")
+def quiz_report(student_id: str, session_id: str):
+    return generate_report(student_id, session_id)
