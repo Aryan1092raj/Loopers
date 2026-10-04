@@ -28,7 +28,7 @@ OPENSTAX_CATALOG: dict[str, str] = {
     "physics-vol3": "https://assets.openstax.org/oscms-prodcms/media/documents/UniversityPhysicsVolume3-WEB_eCWMrX9.pdf",
     "chemistry":    "https://assets.openstax.org/oscms-prodcms/media/documents/Chemistry2e-WEB_7Wbidtx.pdf",
     "biology":      "https://assets.openstax.org/oscms-prodcms/media/documents/Biology2e-WEB_jPEbvhN.pdf",
-    "calculus-vol1":"https://assets.openstax.org/oscms-prodcms/media/documents/CalculusVolume1-WEB_BPjVvPFv.pdf",
+    "calculus-vol1":"https://assets.openstax.org/oscms-prodcms/media/documents/calculus-volume-1_-_WEB.pdf",
     "calculus-vol2":"https://assets.openstax.org/oscms-prodcms/media/documents/CalculusVolume2-WEB_3gkPxuT.pdf",
     "statistics":   "https://assets.openstax.org/oscms-prodcms/media/documents/IntroductoryStatistics-WEB_YkxdPZ0.pdf",
     "economics":    "https://assets.openstax.org/oscms-prodcms/media/documents/Principles_of_Economics_3e-WEB_xr7RfNi.pdf",
