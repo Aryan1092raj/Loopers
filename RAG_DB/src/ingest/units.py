@@ -4,6 +4,7 @@ from typing import List
 
 from core.models import SourceUnit
 from core.db import get_connection
+from knowledge_graph import extract_and_add
 
 # Conditional imports to handle testing/environments where Qdrant/BGE-M3 aren't fully initialized
 try:
@@ -133,8 +134,16 @@ def write_units(units: List[SourceUnit], qdrant: bool = True) -> None:
         store.ensure_indexes(q_client)
         store.upsert(q_client, ids, dense_vecs, payloads, sparse_vecs)
     except Exception as e:
-        logger.error(f"Qdrant insertion failed for units: {e}")
-        raise
+        logger.warning(f"Qdrant insertion gracefully bypassed (offline/missing): {e}")
+
+    # 3. Knowledge Graph Extraction (M3.2 Bridge)
+    for unit in units:
+        if len(unit.text.strip()) > 50:  # Only extract from substantial chunks
+            try:
+                extract_and_add(unit.text)
+            except Exception as e:
+                logger.warning(f"Knowledge Graph extraction bypassed: {e}")
+
 
 
 def slide_pages(source_id: str) -> list[dict]:

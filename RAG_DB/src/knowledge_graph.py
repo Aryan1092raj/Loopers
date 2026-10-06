@@ -1,35 +1,27 @@
-"""Knowledge Graph — prerequisite concept tracking (Phase 6).
+"""Knowledge Graph — prerequisite concept tracking (Phase 6 & 3 Bridge).
 
 Extracts entity-relation triples from text chunks via LLM, stores them as a
-directed prerequisite graph in SQLite + in-memory NetworkX.  During retrieval,
-if a query returns low-confidence chunks, the pipeline traverses the graph to
-fetch prerequisite concepts and prepend them as context.
+directed prerequisite graph in SQLite + in-memory NetworkX.
 
-Install:
-    pip install networkx   (usually already installed as a dependency)
-
-Schema:
-    SQLite table 'triples': (subject TEXT, relation TEXT, object TEXT)
-    NetworkX DiGraph: edge subject -> object means "subject is_prerequisite_for object"
-    (relation "is_prerequisite_for" or "requires" creates an edge in this direction)
+M3.1 ADAPTER: Now bridged to write directly into Track B's `course.db`
+(`concepts` and `concept_edges` tables) rather than a standalone `triples` DB.
 
 Usage:
     from knowledge_graph import build_graph, get_prerequisites, extract_and_add
 
     G = build_graph()                  # load from SQLite
-    prereqs = get_prerequisites(G, "Lagrangian mechanics", depth=2)
-    extract_and_add(G, chunk_text)     # call during embed
+    prereqs = get_prerequisites(G, "lagrangian_mechanics", depth=2)
+    extract_and_add(chunk_text)     # call during embed
 """
 import json
 import sqlite3
+import re
 from pathlib import Path
-
 from config import METADATA
 
+# Deprecated but kept to prevent breaking Track A import references
 DB_PATH = METADATA / "knowledge_graph.db"
 
-# Relations that indicate concept B is a prerequisite for concept A
-# (edge direction: B -> A in the prerequisite graph)
 PREREQUISITE_RELATIONS = {
     "is_prerequisite_for",
     "requires",
@@ -51,50 +43,41 @@ Use relations from: is_prerequisite_for, requires, is_part_of, leads_to, explain
 Keep concept names short (1-4 words). Return [] if no clear relationships exist.
 Return ONLY the JSON array."""
 
+def _slugify(text: str) -> str:
+    """Helper to convert raw text subjects into normalized concept_ids."""
+    return re.sub(r'[^a-z0-9]+', '_', text.lower()).strip('_')
 
-def _init_db(db_path: Path) -> sqlite3.Connection:
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS triples (
-            subject  TEXT NOT NULL,
-            relation TEXT NOT NULL,
-            object   TEXT NOT NULL,
-            weight   INTEGER NOT NULL DEFAULT 1,
-            PRIMARY KEY (subject, relation, object)
-        )
-    """)
-    # Migrate: add weight column if missing (existing DBs pre-PathRAG)
-    try:
-        conn.execute("ALTER TABLE triples ADD COLUMN weight INTEGER NOT NULL DEFAULT 1")
-    except sqlite3.OperationalError:
-        pass  # column already exists
-    conn.commit()
-    return conn
-
+def _init_db(db_path: Path = None) -> sqlite3.Connection:
+    """Bridged to return course.db connection instead of knowledge_graph.db"""
+    from core.db import get_connection
+    return get_connection()
 
 def build_graph(db_path: Path | None = None) -> "networkx.DiGraph":
-    """Load all triples from SQLite and return a NetworkX directed graph.
-
-    Nodes are concept strings.  Edges are (prerequisite -> concept) pairs.
-    """
+    """Load concepts and edges from course.db and return a NetworkX directed graph."""
     try:
         import networkx as nx
     except ImportError:
         raise ImportError("networkx is required: pip install networkx")
 
     G = nx.DiGraph()
-    db = db_path or DB_PATH
-    if not db.exists():
-        return G
-
-    conn = _init_db(db)
-    for row in conn.execute("SELECT subject, relation, object, weight FROM triples"):
-        subj, rel, obj, weight = row
-        G.add_edge(subj.lower(), obj.lower(), relation=rel, weight=int(weight or 1))
-    conn.close()
+    conn = _init_db()
+    try:
+        for row in conn.execute("SELECT src, dst, weight, evidence FROM concept_edges"):
+            src, dst, weight, evidence = row
+            rel = "requires"
+            if evidence:
+                try:
+                    ev_data = json.loads(evidence)
+                    if isinstance(ev_data, dict) and "relation" in ev_data:
+                        rel = ev_data["relation"]
+                except:
+                    pass
+            G.add_edge(src.lower(), dst.lower(), relation=rel, weight=float(weight or 1.0))
+    except sqlite3.OperationalError:
+        pass # Table might not exist if DB not initialized
+    finally:
+        conn.close()
     return G
-
 
 def get_prerequisites(
     G: "networkx.DiGraph",
@@ -104,13 +87,7 @@ def get_prerequisites(
     min_weight: int = 2,
     decay: float = 0.7,
 ) -> list[str]:
-    """PathRAG-style weighted BFS: returns top-k reliable prerequisite paths.
-
-    Score = min_edge_weight * decay**depth — reliability × depth-penalty combined.
-    Only edges with weight >= min_weight are traversed, pruning single-occurrence
-    noisy relations. Deeper hops are penalised by decay^depth so shallow reliable
-    paths win over long uncertain ones.
-    """
+    """PathRAG-style weighted BFS: returns top-k reliable prerequisite paths."""
     try:
         import networkx as nx
     except ImportError:
@@ -120,8 +97,6 @@ def get_prerequisites(
     if concept_lower not in G:
         return []
 
-    # BFS collecting (node, depth, min_path_weight)
-    # ponytail: score = min_path_w * decay**d — reliability × depth-penalty in one number
     scored: dict[str, float] = {}
     queue: list[tuple[str, int, float]] = [(concept_lower, 0, float("inf"))]
     while queue:
@@ -129,7 +104,7 @@ def get_prerequisites(
         if d >= depth:
             continue
         for pred in G.predecessors(node):
-            edge_w = G[pred][node].get("weight", 1)
+            edge_w = G[pred][node].get("weight", 1.0)
             if edge_w < min_weight:
                 continue
             new_path_w = min(path_w, edge_w)
@@ -139,15 +114,10 @@ def get_prerequisites(
                 queue.append((pred, d + 1, new_path_w))
 
     scored.pop(concept_lower, None)
-    # Return top_k by reliability score
     return [c for c, _ in sorted(scored.items(), key=lambda x: x[1], reverse=True)[:top_k]]
 
-
 def extract_triples(chunk_text: str) -> list[dict]:
-    """Call LLM to extract concept-relation triples from a chunk.
-
-    Returns list of {"subject": ..., "relation": ..., "object": ...} dicts.
-    """
+    """Call LLM to extract concept-relation triples from a chunk."""
     try:
         from llm import call_gemini, call_groq
         messages = [
@@ -169,23 +139,51 @@ def extract_triples(chunk_text: str) -> list[dict]:
         pass
     return []
 
-
 def add_triples(triples: list[dict], db_path: Path | None = None) -> None:
-    """Persist triples to SQLite, incrementing weight on re-insertion."""
+    """Bridged persistence: maps triples into course.db concepts & concept_edges."""
     if not triples:
         return
-    conn = _init_db(db_path or DB_PATH)
-    conn.executemany(
-        """INSERT INTO triples (subject, relation, object, weight) VALUES (?, ?, ?, 1)
-           ON CONFLICT(subject, relation, object) DO UPDATE SET weight = weight + 1""",
-        [(t["subject"], t["relation"], t["object"]) for t in triples],
-    )
-    conn.commit()
-    conn.close()
-
+    conn = _init_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        for t in triples:
+            subj_id = _slugify(t.get("subject", ""))
+            obj_id = _slugify(t.get("object", ""))
+            if not subj_id or not obj_id:
+                continue
+                
+            rel = t.get("relation", "requires")
+            
+            # Upsert nodes
+            conn.execute('''
+                INSERT INTO concepts (concept_id, name, level) 
+                VALUES (?, ?, 'concept')
+                ON CONFLICT(concept_id) DO NOTHING
+            ''', (subj_id, t.get("subject", subj_id)))
+            
+            conn.execute('''
+                INSERT INTO concepts (concept_id, name, level) 
+                VALUES (?, ?, 'concept')
+                ON CONFLICT(concept_id) DO NOTHING
+            ''', (obj_id, t.get("object", obj_id)))
+            
+            # Upsert edge
+            evidence_json = json.dumps({"relation": rel})
+            conn.execute('''
+                INSERT INTO concept_edges (src, dst, weight, evidence)
+                VALUES (?, ?, 1.0, ?)
+                ON CONFLICT(src, dst) DO UPDATE SET 
+                    weight = weight + 1.0,
+                    evidence = ?
+            ''', (subj_id, obj_id, evidence_json, evidence_json))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[Adapter] Error writing triples to course.db: {e}")
+    finally:
+        conn.close()
 
 def extract_and_add(chunk_text: str, db_path: Path | None = None) -> list[dict]:
-    """Extract triples from chunk and persist them. Returns extracted triples."""
     triples = extract_triples(chunk_text)
     add_triples(triples, db_path)
     return triples
