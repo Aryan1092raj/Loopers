@@ -227,7 +227,7 @@ def get_job(job_id: str):
 
 @router.get("/graph")
 def get_graph(student_id: str | None = None):
-    g = concepts.get_graph()
+    g = concepts.get_graph(fixture=False)
     known = {}
     if student_id:
         known = {r["concept_id"]: r["p_mastery"] for r in _rows("SELECT concept_id, p_mastery FROM learner_state WHERE student_id = ?", (student_id,))}

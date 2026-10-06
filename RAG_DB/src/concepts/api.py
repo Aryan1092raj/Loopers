@@ -34,9 +34,11 @@ def _from_db() -> dict | None:
     return {"nodes": nodes, "edges": edges} if nodes else None
 
 
-def get_graph() -> dict:
-    """{"nodes": [{id, name, level, parent_id, aliases}], "edges": [{src, dst, weight}]}"""
-    return _from_db() or _fixture()
+def get_graph(fixture: bool = True) -> dict:
+    """{"nodes": [{id, name, level, parent_id, aliases}], "edges": [{src, dst, weight}]}
+
+    fixture=False returns an empty graph, not the fixture, when no build has run."""
+    return _from_db() or (_fixture() if fixture else {"nodes": [], "edges": []})
 
 
 def get_concept(concept_id: str) -> dict | None:

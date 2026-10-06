@@ -376,22 +376,20 @@ def _add_ids(metas: list[dict], ids: list[str]) -> None:
             m["source_type"] = "slides" if m.get("slide_no") else "textbook"
 
 
-def _check_locators(metas: list[dict]) -> None:
-    """TRD §3.3: a unit without a locator fails ingestion. Plain .md and .txt sources have no pages and are exempt."""
+def _check_locators(metas: list[dict]) -> dict[str, int]:
+    """TRD §3.3: a unit without a locator must not be indexed. Plain .md and .txt sources have no pages and are exempt.
+
+    Returns {doc stem: chunk count} for documents with unlocated chunks; the caller decides whether to skip or fail.
+    """
     from collections import Counter
     from ingest.registry import by_stem
 
     registered = by_stem()
-    missing = Counter(
+    return dict(Counter(
         m["doc"] for m in metas
         if m.get("doc_type") == "pdf" and registered.get(m["doc"], {}).get("type") in ("pdf", "pptx")
         and m.get("page_no") is None and m.get("slide_no") is None
-    )
-    if missing:
-        raise RuntimeError(
-            "chunks without page_no or slide_no: " + ", ".join(f"{d} ({n})" for d, n in missing.items())
-            + ". Re-run extract so every page carries a `<!-- page N -->` marker."
-        )
+    ))
 
 
 def _write_units(metas: list[dict], ids: list[str]) -> None:
@@ -550,7 +548,17 @@ def run(force_full: bool = False) -> None:
 
     # Build only what changed, before touching the index: a chunk without a locator must not leave it half rebuilt
     docs, metas, ids = build_text_chunks(changed_docs)
-    _check_locators(metas)
+    unlocated = _check_locators(metas)
+    if unlocated:
+        msg = ", ".join(f"{d} ({n})" for d, n in unlocated.items())
+        hint = "Re-run extract so every page carries a `<!-- page N -->` marker."
+        if force_full:
+            raise RuntimeError(f"chunks without page_no or slide_no: {msg}. {hint}")
+        # incremental run: one stale extraction must not block every other document
+        print(f"[embed] WARNING skipping documents without page locators: {msg}. {hint}")
+        keep = [i for i, m in enumerate(metas) if m["doc"] not in unlocated]
+        docs, metas, ids = [docs[i] for i in keep], [metas[i] for i in keep], [ids[i] for i in keep]
+        changed_docs -= set(unlocated)
     idocs, imetas, iids = build_image_chunks(changed_docs)
 
     c = store.client()

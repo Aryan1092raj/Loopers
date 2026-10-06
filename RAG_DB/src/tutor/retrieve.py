@@ -95,6 +95,9 @@ def retrieve_evidence(query: str, scope: dict | None = None) -> tuple[list[Evide
             chunks = chunks + _prerequisite_chunks(query)
         except Exception as e:  # prerequisites are optional context, never a reason to fail the answer
             print(f"[tutor] prerequisite lookup failed: {e}")
+    # a paged source whose chunks carry no locator (stale extraction) cannot be cited, so it is never evidence
+    chunks = [c for c in chunks if c.get("doc_type") != "pdf"
+              or any(c.get(k) is not None for k in ("page_no", "slide_no", "t_start"))]
     evidence = [
         Evidence(id=f"E{i}", unit=to_unit(c), score=float(c.get("score", 0.0)), is_prerequisite=bool(c.get("_is_prerequisite")))
         for i, c in enumerate(chunks, 1)
