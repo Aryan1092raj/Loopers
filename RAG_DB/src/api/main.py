@@ -20,7 +20,7 @@ init_db()
 app.include_router(router)
 
 # CORS configuration (Updated per TRD spec)
-cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:3000")
+cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000")
 allow_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
 
 app.add_middleware(
