@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Loopers — Ingest Console</title>
+<title>Loopers — Study Console</title>
 <style>
   :root {
     --ink: #111; --paper: #fffdf5; --yellow: #ffe14d; --pink: #ff8fab;
@@ -16,24 +16,34 @@
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
     background-image: radial-gradient(var(--ink) 1px, transparent 1px); background-size: 22px 22px;
   }
-  h1, h2 { margin: 0; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; }
+  h1, h2, h3 { margin: 0; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; }
   h1 { font-size: clamp(28px, 5vw, 44px); }
   h2 { font-size: 20px; margin-bottom: 14px; }
+  h3 { font-size: 16px; margin: 14px 0 8px; }
   header {
     display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;
-    background: var(--yellow); border: var(--border); box-shadow: var(--shadow); padding: 16px 20px; margin-bottom: 28px;
+    background: var(--yellow); border: var(--border); box-shadow: var(--shadow); padding: 16px 20px; margin-bottom: 20px;
   }
   header a { color: var(--ink); font-weight: 800; }
+  header input { width: 160px; padding: 6px 10px; }
+  nav.tabs { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 28px; }
+  nav.tabs button { background: #fff; }
+  nav.tabs button.on { background: var(--ink); color: var(--yellow); }
   .grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 28px; align-items: start; }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .grid.even { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) { .grid, .grid.even { grid-template-columns: 1fr; } }
   .col { display: grid; gap: 28px; }
   .card { background: #fff; border: var(--border); box-shadow: var(--shadow); padding: 20px; }
   .card.pink { background: var(--pink); } .card.cyan { background: var(--cyan); } .card.lime { background: var(--lime); }
+  .card.yellow { background: var(--yellow); }
   label { display: block; font-weight: 800; font-size: 13px; text-transform: uppercase; margin: 12px 0 4px; }
-  input, select {
+  label.inline { display: inline-flex; gap: 6px; align-items: center; margin: 0; }
+  input, select, textarea {
     width: 100%; padding: 10px 12px; font: inherit; background: #fff; border: var(--border); border-radius: 0;
   }
-  input:focus, select:focus, button:focus-visible, .drop:focus-within { outline: 4px solid var(--ink); outline-offset: 2px; }
+  input[type=checkbox] { width: auto; }
+  textarea { resize: vertical; min-height: 70px; }
+  input:focus, select:focus, textarea:focus, button:focus-visible, .drop:focus-within { outline: 4px solid var(--ink); outline-offset: 2px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .drop {
     position: relative; display: grid; place-items: center; text-align: center; min-height: 130px; padding: 16px; cursor: pointer;
@@ -51,19 +61,29 @@
   button:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--ink); }
   button:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--ink); }
   button.wide { width: 100%; margin-top: 16px; }
+  button.small { padding: 6px 10px; font-size: 13px; box-shadow: 3px 3px 0 var(--ink); }
+  button.rec { background: var(--red); }
   .stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
   .stages button.all { grid-column: 1 / -1; background: var(--ink); color: var(--lime); }
   .badge {
     display: inline-block; padding: 4px 10px; border: var(--border); font-weight: 900; font-size: 13px;
     text-transform: uppercase; background: #fff;
   }
-  .badge.ok, .badge.done { background: var(--lime); } .badge.running { background: var(--yellow); }
-  .badge.failed, .badge.down { background: var(--red); } .badge.queued { background: var(--cyan); }
+  .badge.ok, .badge.done, .badge.grounded, .badge.right { background: var(--lime); }
+  .badge.running, .badge.partially_grounded { background: var(--yellow); }
+  .badge.failed, .badge.down, .badge.refused, .badge.wrong { background: var(--red); }
+  .badge.queued { background: var(--cyan); } .badge.outside_syllabus { background: var(--pink); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
   .chip { padding: 4px 10px; border: var(--border); font-weight: 800; font-size: 13px; background: #fff; }
   .chip.active { background: var(--yellow); } .chip.passed { background: var(--lime); }
+  button.cite {
+    padding: 0 6px; font-size: 12px; background: var(--cyan); border-width: 2px; box-shadow: 2px 2px 0 var(--ink);
+    text-transform: none; vertical-align: baseline;
+  }
   .bar { height: 26px; border: var(--border); background: #fff; }
   .bar > div { height: 100%; width: 0; background: var(--pink); border-right: var(--border); transition: width .3s; }
+  .meter { height: 14px; min-width: 80px; border: 2px solid var(--ink); background: #fff; }
+  .meter > div { height: 100%; background: var(--pink); }
   pre.log {
     margin: 14px 0 0; height: 320px; overflow: auto; padding: 12px; background: var(--ink); color: var(--lime);
     border: var(--border); font: 13px/1.45 ui-monospace, "JetBrains Mono", Menlo, monospace; white-space: pre-wrap;
@@ -77,21 +97,56 @@
   }
   .muted { font-size: 14px; }
   code { background: #fff; border: 2px solid var(--ink); padding: 0 4px; }
+  /* tutor */
+  .msgs { height: 460px; overflow: auto; display: grid; align-content: start; gap: 14px; padding: 14px; background: var(--paper); border: var(--border); }
+  .msg { border: var(--border); box-shadow: 4px 4px 0 var(--ink); padding: 12px 14px; background: #fff; max-width: 92%; }
+  .msg.user { background: var(--cyan); justify-self: end; }
+  .msg.refused { background: #ffd6d6; }
+  .msg p { margin: 8px 0; }
+  .ask { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; margin-top: 14px; align-items: end; }
+  /* graph */
+  .topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+  button.concept { display: flex; justify-content: space-between; gap: 8px; width: 100%; margin-top: 8px; text-transform: none; text-align: left; }
+  .m-low { background: var(--red); } .m-mid { background: var(--yellow); } .m-high { background: var(--lime); }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  /* quiz */
+  .options { display: grid; gap: 10px; margin-top: 12px; }
+  .options button { text-transform: none; text-align: left; background: #fff; }
+  .options button.picked { background: var(--yellow); }
+  /* citation viewer */
+  dialog { border: var(--border); box-shadow: var(--shadow); padding: 20px; width: min(920px, 94vw); background: #fff; }
+  dialog::backdrop { background: rgba(17, 17, 17, .55); }
+  blockquote { margin: 12px 0; padding: 10px 14px; border-left: 8px solid var(--ink); background: var(--paper); }
+  .page { position: relative; display: inline-block; max-width: 100%; }
+  .page img { display: block; max-width: 100%; border: var(--border); }
+  .bbox { position: absolute; border: 4px solid var(--red); background: rgba(255, 92, 92, .18); pointer-events: none; }
+  video { width: 100%; border: var(--border); background: var(--ink); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Loopers // Ingest</h1>
+  <h1>Loopers // Study</h1>
   <div class="meta">
+    <label class="inline" for="student">Student <input id="student" autocomplete="off"></label>
     <span>API</span><span id="api" class="badge">…</span>
     <a href="/docs">/docs</a>
   </div>
 </header>
 
-<main class="grid">
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" id="nav-ingest" aria-controls="tab-ingest" data-tab="ingest">1. Ingest</button>
+  <button role="tab" id="nav-tutor" aria-controls="tab-tutor" data-tab="tutor">2. Tutor</button>
+  <button role="tab" id="nav-graph" aria-controls="tab-graph" data-tab="graph">3. Concept map</button>
+  <button role="tab" id="nav-learner" aria-controls="tab-learner" data-tab="learner">4. Learner</button>
+  <button role="tab" id="nav-quiz" aria-controls="tab-quiz" data-tab="quiz">5. Quiz</button>
+</nav>
+
+<!-- ============================== INGEST ============================== -->
+<main class="grid" id="tab-ingest" role="tabpanel" aria-labelledby="nav-ingest">
   <div class="col">
     <section class="card pink" aria-labelledby="up-h">
-      <h2 id="up-h">1. Upload a document</h2>
+      <h2 id="up-h">Upload a document</h2>
       <form id="upload">
         <label class="drop" id="drop">
           <input type="file" id="file" name="file" accept=".pdf,.pptx,.docx,.md,.txt" required>
@@ -119,15 +174,16 @@
     </section>
 
     <section class="card cyan" aria-labelledby="pl-h">
-      <h2 id="pl-h">2. Run pipeline stages</h2>
+      <h2 id="pl-h">Run pipeline stages</h2>
       <p class="muted">Runs <code>pipeline.py</code> over everything in <code>raw/</code>. Incremental: unchanged files are skipped.</p>
       <div class="stages">
         <button data-stages="ingest">Ingest</button>
         <button data-stages="extract">Extract</button>
         <button data-stages="label">Label</button>
         <button data-stages="embed">Embed</button>
+        <button data-stages="concepts">Concepts</button>
         <button data-stages="eval">Eval @5</button>
-        <button class="all" data-stages="ingest,extract,label,embed">Run all → embed</button>
+        <button class="all" data-stages="ingest,extract,label,embed,concepts">Run all → concepts</button>
       </div>
       <div class="err" id="pl-err" role="alert"></div>
     </section>
@@ -159,9 +215,129 @@
   </div>
 </main>
 
+<!-- ============================== TUTOR ============================== -->
+<main class="grid" id="tab-tutor" role="tabpanel" aria-labelledby="nav-tutor" hidden>
+  <section class="card" aria-labelledby="chat-h" style="grid-column: 1 / -1">
+    <div class="meta" style="justify-content: space-between; margin-bottom: 14px;">
+      <h2 id="chat-h" style="margin: 0">Ask your course</h2>
+      <div class="meta">
+        <label class="inline" for="scope">Scope <select id="scope"><option value="">Whole course</option></select></label>
+        <label class="inline" for="lang">Language <select id="lang"><option value="en">English</option><option value="hi">Hindi</option></select></label>
+        <label class="inline"><input type="checkbox" id="outside"> Allow outside answers</label>
+        <button class="small" id="new-session" type="button">New session</button>
+      </div>
+    </div>
+    <div class="msgs" id="msgs" aria-live="polite">
+      <p class="muted">Answers cite your material. Click a chip such as <button class="cite" type="button" tabindex="-1">E1 · p. 12</button> to open the exact page, figure box or video moment.</p>
+    </div>
+    <form class="ask" id="ask">
+      <div><label for="q">Question</label><textarea id="q" required placeholder="What is the limit of a function?"></textarea></div>
+      <button type="button" id="mic" title="Record a spoken question">Mic</button>
+      <button type="submit" id="ask-btn">Ask</button>
+    </form>
+    <div class="err" id="chat-err" role="alert"></div>
+  </section>
+</main>
+
+<!-- ============================== GRAPH ============================== -->
+<main class="grid" id="tab-graph" role="tabpanel" aria-labelledby="nav-graph" hidden>
+  <section class="card" aria-labelledby="graph-h">
+    <div class="meta" style="justify-content: space-between; margin-bottom: 14px;">
+      <h2 id="graph-h" style="margin: 0">Concept map</h2>
+      <button class="small" id="graph-refresh" type="button">Refresh</button>
+    </div>
+    <div class="legend">
+      <span class="chip m-low">below 0.4</span><span class="chip m-mid">0.4 – 0.7</span><span class="chip m-high">0.7 and up</span>
+    </div>
+    <div class="topics" id="topics"><p>Loading…</p></div>
+    <div class="err" id="graph-err" role="alert"></div>
+  </section>
+  <section class="card yellow" aria-labelledby="concept-h" id="concept-card">
+    <h2 id="concept-h">Pick a concept</h2>
+    <div id="concept-body" class="muted">Its prerequisites, the concepts it unlocks and the source passages tagged with it show here.</div>
+  </section>
+</main>
+
+<!-- ============================== LEARNER ============================== -->
+<main class="grid even" id="tab-learner" role="tabpanel" aria-labelledby="nav-learner" hidden>
+  <div class="col">
+    <section class="card pink" aria-labelledby="onb-h">
+      <h2 id="onb-h">Onboard</h2>
+      <form id="onboard">
+        <label for="background">Background</label>
+        <select id="background"><option>beginner</option><option>intermediate</option><option>advanced</option></select>
+        <button class="wide" type="submit">Save student</button>
+      </form>
+      <p class="muted" id="onb-out"></p>
+      <div class="err" id="onb-err" role="alert"></div>
+    </section>
+    <section class="card cyan" aria-labelledby="diag-h">
+      <h2 id="diag-h">Diagnostic</h2>
+      <div id="diag"><button type="button" id="diag-start">Start diagnostic</button></div>
+      <div class="err" id="diag-err" role="alert"></div>
+    </section>
+  </div>
+  <div class="col">
+    <section class="card" aria-labelledby="mast-h">
+      <div class="meta" style="justify-content: space-between; margin-bottom: 14px;">
+        <h2 id="mast-h" style="margin: 0">Mastery</h2>
+        <button class="small" id="learner-refresh" type="button">Refresh</button>
+      </div>
+      <table>
+        <thead><tr><th>Concept</th><th>P(know)</th><th>Recall</th><th>Seen</th></tr></thead>
+        <tbody id="mastery"><tr><td colspan="4">—</td></tr></tbody>
+      </table>
+    </section>
+    <section class="card lime" aria-labelledby="sched-h">
+      <h2 id="sched-h">Today's plan</h2>
+      <div id="schedule" class="muted">—</div>
+      <div class="err" id="learner-err" role="alert"></div>
+    </section>
+  </div>
+</main>
+
+<!-- ============================== QUIZ ============================== -->
+<main class="grid even" id="tab-quiz" role="tabpanel" aria-labelledby="nav-quiz" hidden>
+  <section class="card cyan" aria-labelledby="quiz-h">
+    <h2 id="quiz-h">Practice</h2>
+    <label for="quiz-concept">Concept</label>
+    <select id="quiz-concept"></select>
+    <div class="row">
+      <button class="wide" type="button" id="quiz-gen">Generate question</button>
+      <button class="wide" type="button" id="quiz-new">New quiz</button>
+    </div>
+    <p class="muted" id="quiz-id"></p>
+    <div id="quiz-item"></div>
+    <div class="err" id="quiz-err" role="alert"></div>
+  </section>
+  <section class="card" aria-labelledby="rep-h">
+    <div class="meta" style="justify-content: space-between; margin-bottom: 14px;">
+      <h2 id="rep-h" style="margin: 0">Report</h2>
+      <button class="small" type="button" id="quiz-report">Build report</button>
+    </div>
+    <div id="report" class="muted">Answer a few questions, then build the report.</div>
+  </section>
+</main>
+
+<dialog id="viewer" aria-labelledby="viewer-title">
+  <div class="meta" style="justify-content: space-between">
+    <h2 id="viewer-title" style="margin: 0">Source</h2>
+    <form method="dialog"><button class="small">Close</button></form>
+  </div>
+  <p class="muted" id="viewer-loc"></p>
+  <blockquote id="viewer-excerpt"></blockquote>
+  <div id="viewer-media"></div>
+</dialog>
+
 <script>
 const $ = (id) => document.getElementById(id);
-const STAGES = ["parse", "figures", "embed", "eval"];
+const el = (tag, props = {}, ...kids) => {
+  const n = Object.assign(document.createElement(tag), props);
+  n.append(...kids.filter((k) => k != null && k !== false));
+  return n;
+};
+const enc = encodeURIComponent;
+const STAGES = ["parse", "figures", "embed", "concepts", "eval"];
 let polling = null;
 
 async function api(path, opts = {}) {
@@ -170,25 +346,103 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : `${res.status} ${res.statusText}`);
   return body;
 }
+const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-function showErr(el, msg) { el.textContent = msg; el.style.display = msg ? "block" : "none"; }
-
+function showErr(node, msg) { node.textContent = msg; node.style.display = msg ? "block" : "none"; }
 function cell(text) { const td = document.createElement("td"); td.textContent = text ?? "—"; return td; }
+const meter = (p) => el("div", { className: "meter", title: (p ?? 0).toFixed(2) }, el("div", { style: `width:${Math.round((p ?? 0) * 100)}%` }));
+const band = (p) => (p >= 0.7 ? "m-high" : p >= 0.4 ? "m-mid" : "m-low");
+const rid = (prefix) => `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 
+// ---------- student ----------
+const student = () => $("student").value.trim() || "demo";
+$("student").value = localStorage.getItem("student") || "demo";
+$("student").addEventListener("change", () => { localStorage.setItem("student", student()); graphReq = null; refreshTab(); });
+
+// ---------- tabs ----------
+const TABS = ["ingest", "tutor", "graph", "learner", "quiz"];
+let current = "ingest";
+function show(tab) {
+  current = TABS.includes(tab) ? tab : "ingest";
+  for (const t of TABS) {
+    $(`tab-${t}`).hidden = t !== current;
+    $(`nav-${t}`).classList.toggle("on", t === current);
+    $(`nav-${t}`).setAttribute("aria-selected", t === current);
+  }
+  history.replaceState(null, "", `#${current}`);
+  refreshTab();
+}
+function refreshTab() {
+  const run = { tutor: loadScopes, graph: loadGraph, learner: loadLearner, quiz: loadQuizConcepts }[current];
+  if (run) run().catch(() => {});
+}
+document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+
+// ---------- concept graph data (shared by tutor scope, map and quiz) ----------
+let graph = null, graphReq = null;  // one shared request, so tabs loading at once see the same graph
+function graphData(force = false) {
+  if (force || !graphReq) {
+    graphReq = api(`/api/graph?student_id=${enc(student())}`).then((g) => (graph = g)).catch((e) => { graphReq = null; throw e; });
+  }
+  return graphReq;
+}
+const nameOf = (id) => graph?.nodes.find((n) => n.id === id)?.name || id;
+
+// ---------- citation viewer ----------
+function fmtTime(s) { const m = Math.floor(s / 60); return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`; }
+function locText(c) {
+  const l = c.locator || {};
+  if (l.t_start != null) return `${fmtTime(l.t_start)}${l.t_end != null ? `–${fmtTime(l.t_end)}` : ""}`;
+  if (l.page_no != null) return `p. ${l.page_no}`;
+  if (l.slide_no != null) return `slide ${l.slide_no}`;
+  return c.source_type;
+}
+function chip(c, long = false) {
+  return el("button", {
+    type: "button", className: "cite", title: `${c.title} · ${locText(c)}`,
+    textContent: long ? `${c.id ? c.id + " · " : ""}${c.title} · ${locText(c)}` : `${c.id} · ${locText(c)}`,
+    onclick: () => openCitation(c),
+  });
+}
+function openCitation(c) {
+  const l = c.locator || {};
+  $("viewer-title").textContent = c.title || "Source";
+  $("viewer-loc").textContent = [c.source_type, locText(c), l.matched_slide_page != null ? `matches slide ${l.matched_slide_page}` : null]
+    .filter(Boolean).join(" · ");
+  $("viewer-excerpt").textContent = c.excerpt || "";
+  const media = $("viewer-media");
+  media.replaceChildren();
+  $("viewer").showModal();
+  if (c.seek_url) {
+    media.append(el("video", { controls: true, autoplay: true, src: c.seek_url }));  // #t= seeks; /media/video serves Range
+  } else if (c.page_image_url) {
+    const box = el("div", { className: "bbox", hidden: !l.bbox });
+    const img = el("img", { alt: `${c.title}, ${locText(c)}` });
+    img.onload = () => {
+      if (!l.bbox) return;
+      const k = img.clientWidth / img.naturalWidth;  // bbox is in page-image pixels
+      const [x0, y0, x1, y1] = l.bbox;
+      Object.assign(box.style, { left: `${x0 * k}px`, top: `${y0 * k}px`, width: `${(x1 - x0) * k}px`, height: `${(y1 - y0) * k}px` });
+    };
+    media.append(el("div", { className: "page" }, img, box));
+    img.src = c.page_image_url;
+  } else {
+    media.append(el("p", { className: "muted", textContent: "No page image or video for this source yet." }));
+  }
+}
+$("viewer").addEventListener("close", () => $("viewer-media").replaceChildren());  // stops video playback
+
+// ---------- ingest ----------
 async function loadSources() {
   const tbody = $("sources");
   try {
     const rows = await api("/api/sources");
     tbody.replaceChildren(...(rows.length ? rows.map((s) => {
-      const tr = document.createElement("tr");
-      const status = cell(""); const b = document.createElement("span");
-      b.className = `badge ${s.status}`; b.textContent = s.status; status.replaceChildren(b);
-      tr.append(cell(s.title), cell(s.kind), status, cell(s.unit_count));
-      return tr;
-    }) : [Object.assign(document.createElement("tr"), { innerHTML: '<td colspan="4">No sources yet — upload one.</td>' })]));
+      const status = cell(""); status.replaceChildren(el("span", { className: `badge ${s.status}`, textContent: s.status }));
+      return el("tr", {}, cell(s.title), cell(s.kind), status, cell(s.unit_count));
+    }) : [el("tr", {}, Object.assign(cell("No sources yet — upload one."), { colSpan: 4 }))]));
   } catch (e) {
-    tbody.replaceChildren(Object.assign(document.createElement("tr"), { innerHTML: '<td colspan="4"></td>' }));
-    tbody.querySelector("td").textContent = e.message;
+    tbody.replaceChildren(el("tr", {}, Object.assign(cell(e.message), { colSpan: 4 })));
   }
 }
 
@@ -198,11 +452,9 @@ function renderJob(job) {
   $("job-err").textContent = job.error || "";
   $("bar").style.width = `${Math.round((job.progress || 0) * 100)}%`;
   const at = STAGES.indexOf(job.stage);
-  $("chips").replaceChildren(...STAGES.map((name, i) => {
-    const c = document.createElement("span");
-    c.className = "chip" + (job.status === "done" || i < at ? " passed" : i === at ? " active" : "");
-    c.textContent = name; return c;
-  }));
+  $("chips").replaceChildren(...STAGES.map((name, i) => el("span", {
+    className: "chip" + (job.status === "done" || i < at ? " passed" : i === at ? " active" : ""), textContent: name,
+  })));
 }
 
 function setBusy(busy) { document.querySelectorAll("button[data-stages], #up-btn").forEach((b) => (b.disabled = busy)); }
@@ -219,7 +471,7 @@ async function watch(jobId) {
       if (atBottom) pre.scrollTop = pre.scrollHeight;
       const finished = job.status === "done" || job.status === "failed";
       setBusy(!finished);
-      if (finished) { clearInterval(polling); loadSources(); }
+      if (finished) { clearInterval(polling); loadSources(); graphReq = null; }  // a finished job can change the concept graph
     } catch (e) { clearInterval(polling); setBusy(false); $("job-err").textContent = e.message; }
   };
   await tick();
@@ -240,10 +492,7 @@ $("upload").addEventListener("submit", async (ev) => {
 document.querySelectorAll("button[data-stages]").forEach((btn) => btn.addEventListener("click", async () => {
   showErr($("pl-err"), "");
   try {
-    const { job_id } = await api("/api/pipeline", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stages: btn.dataset.stages.split(",") }),
-    });
+    const { job_id } = await post("/api/pipeline", { stages: btn.dataset.stages.split(",") });
     watch(job_id);
   } catch (e) { showErr($("pl-err"), e.message); }
 }));
@@ -259,11 +508,299 @@ file.addEventListener("change", () => {
 });
 $("refresh").addEventListener("click", loadSources);
 
+// ---------- tutor ----------
+let session = localStorage.getItem("session") || rid("s");
+localStorage.setItem("session", session);
+
+async function loadScopes() {
+  const g = await graphData();
+  const sel = $("scope"), keep = sel.value;
+  const topics = g.nodes.filter((n) => n.level === "topic");
+  sel.replaceChildren(el("option", { value: "", textContent: "Whole course" }),
+    ...topics.map((t) => el("option", { value: `t:${t.id}`, textContent: `Topic: ${t.name}` })));
+  if (keep.startsWith("c:")) sel.append(el("option", { value: keep, textContent: `Concept: ${nameOf(keep.slice(2))}` }));
+  sel.value = keep;
+}
+function scope() {
+  const v = $("scope").value;
+  return v.startsWith("t:") ? { topic_ids: [v.slice(2)] } : v.startsWith("c:") ? { concept_ids: [v.slice(2)] } : {};
+}
+
+function addMsg(kind, ...kids) {
+  const m = el("div", { className: `msg ${kind}` }, ...kids);
+  $("msgs").append(m); m.scrollIntoView({ block: "end" });
+  return m;
+}
+
+function renderAnswer(r, question) {
+  const gate = r.gate || {};
+  const head = el("div", { className: "meta" },
+    el("span", { className: `badge ${r.mode}`, textContent: r.mode.replace(/_/g, " ") }),
+    el("span", { className: "muted", textContent: `gate ${gate.band} · top score ${(gate.top_score ?? 0).toFixed(2)}${gate.nli ? ` · ${gate.nli}` : ""}` }));
+  const box = el("div", { className: `msg ${r.mode === "refused" ? "refused" : "bot"}` }, head);
+  if (r.mode === "refused") {
+    box.append(el("p", { textContent: r.refusal?.message || "No answer from your material." }));
+    if (r.refusal?.offer_outside) box.append(el("button", { type: "button", className: "small", textContent: "Answer from outside the syllabus", onclick: () => ask(question, true) }));
+  } else {
+    const cites = Object.fromEntries(r.citations.map((c) => [c.id, c]));
+    const p = el("p");
+    for (const s of r.segments) {
+      p.append(/[.?!:]$/.test(s.text) ? s.text : `${s.text}.`, " ");
+      if (s.outside) p.append(el("span", { className: "badge outside_syllabus", textContent: "outside syllabus" }), " ");
+      for (const id of s.evidence_ids) if (cites[id]) p.append(chip(cites[id]), " ");
+    }
+    box.append(p);
+    if (r.citations.length) box.append(el("div", { className: "chips" }, ...r.citations.map((c) => chip(c, true))));
+    box.append(el("button", { type: "button", className: "small", textContent: "Listen", onclick: () => speak(r.answer).catch((e) => showErr($("chat-err"), e.message)) }));
+  }
+  if (r.mastery_updates?.length) {
+    box.append(el("p", { className: "muted", textContent: "Mastery: " + r.mastery_updates
+      .map((u) => `${nameOf(u.concept_id)} ${u.p_before.toFixed(2)} → ${u.p_after.toFixed(2)}`).join(", ") }));
+  }
+  return box;
+}
+
+async function ask(message, allowOutside = false) {
+  showErr($("chat-err"), "");
+  addMsg("user", el("p", { textContent: message }));
+  const pending = addMsg("bot", el("p", { textContent: "Thinking… (the first question loads the models and can take a minute)" }));
+  $("ask-btn").disabled = true;
+  try {
+    const r = await post("/api/chat", {
+      session_id: session, student_id: student(), message, scope: scope(),
+      lang: $("lang").value, allow_outside: allowOutside || $("outside").checked,
+    });
+    pending.replaceWith(renderAnswer(r, message));
+  } catch (e) {
+    pending.remove(); showErr($("chat-err"), e.message);
+  } finally { $("ask-btn").disabled = false; }
+}
+
+$("ask").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const q = $("q").value.trim(); if (!q) return;
+  $("q").value = ""; ask(q);
+});
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("ask").requestSubmit(); } });
+$("new-session").addEventListener("click", () => {
+  session = rid("s"); localStorage.setItem("session", session);
+  $("msgs").replaceChildren(el("p", { className: "muted", textContent: "New session: earlier turns are not sent to the tutor." }));
+});
+
+// voice: speech to text into the question box, text to speech for answers
+let rec = null;
+$("mic").addEventListener("click", async () => {
+  if (rec) { rec.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const parts = [];
+    rec = new MediaRecorder(stream);
+    rec.ondataavailable = (e) => parts.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      rec = null; $("mic").textContent = "Mic"; $("mic").classList.remove("rec");
+      const fd = new FormData();
+      fd.append("audio", new Blob(parts, { type: parts[0]?.type || "audio/webm" }), "question.webm");
+      try { const r = await api("/api/voice/stt", { method: "POST", body: fd }); $("q").value = r.text || ""; $("q").focus(); }
+      catch (e) { showErr($("chat-err"), `Speech to text: ${e.message}`); }
+    };
+    rec.start(); $("mic").textContent = "Stop"; $("mic").classList.add("rec");
+  } catch (e) { showErr($("chat-err"), `Microphone: ${e.message}`); }
+});
+
+async function speak(text) {
+  const res = await fetch("/api/voice/tts", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text.replace(/\[E\d+\]/g, "") }),
+  });
+  if (!res.ok) throw new Error(`Text to speech: ${res.status} ${res.statusText}`);
+  new Audio(URL.createObjectURL(await res.blob())).play();
+}
+
+// ---------- concept map ----------
+async function loadGraph(force = true) {
+  showErr($("graph-err"), "");
+  try {
+    const g = await graphData(force);
+    const topics = g.nodes.filter((n) => n.level === "topic");
+    const concepts = g.nodes.filter((n) => n.level !== "topic");
+    const groups = topics.map((t) => [t, concepts.filter((c) => c.parent_id === t.id)]);
+    const orphans = concepts.filter((c) => !topics.some((t) => t.id === c.parent_id));
+    if (orphans.length) groups.push([{ name: "Other" }, orphans]);
+    $("topics").replaceChildren(...(groups.length ? groups.map(([t, cs]) => el("div", {},
+      el("h3", { textContent: t.name }),
+      ...cs.map((c) => el("button", { type: "button", className: `concept ${band(c.p_know)}`, onclick: () => openConcept(c.id) },
+        el("span", { textContent: c.name }), el("span", { textContent: c.p_know.toFixed(2) }))),
+    )) : [el("p", { textContent: "No concepts yet. Run the Concepts stage after embedding." })]));
+  } catch (e) { showErr($("graph-err"), e.message); }
+}
+
+const conceptLinks = (ids) => ids.length
+  ? el("div", { className: "chips" }, ...ids.map((id) => el("button", { type: "button", className: "small", textContent: nameOf(id), onclick: () => openConcept(id) })))
+  : el("p", { className: "muted", textContent: "None" });
+
+async function openConcept(id) {
+  const body = $("concept-body");
+  try {
+    const d = await api(`/api/concepts/${enc(id)}`);
+    const p = graph?.nodes.find((n) => n.id === id)?.p_know ?? 0;
+    $("concept-h").textContent = d.concept.name;
+    body.className = "";
+    body.replaceChildren(
+      el("div", { className: "meta" }, el("span", { className: "badge", textContent: d.concept.level }), el("span", { textContent: `P(know) ${p.toFixed(2)}` }), meter(p)),
+      el("h3", { textContent: "Needs first" }), conceptLinks(d.prerequisites),
+      el("h3", { textContent: "Unlocks" }), conceptLinks(d.dependents),
+      el("h3", { textContent: "In your material" }),
+      d.units.length ? el("div", { className: "chips" }, ...d.units.map((c) => chip({ ...c, id: "" }, true)))
+        : el("p", { className: "muted", textContent: "No passages tagged yet." }),
+      el("div", { className: "row", style: "margin-top: 16px" },
+        el("button", { type: "button", textContent: "Ask the tutor", onclick: () => askAbout(id, d.concept.name) }),
+        el("button", { type: "button", textContent: "Quiz me", onclick: async () => { show("quiz"); await loadQuizConcepts(); $("quiz-concept").value = id; } })),
+    );
+    $("concept-card").scrollIntoView({ block: "nearest" });
+  } catch (e) { showErr($("graph-err"), e.message); }
+}
+
+async function askAbout(id, name) {
+  show("tutor");
+  await loadScopes();
+  const sel = $("scope");
+  if (![...sel.options].some((o) => o.value === `c:${id}`)) sel.append(el("option", { value: `c:${id}`, textContent: `Concept: ${name}` }));
+  sel.value = `c:${id}`;
+  $("q").value = `Explain ${name}.`; $("q").focus();
+}
+$("graph-refresh").addEventListener("click", () => loadGraph(true));
+
+// ---------- learner ----------
+async function loadLearner() {
+  showErr($("learner-err"), "");
+  await graphData().catch(() => null);  // concept names
+  try {
+    const rows = await api(`/api/students/${enc(student())}/mastery`);
+    $("mastery").replaceChildren(...(rows.length ? rows.map((r) => {
+      const m = cell(""); m.replaceChildren(meter(r.p_know));
+      return el("tr", {}, cell(nameOf(r.concept_id)), m, cell(r.retrievability?.toFixed(2)), cell(r.n_obs));
+    }) : [el("tr", {}, Object.assign(cell("No evidence yet: take the diagnostic or a quiz."), { colSpan: 4 }))]));
+  } catch (e) { showErr($("learner-err"), e.message); }
+  try {
+    const days = await api(`/api/students/${enc(student())}/schedule`);
+    const tasks = days.flatMap((d) => d.tasks.map((t) => ({ ...t, date: d.date })));
+    $("schedule").replaceChildren(...(tasks.length ? tasks.map((t) => el("div", { className: "meta", style: "margin: 8px 0" },
+      el("span", { className: "badge", textContent: `${t.minutes} min` }), el("strong", { textContent: nameOf(t.concept_id) }), el("span", { className: "muted", textContent: t.reason })))
+      : [el("p", { textContent: "Nothing scheduled yet." })]));
+  } catch (e) { showErr($("learner-err"), e.message); }
+}
+$("learner-refresh").addEventListener("click", () => loadLearner());
+
+$("onboard").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); showErr($("onb-err"), "");
+  try {
+    const r = await post("/api/students/onboard", { student_id: student(), background: $("background").value });
+    $("onb-out").textContent = `Saved ${student()} · starting ability θ = ${r.theta_0}`;
+  } catch (e) { showErr($("onb-err"), e.message); }
+});
+
+const parseList = (s) => { try { return JSON.parse(s || "[]"); } catch { return []; } };
+
+async function nextDiagnostic() {
+  showErr($("diag-err"), "");
+  try {
+    const item = await api(`/api/students/${enc(student())}/diagnostic`);
+    if (item.status === "complete") {
+      $("diag").replaceChildren(el("p", { textContent: "Diagnostic complete: no unanswered items left." }));
+      return loadLearner();
+    }
+    $("diag").replaceChildren(
+      el("p", { className: "muted", textContent: `${nameOf(item.concept_id)} · difficulty ${item.difficulty}` }),
+      el("p", { textContent: item.stem }),
+      el("div", { className: "options" }, ...parseList(item.options_json).map((opt) => el("button", {
+        type: "button", textContent: opt,
+        onclick: async () => {
+          try {
+            const r = await post(`/api/students/${enc(student())}/diagnostic/respond`, { item_id: item.item_id, response: [opt] });
+            $("diag").replaceChildren(el("p", {},
+              el("span", { className: `badge ${r.correct ? "right" : "wrong"}`, textContent: r.correct ? "correct" : "wrong" }),
+              ` ability θ is now ${r.new_theta.toFixed(2)}`),
+              el("button", { type: "button", textContent: "Next question", onclick: nextDiagnostic }));
+            loadLearner();
+          } catch (e) { showErr($("diag-err"), e.message); }
+        },
+      }))));
+  } catch (e) { showErr($("diag-err"), /not found/i.test(e.message) ? "Onboard this student first." : e.message); }
+}
+$("diag-start").addEventListener("click", nextDiagnostic);
+
+// ---------- quiz ----------
+let quizId = rid("quiz");
+$("quiz-id").textContent = `Quiz ${quizId}`;
+
+async function loadQuizConcepts() {
+  const g = await graphData();
+  const sel = $("quiz-concept"), keep = sel.value;
+  sel.replaceChildren(...g.nodes.filter((n) => n.level !== "topic").map((n) => el("option", { value: n.id, textContent: n.name })));
+  if (keep) sel.value = keep;
+}
+
+$("quiz-gen").addEventListener("click", async () => {
+  showErr($("quiz-err"), "");
+  const cid = $("quiz-concept").value;
+  if (!cid) return showErr($("quiz-err"), "No concepts yet: build the concept graph first.");
+  const topic = graph?.nodes.find((n) => n.id === cid)?.parent_id || "";
+  try {
+    const r = await post("/api/quiz/generate", { concept_id: cid, topic_id: topic });
+    if (r.status !== "success") return showErr($("quiz-err"), `Question rejected: ${r.reason}`);
+    renderItem(r.item);
+  } catch (e) { showErr($("quiz-err"), e.message); }
+});
+
+function renderItem(item) {
+  let picked = null;
+  const submit = el("button", { type: "button", className: "wide", textContent: "Submit answer", disabled: true });
+  const opts = parseList(item.options_json).map((opt) => el("button", {
+    type: "button", textContent: opt,
+    onclick: (e) => { picked = opt; opts.forEach((b) => b.classList.toggle("picked", b === e.currentTarget)); submit.disabled = false; },
+  }));
+  submit.onclick = async () => {
+    try {
+      const r = await post(`/api/quiz/submit?student_id=${enc(student())}`, { quiz_id: quizId, item_id: item.item_id, student_answer: [picked] });
+      submit.replaceWith(el("p", {}, el("span", { className: `badge ${r.correct ? "right" : "wrong"}`, textContent: r.correct ? "correct" : "wrong" })));
+      opts.forEach((b) => (b.disabled = true));
+    } catch (e) { showErr($("quiz-err"), e.message); }
+  };
+  $("quiz-item").replaceChildren(
+    el("p", { className: "muted", textContent: `${nameOf(item.concept_id)} · ${item.type} · ${item.bloom}` }),
+    el("p", { textContent: item.stem }), el("div", { className: "options" }, ...opts), submit);
+}
+
+$("quiz-new").addEventListener("click", () => {
+  quizId = rid("quiz"); $("quiz-id").textContent = `Quiz ${quizId}`;
+  $("quiz-item").replaceChildren(); $("report").textContent = "Answer a few questions, then build the report.";
+});
+
+$("quiz-report").addEventListener("click", async () => {
+  try {
+    const r = await api(`/api/quiz/report/${enc(quizId)}?student_id=${enc(student())}`);
+    if (!r.mastery_delta.length) { $("report").textContent = "No answers in this quiz yet."; return; }
+    $("report").className = "";
+    $("report").replaceChildren(
+      el("p", {}, el("span", { className: "badge", textContent: `score ${Math.round(r.score * 100)}%` }),
+        ` ${r.raw_metrics?.correct_items ?? 0} of ${r.raw_metrics?.total_items ?? 0} correct`),
+      el("h3", { textContent: "Mastery change" }),
+      el("table", {}, el("thead", {}, el("tr", {}, el("th", { textContent: "Concept" }), el("th", { textContent: "Before" }), el("th", { textContent: "After" }))),
+        el("tbody", {}, ...r.mastery_delta.map((d) => el("tr", {}, cell(nameOf(d.concept_id)), cell(d.before.toFixed(2)), cell(d.after.toFixed(2)))))),
+      el("h3", { textContent: "Next steps" }),
+      r.next_steps.length ? el("div", {}, ...r.next_steps.map((s) => el("p", {}, el("strong", { textContent: nameOf(s.concept_id) }), ` — ${s.reason}`)))
+        : el("p", { textContent: "Nothing to review." }),
+    );
+  } catch (e) { $("report").textContent = e.message; }
+});
+
+// ---------- start ----------
 api("/api/status").then(() => { $("api").textContent = "up"; $("api").className = "badge ok"; })
   .catch(() => { $("api").textContent = "down"; $("api").className = "badge down"; });
 loadSources();
 const last = localStorage.getItem("lastJob");
 if (last) watch(last).catch(() => localStorage.removeItem("lastJob"));
+show(location.hash.slice(1));
 </script>
 </body>
 </html>

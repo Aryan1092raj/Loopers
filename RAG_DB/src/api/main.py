@@ -38,7 +38,7 @@ app.mount("/media/pages", StaticFiles(directory=PAGES_DIR, check_dir=False), nam
 
 @app.get("/", include_in_schema=False)
 def console():
-    """Dev console for ingestion and pipeline runs; the product UI is the Next.js app in frontend/."""
+    """Neobrutalist study console: ingest, tutor with citations, concept map, learner and quiz (static, no build step)."""
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 @app.get("/api/status")
