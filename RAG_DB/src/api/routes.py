@@ -290,19 +290,34 @@ def onboard(req: OnboardReq):
 
 @router.get("/students/{student_id}/diagnostic")
 def get_diagnostic(student_id: str):
-    item = get_next_diagnostic_item(student_id)
+    try:
+        item = get_next_diagnostic_item(student_id)
+    except ValueError as e:  # student not onboarded
+        raise HTTPException(404, str(e))
     if not item:
         return {"status": "complete"}
     return item
 
 class RespondReq(BaseModel):
     item_id: str
-    correct: bool
+    correct: bool | None = None
+    response: list[str] | None = None  # additive: the server grades it, so the client never needs the key
 
 @router.post("/students/{student_id}/diagnostic/respond")
 def respond_diagnostic(student_id: str, req: RespondReq):
-    new_theta = process_diagnostic_response(student_id, req.item_id, req.correct)
-    return {"status": "success", "new_theta": new_theta}
+    correct = req.correct
+    if req.response is not None:
+        rows = _rows("SELECT answer_json FROM items WHERE item_id = ?", (req.item_id,))
+        if not rows:
+            raise HTTPException(404, "Item not found")
+        correct = sorted(req.response) == sorted(json.loads(rows[0]["answer_json"]))
+    if correct is None:
+        raise HTTPException(422, "Give response or correct")
+    try:
+        new_theta = process_diagnostic_response(student_id, req.item_id, correct)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return {"status": "success", "new_theta": new_theta, "correct": correct}
 
 @router.get("/students/{student_id}/mastery")
 def get_mastery(student_id: str):
@@ -389,7 +404,8 @@ class TTSRequest(BaseModel):
 
 @router.post("/voice/tts")
 def voice_tts(req: TTSRequest):
-    out_dir = Path("/home/pentxp/Downloads/Loopers_pranshu/RAG_DB/processed/media/tts_cache")
+    from config import PROCESSED
+    out_dir = PROCESSED / "media" / "tts_cache"  # was an absolute path from another machine
     path = synthesize_speech(req.text, out_dir)
     return FileResponse(path, media_type="audio/wav")
 
@@ -438,7 +454,10 @@ class QuizSubmitReq(BaseModel):
 
 @router.post("/quiz/submit")
 def quiz_submit(student_id: str, req: QuizSubmitReq):
-    correct = grade_submission(student_id, req.quiz_id, req.item_id, req.student_answer)
+    try:
+        correct = grade_submission(student_id, req.quiz_id, req.item_id, req.student_answer)
+    except ValueError as e:  # unknown item
+        raise HTTPException(404, str(e))
     return {"status": "success", "correct": correct}
 
 @router.get("/quiz/report/{session_id}")
