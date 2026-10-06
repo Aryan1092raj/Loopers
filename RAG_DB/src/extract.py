@@ -179,6 +179,42 @@ def _add_page(parts: list, pno: int, page_parts: list) -> None:
         parts.append(f"<!-- page {pno} -->\n\n{body}")
 
 
+# A short text block set this much larger than the body font becomes a `##` heading, so embed.py gets real
+# sections instead of one "Intro". The body size is measured per document, so no book's fonts are hard-coded.
+HEADING_RATIO = 1.25
+HEADING_MAX_CHARS = 120
+
+
+def _box(x0, y0, x1, y1) -> tuple:
+    return (round(x0), round(y0), round(x1), round(y1))
+
+
+def _body_font_size(doc) -> float:
+    """The font size that carries the most characters in the document."""
+    from collections import Counter
+    sizes = Counter()
+    for page in doc:
+        for b in page.get_text("dict")["blocks"]:
+            for line in b.get("lines", []):
+                for s in line["spans"]:
+                    sizes[round(s["size"], 1)] += len(s["text"].strip())
+    return sizes.most_common(1)[0][0] if sizes else 0.0
+
+
+def _heading_boxes(page, body_size: float) -> set:
+    """Boxes of short text blocks whose every span is at least HEADING_RATIO times the body size."""
+    out = set()
+    if not body_size:
+        return out
+    for b in page.get_text("dict")["blocks"]:
+        spans = [s for line in b.get("lines", []) for s in line["spans"] if s["text"].strip()]
+        text = " ".join(s["text"].strip() for s in spans)
+        if (spans and len(text) <= HEADING_MAX_CHARS and any(c.isalpha() for c in text)
+                and min(s["size"] for s in spans) >= HEADING_RATIO * body_size):
+            out.add(_box(*b["bbox"]))
+    return out
+
+
 def extract_pdf_digital(path: Path, stem: str) -> str:
     from collections import Counter
     doc = fitz.open(path)
@@ -190,6 +226,7 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
         for xref in xrefs:
             xref_page_counts[xref] += 1
             
+    body_size = _body_font_size(doc)
     parts = []
     figures = {}
     img_idx = 1
@@ -379,6 +416,7 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
 
         # 3. Extract text blocks
         raw_blocks = page.get_text("blocks")
+        headings = _heading_boxes(page, body_size)
         text_elements = []
         for b in raw_blocks:
             x0, y0, x1, y1, text, block_no, block_type = b
@@ -405,7 +443,7 @@ def extract_pdf_digital(path: Path, stem: str) -> str:
             text_elements.append({
                 "type": "text",
                 "bbox": (x0, y0, x1, y1),
-                "content": text,
+                "content": "## " + " ".join(text.split()) if _box(x0, y0, x1, y1) in headings else text,
                 "block_no": block_no
             })
             
@@ -499,9 +537,11 @@ def extract_pdf(path: Path, stem: str) -> str:
         try:
             from parsers.mineru_parser import parse as mineru_parse
             md = mineru_parse(path, PROCESSED)
-            if md:
+            if md and "<!-- page " in md:
                 print(f"[extract] {path.name}: MinerU (STEM)")
                 return md
+            if md:  # no page markers means no locators, which embed rejects
+                print("[extract] MinerU output has no page markers, falling back")
         except Exception as exc:
             print(f"[extract] MinerU failed ({exc}), falling back to PP-StructureV3")
     else:
@@ -812,6 +852,9 @@ def _extract_one(args: tuple) -> tuple[str, str, str]:
             md = src.read_text()
         elif ftype == "pptx":
             md = extract_pptx(src, stem)
+            from ingest.pages import render_slides
+            from ingest.registry import sha256
+            render_slides(src, sha256(src)[:16])  # slide n is n.webp, which cite.py finds through slide_no
         else:
             return rel, "skipped", f"unsupported type: {ftype}"
 

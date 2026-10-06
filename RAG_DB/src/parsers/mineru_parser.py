@@ -12,6 +12,28 @@ Falls back gracefully if magic_pdf is not installed.
 from pathlib import Path
 
 
+def _paged_markdown(pipe) -> str | None:
+    """Markdown with a `<!-- page N -->` marker before each page, as embed.py expects for locators.
+
+    MinerU's own .md has no page boundaries, so each page of the parsed result is rendered on its own. Written
+    against the magic_pdf 1.x API and not yet run against an install; returns None on any mismatch and the caller
+    then uses the unpaged file, which extract.py rejects in favour of the digital parser.
+    """
+    try:
+        from magic_pdf.config.make_content_config import MakeMode
+        from magic_pdf.dict2md.ocr_mkcontent import union_make
+
+        parts = []
+        for page in pipe.pdf_mid_data["pdf_info"]:
+            body = union_make([page], MakeMode.MM_MD, "images").strip()
+            if body:
+                parts.append(f"<!-- page {page['page_idx'] + 1} -->\n\n{body}")
+        return "\n\n".join(parts) or None
+    except Exception as exc:
+        print(f"[parsers/mineru] per-page markdown failed: {exc}")
+        return None
+
+
 def parse(pdf_path: str | Path, output_dir: str | Path) -> str | None:
     """Parse a STEM PDF with MinerU and return the extracted Markdown string.
 
@@ -56,6 +78,10 @@ def parse(pdf_path: str | Path, output_dir: str | Path) -> str | None:
         pipe.pipe_analyze()
         pipe.pipe_parse()
         pipe.pipe_mk_markdown(writer)
+
+        paged = _paged_markdown(pipe)
+        if paged:
+            return paged
 
         md_file = output_dir / f"{pdf_path.stem}.md"
         if md_file.exists():

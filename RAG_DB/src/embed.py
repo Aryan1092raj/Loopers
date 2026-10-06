@@ -331,6 +331,10 @@ def build_text_chunks(
             ci = -1
             segments, cur_page = _page_segments(body, cur_page)
             for loc, segment in segments:
+                if not is_transcript and len(body) > 3000:
+                    # a section longer than the cap (a book with no headings is one section) would give every chunk
+                    # the same opening 3,000 characters, so the parent is the chunk's own page instead
+                    parent_text = f"{breadcrumb}{heading}\n{segment.strip()}"[:3000]
                 for chunk in pack_with_math_awareness(segment, _has_math(segment)):
                     ci += 1
                     chunk_text = f"{breadcrumb}{heading}\n{chunk}"

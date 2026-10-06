@@ -29,8 +29,25 @@ def render_pages(pdf: Path, source_id: str) -> Path:
     return out
 
 
+def render_slides(pptx: Path, source_id: str) -> Path | None:
+    """Slide images for a pptx: LibreOffice converts it to PDF, then render_pages. None without LibreOffice."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        print("[pages] LibreOffice not found; slides get no page images")
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", tmp, str(pptx)],
+                       check=True, capture_output=True, timeout=300)
+        return render_pages(Path(tmp) / f"{Path(pptx).stem}.pdf", source_id)
+
+
 if __name__ == "__main__":
     from ingest.registry import sha256
 
-    pdf = Path(sys.argv[1])
-    print(render_pages(pdf, sha256(pdf)[:16]))
+    src = Path(sys.argv[1])
+    render = render_slides if src.suffix.lower() == ".pptx" else render_pages
+    print(render(src, sha256(src)[:16]))
