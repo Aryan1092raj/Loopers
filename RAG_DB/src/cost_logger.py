@@ -30,15 +30,28 @@ PRICES_PER_MTOK = {
     "claude-haiku-4-5": (1, 5),
     "claude-fable-5": (10, 50),
     # Free-tier fallbacks — no charge to log.
+    "gemini-3.8-flash": (0, 0),
+    "gemini-3.7-flash": (0, 0),
+    "gemini-3.5-flash-lite": (0, 0),
     "gemini-2.5-flash": (0, 0),
     "gemini-2.0-flash": (0, 0),
     "gemini-1.5-flash": (0, 0),
-    # DeepSeek V4 Pro (75% promo rate through 2026-05-31)
-    "deepseek-v4-pro": (0.435, 0.87),
-    # DeepSeek V4 Flash. Listed peak rate; off-peak (10:00-01:00 and 04:00-06:00 UTC)
-    # is half this, so a logged cost is an upper bound, never an under-report.
-    "deepseek-v4-flash": (0.44, 1.32),
+    # DeepSeek peak, cache-miss rates. Off-peak is half (see _is_peak), applied per call.
+    # Cache hits are billed cheaper but record() has no cache data, so cost is an upper bound.
+    "deepseek-v4-pro": (1.32, 3.96),
+    "deepseek-flash": (0.3, 1.2),
+    "deepseek-v4-flash": (0.3, 1.2),  # legacy names, served and billed as Flash
+    "deepseek-v4-flash-vision-exp": (0.3, 1.2),
 }
+
+# Peak: 01-04 and 06-10 UTC, Mon-Fri. Weekends are off-peak all day.
+# ponytail: Chinese public holidays are also off-peak but not modelled, so a holiday
+# is billed as peak here, an over-estimate. Add a date list if exact cost matters.
+def _is_peak(ts: float | None = None) -> bool:
+    t = time.gmtime(ts if ts is not None else time.time())
+    if t.tm_wday >= 5:
+        return False
+    return 1 <= t.tm_hour < 4 or 6 <= t.tm_hour < 10
 
 _lock = threading.Lock()
 _calls: list[dict] = []
@@ -62,11 +75,14 @@ def record(provider: str, model: str, input_tokens: int, output_tokens: int, rol
             "role": role,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "peak": _is_peak(),
         })
 
 
-def _cost_for_call(model: str, input_tokens: int, output_tokens: int) -> float:
+def _cost_for_call(model: str, input_tokens: int, output_tokens: int, peak: bool = True) -> float:
     price_in, price_out = PRICES_PER_MTOK.get(model, (0, 0))
+    if model.startswith("deepseek") and not peak:
+        price_in, price_out = price_in / 2, price_out / 2
     return (input_tokens / 1_000_000) * price_in + (output_tokens / 1_000_000) * price_out
 
 
@@ -82,7 +98,7 @@ def summary() -> dict:
     by_role: dict[str, dict] = {}
 
     for c in calls:
-        cost = _cost_for_call(c["model"], c["input_tokens"], c["output_tokens"])
+        cost = _cost_for_call(c["model"], c["input_tokens"], c["output_tokens"], c.get("peak", True))
         total_cost_usd += cost
         total_in += c["input_tokens"]
         total_out += c["output_tokens"]
@@ -98,7 +114,7 @@ def summary() -> dict:
     # Build per-call details for comparison table
     call_details = []
     for c in calls:
-        cost = _cost_for_call(c["model"], c["input_tokens"], c["output_tokens"])
+        cost = _cost_for_call(c["model"], c["input_tokens"], c["output_tokens"], c.get("peak", True))
         call_details.append({
             "provider": c["provider"],
             "model": c["model"],

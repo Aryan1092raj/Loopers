@@ -17,6 +17,11 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# httpx raises InvalidURL("Invalid port: ':'") on IPv6 entries (::1, fd00::/8) in NO_PROXY.
+for _var in ("NO_PROXY", "no_proxy"):
+    if os.environ.get(_var):
+        os.environ[_var] = ",".join(h for h in os.environ[_var].split(",") if ":" not in h)
+
 def _setup_nvidia_libs():
     """Auto-configure LD_LIBRARY_PATH and Paddle flags with restart trick.
 
@@ -91,7 +96,7 @@ AGENTROUTER_USER = os.getenv("AGENTROUTER_USER", "cline")
 # DeepSeek V4 Pro (primary generation / judge LLM)
 # OpenAI-compatible API at https://api.deepseek.com
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 # Optional reasoning_effort for DeepSeek ("low" | "medium" | "high" | ""). When set,
 # the API enables thinking mode. JSON spec generation should leave this empty so
@@ -104,7 +109,7 @@ GENERATOR_MODEL = os.getenv("GENERATOR_MODEL", "")
 # Revision shorts (src/shorts.py). Condenses existing Lecture.notesJson into one
 # PDF, so it runs on Flash rather than the shared DEEPSEEK_MODEL — extraction, not
 # reasoning. Trim limits apply before the call and cost nothing.
-SHORTS_MODEL = os.getenv("SHORTS_MODEL", "deepseek-v4-flash")
+SHORTS_MODEL = os.getenv("SHORTS_MODEL", "deepseek-flash")
 SHORTS_PROSE_CHARS = int(os.getenv("SHORTS_PROSE_CHARS", "400"))
 SHORTS_MAX_BULLETS = int(os.getenv("SHORTS_MAX_BULLETS", "6"))
 SHORTS_INPUT_BUDGET_TOK = int(os.getenv("SHORTS_INPUT_BUDGET_TOK", "96000"))
@@ -150,7 +155,7 @@ NVIDIA_KEYS = [k.strip() for k in NVIDIA_API_KEY.split(",")] if NVIDIA_API_KEY e
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_KEYS = [k.strip() for k in GROQ_API_KEY.split(",")] if GROQ_API_KEY else []
-GROQ_CONTENT_MODEL = os.getenv("GROQ_CONTENT_MODEL", "llama-3.3-70b-versatile")
+GROQ_CONTENT_MODEL = os.getenv("GROQ_CONTENT_MODEL", "openai/gpt-oss-120b")
 def __getattr__(name: str):
     import logging as _logging
     if name == "GROQ_ORCHESTRATOR_KEY":

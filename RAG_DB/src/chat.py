@@ -176,7 +176,7 @@ def _call_llm_chat(messages: list) -> str:
             print(f"[chat] AgentRouter failed ({e}). Trying Gemini...")
 
     # 5. Gemini fallback (try multiple models)
-    for model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+    for model in ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite"]:
         try:
             print(f"[chat] Gemini fallback ({model}) for intent parsing...")
             return call_gemini(messages, model=model, max_tokens=2048)

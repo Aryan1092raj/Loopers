@@ -125,7 +125,7 @@ def extract_triples(chunk_text: str) -> list[dict]:
             {"role": "user", "content": chunk_text[:2000]},
         ]
         try:
-            raw = call_gemini(messages, model="gemini-2.0-flash", max_tokens=512)
+            raw = call_gemini(messages, model="gemini-3.8-flash", max_tokens=512)
         except Exception:
             raw = call_groq(messages, max_tokens=512)
         raw = raw.strip()

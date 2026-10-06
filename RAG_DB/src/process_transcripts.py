@@ -91,8 +91,8 @@ def process_text_into_concepts(text: str) -> list[dict]:
             
     if not response:
         try:
-            print("[process_transcripts] Using Gemini (gemini-2.5-flash)...")
-            response = llm.call_gemini(messages, model="gemini-2.5-flash", max_tokens=8192)
+            print("[process_transcripts] Using Gemini (gemini-3.8-flash)...")
+            response = llm.call_gemini(messages, model="gemini-3.8-flash", max_tokens=8192)
         except Exception as e:
             print(f"[process_transcripts] Gemini failed: {e}. Trying Groq...")
             try:

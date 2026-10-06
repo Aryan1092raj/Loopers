@@ -15,12 +15,12 @@ load_dotenv(ROOT / ".env")
 
 # Groq keys — 4 dedicated keys (orchestrator, content1, content2, tikz)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # DeepSeek V4 Pro — primary generation LLM. OpenAI-compatible.
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_REASONING = os.getenv("DEEPSEEK_REASONING", "")
 
@@ -124,7 +124,7 @@ def call_groq(messages: list, max_tokens: int = 1000, model: str | None = None) 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 
 
-def call_gemini(messages: list, max_tokens: int = 1000, model: str = "gemini-2.5-flash") -> str:
+def call_gemini(messages: list, max_tokens: int = 1000, model: str = "gemini-3.8-flash") -> str:
     """Gemini through its OpenAI-compatible endpoint (accepts image_url data URIs)."""
     import config
     keys = [k for k in config.GEMINI_KEYS if k]
@@ -238,11 +238,8 @@ def call_deepseek(
         "messages": messages,
         "max_tokens": max_tokens,
     }
-    if not thinking_disabled:
-        payload["thinking"] = {"type": "enabled"}
-    effort = reasoning_effort if reasoning_effort is not None else config.DEEPSEEK_REASONING
-    if effort:
-        payload["reasoning_effort"] = effort
+    # Flash only, thinking always off: callers' thinking_disabled / reasoning_effort are ignored.
+    payload["thinking"] = {"type": "disabled"}
 
     import httpx
     last_err: Exception | None = None
@@ -372,7 +369,7 @@ def label_image_with_vision(image_path: Path, prompt: str) -> str:
     import config
     if config.GEMINI_KEYS:
         from llm import call_gemini
-        gemini_models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+        gemini_models = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.7-flash"]
         for model in gemini_models:
             try:
                 print(f"[llm] Trying Gemini vision labeling with: {model}")
