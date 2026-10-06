@@ -72,12 +72,22 @@ def _in_scope(unit_ids: list[str], scope: dict) -> set[str]:
     return {r[0] for r in rows}
 
 
+def _units_tagged() -> bool:
+    """False until the concept build has tagged at least one unit."""
+    conn = get_connection()
+    try:
+        return conn.execute("SELECT 1 FROM unit_concepts LIMIT 1").fetchone() is not None
+    finally:
+        conn.close()
+
+
 def retrieve_evidence(query: str, scope: dict | None = None) -> tuple[list[Evidence], bool]:
     """Evidence E1..En for a question, and whether the cross-encoder reranked it (False means degraded scores)."""
     from generate import retrieve  # heavy: loads BGE-M3, reranker and Qdrant on first call
 
     chunks, reranked = retrieve(query, tutor=True)
-    if scope and (scope.get("topic_ids") or scope.get("concept_ids")):
+    # an untagged corpus would filter every chunk out, so the scope applies only once the concept build has run
+    if scope and (scope.get("topic_ids") or scope.get("concept_ids")) and _units_tagged():
         keep = _in_scope([str(c.get("unit_id") or "") for c in chunks], scope)
         chunks = [c for c in chunks if str(c.get("unit_id") or "") in keep]
     if chunks:  # background for the question; nothing to add when the question matched nothing

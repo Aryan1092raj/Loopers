@@ -97,6 +97,9 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 # the API enables thinking mode. JSON spec generation should leave this empty so
 # the model answers directly without spending tokens on reasoning (reliable JSON).
 DEEPSEEK_REASONING = os.getenv("DEEPSEEK_REASONING", "")
+# Model for tutor answers (TRD §9). Empty keeps each provider's default. It names one model, so it applies to the
+# first configured answer provider only; keep it different from the model that judges or blind-solves.
+GENERATOR_MODEL = os.getenv("GENERATOR_MODEL", "")
 
 # Revision shorts (src/shorts.py). Condenses existing Lecture.notesJson into one
 # PDF, so it runs on Flash rather than the shared DEEPSEEK_MODEL — extraction, not

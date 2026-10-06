@@ -36,20 +36,22 @@ def complete(messages: list[dict], role: str = "answer", max_tokens: int = 1200)
     import llm
 
     providers = {
-        "deepseek": (bool(config.DEEPSEEK_API_KEY), lambda: llm.call_deepseek(messages, max_tokens=max_tokens, thinking_disabled=True)),
-        "groq": (bool(config.GROQ_KEYS), lambda: llm.call_groq(messages, max_tokens=max_tokens)),
-        "gemini": (bool(config.GEMINI_KEYS), lambda: llm.call_gemini(messages, max_tokens=max_tokens)),
+        "deepseek": (bool(config.DEEPSEEK_API_KEY), lambda m: llm.call_deepseek(messages, max_tokens=max_tokens, thinking_disabled=True, model=m)),
+        "groq": (bool(config.GROQ_KEYS), lambda m: llm.call_groq(messages, max_tokens=max_tokens, model=m)),
+        "gemini": (bool(config.GEMINI_KEYS), lambda m: llm.call_gemini(messages, max_tokens=max_tokens, **({"model": m} if m else {}))),
     }
     order = ["deepseek", "groq", "gemini"] if role == "answer" else ["groq", "gemini", "deepseek"]
+    model = (config.GENERATOR_MODEL or None) if role == "answer" else None
     errors = []
     for name in order:
         configured, call = providers[name]
         if not configured:
             continue
         try:
-            return call()
+            return call(model)
         except Exception as e:  # try the next provider
             errors.append(f"{name}: {e}")
+        model = None  # GENERATOR_MODEL names one provider's model; fallbacks use their own defaults
     raise NoProvider("; ".join(errors) or "no LLM key is configured")
 
 
