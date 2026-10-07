@@ -516,7 +516,9 @@ def _infer_subject(stem: str) -> str:
 def run(force_full: bool = False) -> None:
     import store
 
+    c = store.client()
     state = _load_embed_state()
+    seen = state if c.collection_exists(COLLECTION) else {}  # a new collection holds none of the hashed docs
 
     if force_full:
         changed_docs = None  # all
@@ -528,14 +530,14 @@ def run(force_full: bool = False) -> None:
 
         for md in sorted(PROCESSED.glob("*.md")):
             current_hash = _sha256_file(md)
-            if state.get(f"text::{md.stem}") != current_hash:
+            if seen.get(f"text::{md.stem}") != current_hash:
                 changed_docs.add(md.stem)
 
         # Check if labels.json changed (proxy for any image label change)
         from config import LABELS
         if LABELS.exists():
             labels_hash = _sha256_file(LABELS)
-            if state.get("images::labels") != labels_hash:
+            if seen.get("images::labels") != labels_hash:
                 images_changed = True
                 changed_docs.add("__images__")
 
@@ -561,7 +563,6 @@ def run(force_full: bool = False) -> None:
         changed_docs -= set(unlocated)
     idocs, imetas, iids = build_image_chunks(changed_docs)
 
-    c = store.client()
     if force_full:
         print("[embed] --full rebuild: wiping collection and re-embedding everything...")
         store.reset_collection(c)
