@@ -84,8 +84,8 @@ LABELS = METADATA / "labels.json"
 EVAL_QUESTIONS = METADATA / "eval_questions.json"
 EMBED_STATE = METADATA / "embed_state.json"  # tracks per-file sha256 for incremental embed
 
-COLLECTION = os.getenv("COLLECTION", "lms_pilot")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-m3")
+COLLECTION = os.getenv("COLLECTION", "multimodal_hackathon")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "google/embeddinggemma-2")
 VECTOR_SIZE = 768 if "embeddinggemma-2" in EMBED_MODEL.lower() else 1024  # EmbeddingGemma 2 / BGE-M3 dense dimension
 
 # AgentRouter (Claude Opus proxy)
