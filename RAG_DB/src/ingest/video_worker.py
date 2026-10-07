@@ -1,5 +1,6 @@
+import hashlib
 import os
-import uuid
+import shutil
 import subprocess
 import logging
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import List, Dict, Any
 import requests
 import yt_dlp
 
+from config import PROCESSED
 from core.models import SourceUnit, Locator
 from ingest import jobs
 from ingest.units import write_units
@@ -15,7 +17,8 @@ from core.db import get_connection
 logger = logging.getLogger(__name__)
 
 WHISPER_URL = os.getenv("WHISPER_SERVER_URL", "http://localhost:8000/transcribe")
-MEDIA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "processed" / "media"
+MEDIA_DIR = PROCESSED / "media"
+MAX_CLIP_SECONDS = 60  # longest slice of a transcript unit that is embedded as video + audio
 
 def download_youtube_audio(url: str, output_path: Path) -> None:
     """Downloads best available audio from YouTube."""
@@ -60,8 +63,82 @@ def get_transcript(audio_path: Path) -> List[Dict[str, Any]]:
         data = response.json()
         return data.get("segments", [])
     except Exception as e:
-        logger.error(f"Whisper transcription failed: {e}")
-        raise
+        logger.warning(f"Whisper server failed ({e}); falling back to local faster-whisper")
+        return _local_transcript(audio_path)
+
+
+def _local_transcript(audio_path: Path) -> List[Dict[str, Any]]:
+    # ponytail: English-only base model on CPU; set up the whisper server for other languages or speed
+    from faster_whisper import WhisperModel
+
+    segments, _ = WhisperModel("base.en", device="cpu", compute_type="int8").transcribe(str(audio_path), vad_filter=True)
+    return [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
+
+
+def has_video(path: Path) -> bool:
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    return out.returncode == 0 and "video" in out.stdout
+
+
+def make_clips(source: Path, wav: Path, units: List[SourceUnit], out_dir: Path) -> Dict[str, Dict[str, str]]:
+    """Cut each transcript unit's time span into a small silent video clip and a 16 kHz wav for embedding.
+
+    Audio-only sources get the wav only. A unit whose cut fails is left out and embeds as text.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    video = has_video(source)
+    media: Dict[str, Dict[str, str]] = {}
+    for u in units:
+        start = u.locator.t_start or 0.0
+        dur = min((u.locator.t_end or start) - start, MAX_CLIP_SECONDS)
+        if dur <= 0.5:
+            continue
+        span = ["-ss", f"{start:.2f}", "-t", f"{dur:.2f}"]
+        entry = {"audio": str(out_dir / f"{u.unit_id}.wav")}
+        cmds = [["ffmpeg", "-y", "-loglevel", "error", *span, "-i", str(wav), "-c:a", "pcm_s16le", "-ar", "16000", "-ac", "1", entry["audio"]]]
+        if video:
+            entry["video"] = str(out_dir / f"{u.unit_id}.mp4")
+            cmds.append(["ffmpeg", "-y", "-loglevel", "error", *span, "-i", str(source), "-an",
+                         "-vf", "fps=2,scale=480:-2,format=yuv420p", entry["video"]])
+        try:
+            for cmd in cmds:
+                subprocess.run(cmd, check=True, capture_output=True)
+            if all(Path(p).stat().st_size > 1024 for p in entry.values()):  # an empty clip would fail the whole embed batch
+                media[u.unit_id] = entry
+            else:
+                logger.warning(f"clip for {u.unit_id} is empty; embedding text only")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"clip for {u.unit_id} failed: {e.stderr.decode()[:200]}")
+    return media
+
+
+def match_slides(source: Path, source_id: str) -> None:
+    """Find keyframes, OCR them, match them to slide pages, and copy the match into the Qdrant payloads."""
+    import store
+    from config import COLLECTION
+    from ingest.scenes import extract_scenes
+    from ingest.slide_match import match_video_to_slides
+
+    match_video_to_slides(source_id, extract_scenes(source, source_id))
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT unit_id, matched_slide_page, image_path FROM units WHERE source_id=? AND matched_slide_page IS NOT NULL",
+            (source_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    client = store.client()
+    for uid, page, image in rows:
+        client.set_payload(COLLECTION, payload={"matched_slide_page": page, "image": image}, points=[store._point_id(uid)])
+
+def _unit_id(source_id: str, t_start: float) -> str:
+    """Stable per (source, start time), so re-ingesting a source replaces its units instead of duplicating them."""
+    return "u_" + hashlib.sha1(f"{source_id}:{t_start:.2f}".encode()).hexdigest()[:8]
+
 
 def chunk_transcript(source_id: str, title: str, segments: List[Dict[str, Any]], target_duration: int = 30) -> List[SourceUnit]:
     """
@@ -85,7 +162,7 @@ def chunk_transcript(source_id: str, title: str, segments: List[Dict[str, Any]],
         current_end = seg_end
         
         if (current_end - current_start) >= target_duration:
-            unit_id = f"u_{uuid.uuid4().hex[:8]}"
+            unit_id = _unit_id(source_id, current_start)
             units.append(
                 SourceUnit(
                     unit_id=unit_id,
@@ -101,7 +178,7 @@ def chunk_transcript(source_id: str, title: str, segments: List[Dict[str, Any]],
             current_start = None
             
     if current_chunk_text and current_start is not None:
-        unit_id = f"u_{uuid.uuid4().hex[:8]}"
+        unit_id = _unit_id(source_id, current_start)
         units.append(
             SourceUnit(
                 unit_id=unit_id,
@@ -120,7 +197,8 @@ def process_video(job_id: str, source_id: str, source_path_or_url: str) -> None:
     """Main Orchestrator for Task B1: YouTube/Local Video Ingestion"""
     temp_audio = MEDIA_DIR / "temp" / f"{job_id}_{source_id}.wav"
     temp_dl = MEDIA_DIR / "temp" / f"{job_id}_{source_id}_dl.tmp"
-    
+    clip_dir = MEDIA_DIR / "temp" / f"{job_id}_{source_id}_clips"
+
     try:
         # 1. Fetch Source Metadata
         conn = get_connection()
@@ -153,9 +231,17 @@ def process_video(job_id: str, source_id: str, source_path_or_url: str) -> None:
         jobs.update_job_progress(job_id, stage='chunking', progress=0.9)
         units = chunk_transcript(source_id, title, segments, target_duration=30)
         
-        # 6. Persist Units (SQLite + Qdrant fallback logic)
-        write_units(units)
-        
+        # 6. Persist Units (SQLite + Qdrant fallback logic); each unit embeds its clip's frames and speech with the text
+        media = make_clips(local_source, temp_audio, units, clip_dir)
+        write_units(units, media=media)
+
+        # 6b. Keyframes -> OCR -> slide match. Best effort: the transcript units are already searchable.
+        if has_video(local_source):
+            try:
+                match_slides(local_source, source_id)
+            except Exception as e:
+                logger.warning(f"Slide matching skipped: {e}")
+
         # 7. Mark Job & Source Complete
         jobs.update_job_progress(job_id, stage='completed', progress=1.0, units_created=len(units))
         
@@ -173,3 +259,4 @@ def process_video(job_id: str, source_id: str, source_path_or_url: str) -> None:
             temp_audio.unlink()
         if temp_dl.exists():
             temp_dl.unlink()
+        shutil.rmtree(clip_dir, ignore_errors=True)

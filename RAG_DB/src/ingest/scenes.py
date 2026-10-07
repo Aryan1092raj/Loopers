@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from scenedetect import open_video, SceneManager, ContentDetector
 
+from config import PROCESSED
+
 logger = logging.getLogger(__name__)
 
 # OCR Engine Initialization (with robust fallback for sandboxed/headless environments)
@@ -27,7 +29,7 @@ def extract_scenes(video_path: Path, source_id: str) -> list[dict]:
     Scans a video for visual transitions using PySceneDetect.
     Extracts a high-res keyframe at the midpoint of each scene and runs OCR.
     """
-    output_dir = Path(__file__).resolve().parent.parent.parent.parent / "processed" / "media" / "keyframes" / source_id
+    output_dir = PROCESSED / "media" / "keyframes" / source_id
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # 1. Detect Scenes
@@ -36,7 +38,9 @@ def extract_scenes(video_path: Path, source_id: str) -> list[dict]:
     scene_manager.add_detector(ContentDetector(threshold=27.0))
     scene_manager.detect_scenes(video, show_progress=False)
     scenes = scene_manager.get_scene_list()
-    
+    if not scenes:  # no cuts (one static slide): treat the whole video as one scene
+        scenes = [(video.base_timecode, video.duration)]
+
     # Context manager / clean closure for OpenCV
     cap = cv2.VideoCapture(str(video_path))
     results = []
