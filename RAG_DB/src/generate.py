@@ -153,10 +153,12 @@ RERANK_MODEL = "BAAI/bge-reranker-v2-m3"  # multilingual, pairs with BGE-M3
 
 @lru_cache(maxsize=1)
 def _reranker():
-    from FlagEmbedding import FlagReranker
+    from sentence_transformers import CrossEncoder  # FlagEmbedding pins transformers 4.x, EmbeddingGemma 2 needs 5.x
     import torch
     print(f"[generate] Loading Cross-Encoder '{RERANK_MODEL}'...")
-    return FlagReranker(RERANK_MODEL, use_fp16=torch.cuda.is_available())
+    cuda = torch.cuda.is_available()
+    return CrossEncoder(RERANK_MODEL, device="cuda" if cuda else "cpu",
+                        model_kwargs={"torch_dtype": torch.float16 if cuda else torch.float32})
 
 
 # Scores are sigmoid-normalized to [0,1] (compute_score(normalize=True)), so
@@ -288,9 +290,8 @@ def retrieve(
         try:
             model = _reranker()
             pairs = [[query, c.get("text", "")] for c in texts]
-            scores = model.compute_score(pairs, normalize=True)  # sigmoid -> [0,1]
-            if isinstance(scores, float):
-                scores = [scores]
+            import torch
+            scores = model.predict(pairs, activation_fn=torch.nn.Sigmoid()).tolist()  # sigmoid -> [0,1]
             for c, score in zip(texts, scores):
                 c["score"] = float(score)
             texts.sort(key=lambda x: x["score"], reverse=True)
