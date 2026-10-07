@@ -112,6 +112,24 @@ def encode_hybrid(texts, is_query: bool = False) -> tuple[list[list[float]], lis
         return dense, None  # type: ignore[return-value]
 
 
+def media_input(text: str, video=None, audio=None):
+    """EmbeddingGemma 2 input that embeds a clip's frames and speech together with its transcript.
+
+    Frames and audio go in as separate inputs: an audio track inside the mp4 is ignored by the model.
+    Returns plain text for other models or when no media is given.
+    """
+    from config import EMBED_MODEL
+
+    if "embeddinggemma-2" not in EMBED_MODEL.lower() or not (video or audio):
+        return text
+    item = {"text": " ".join(filter(None, [text, "<|video|>" if video else "", "<|audio|>" if audio else ""]))}
+    if video:
+        item["video"] = [str(video)]
+    if audio:
+        item["audio"] = [str(audio)]
+    return item
+
+
 def get_vector_size() -> int:
     from config import EMBED_MODEL
     if "bge-m3" in EMBED_MODEL.lower():

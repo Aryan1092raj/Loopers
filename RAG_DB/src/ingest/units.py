@@ -15,11 +15,12 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
-def write_units(units: List[SourceUnit], qdrant: bool = True) -> None:
+def write_units(units: List[SourceUnit], qdrant: bool = True, media: dict | None = None) -> None:
     """
     Persists SourceUnit records to the SQLite relational database and the Qdrant vector store.
     Transactional safety is prioritized for relational data. qdrant=False skips the vector write
-    for callers (embed.py) that already upsert their own payloads.
+    for callers (embed.py) that already upsert their own payloads. media maps unit_id to
+    {"video": path, "audio": path}; those clips are embedded together with the unit's text.
     """
     if not units:
         return
@@ -102,7 +103,8 @@ def write_units(units: List[SourceUnit], qdrant: bool = True) -> None:
 
     # 2. Write to Qdrant
     try:
-        texts = [u.text for u in units]
+        media = media or {}
+        texts = [embeddings.media_input(u.text, **media[u.unit_id]) if u.unit_id in media else u.text for u in units]
         dense_vecs, sparse_vecs = embeddings.encode_hybrid(texts)
         
         ids = [u.unit_id for u in units]
@@ -130,7 +132,11 @@ def write_units(units: List[SourceUnit], qdrant: bool = True) -> None:
             } for u in units
         ]
         
+        from config import COLLECTION
+
         q_client = store.client()
+        if not q_client.collection_exists(COLLECTION):  # first source ever: no document embed has created it yet
+            store.reset_collection(q_client)
         store.ensure_indexes(q_client)
         store.upsert(q_client, ids, dense_vecs, payloads, sparse_vecs)
     except Exception as e:
