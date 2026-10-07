@@ -119,6 +119,7 @@ class SimulateRequest(BaseModel):
 # --- 6.1 sources and jobs ---
 
 DOC_EXTS = {".pdf", ".pptx", ".docx", ".md", ".txt"}
+MEDIA_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".mp3", ".wav", ".m4a"}  # video and audio lectures
 MAX_UPLOAD = 200 * 1024 * 1024
 
 
@@ -136,8 +137,8 @@ def create_source(
     Videos and the JSON {url, kind} variant arrive with B1.
     """
     ext = Path(file.filename or "").suffix.lower()
-    if ext not in DOC_EXTS:
-        raise HTTPException(415, f"Unsupported file type {ext or '(none)'}; allowed: {sorted(DOC_EXTS)}")
+    if ext not in DOC_EXTS | MEDIA_EXTS:
+        raise HTTPException(415, f"Unsupported file type {ext or '(none)'}; allowed: {sorted(DOC_EXTS | MEDIA_EXTS)}")
     if runner._busy.locked():
         raise HTTPException(409, "A pipeline job is already running")
     title = title or Path(file.filename).stem
@@ -168,14 +169,14 @@ def create_source(
             "INSERT INTO sources (source_id, kind, title, file_name, media_path, lecture_no, lang, status, created_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)"
             " ON CONFLICT(source_id) DO UPDATE SET status = 'running', title = excluded.title",
-            (source_id, kind or ("slides" if ext == ".pptx" else "textbook"), title, dest.name,
+            (source_id, kind or ("video" if ext in MEDIA_EXTS else "slides" if ext == ".pptx" else "textbook"), title, dest.name,
              str(dest.relative_to(runner.ROOT)), lecture_no, lang, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
     finally:
         conn.close()
     try:
-        job_id = runner.start(runner.DOCUMENT_STAGES, source_id)
+        job_id = runner.start(runner.MEDIA_STAGES if ext in MEDIA_EXTS else runner.DOCUMENT_STAGES, source_id)
     except runner.Busy:
         raise HTTPException(409, "A pipeline job is already running; the file is saved, run the pipeline later")
     return {"source_id": source_id, "job_id": job_id}

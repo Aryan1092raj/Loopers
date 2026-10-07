@@ -25,8 +25,9 @@ STAGE_ARGS = {
     "eval": ["eval", "--k", "5"],
 }
 # Job stage names reported to the UI (TRD §6.1 document stages; `embed` also writes the units)
-STAGE_LABEL = {"ingest": "parse", "extract": "parse", "label": "figures", "embed": "embed", "concepts": "concepts", "eval": "eval"}
+STAGE_LABEL = {"ingest": "parse", "extract": "parse", "label": "figures", "media": "transcribe", "embed": "embed", "concepts": "concepts", "eval": "eval"}
 DOCUMENT_STAGES = ["ingest", "extract", "label", "embed", "concepts"]
+MEDIA_STAGES = ["media", "concepts"]  # video and audio sources: transcribe + embed clips, then tag concepts
 
 _busy = threading.Lock()
 
@@ -63,8 +64,9 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
             for i, stage in enumerate(stages):
                 update_job_progress(job_id, STAGE_LABEL[stage], i / len(stages))
                 log.write(f"\n=== {stage} ===\n")
+                args = ["media", source_id, "--job-id", job_id] if stage == "media" else STAGE_ARGS[stage]
                 code = subprocess.run(
-                    [sys.executable, str(ROOT / "src" / "pipeline.py"), *STAGE_ARGS[stage]],
+                    [sys.executable, str(ROOT / "src" / "pipeline.py"), *args],
                     cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
                 ).returncode
                 if code != 0:

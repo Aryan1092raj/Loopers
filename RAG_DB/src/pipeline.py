@@ -40,6 +40,10 @@ def main() -> None:
     emb.add_argument("--reset-collection", action="store_true",
                      help="Drop and recreate Qdrant collection (migrates to hybrid schema) then re-embed all")
 
+    med = sub.add_parser("media", help="Phase 4a — transcribe + embed one video/audio source (clips embed with their speech)")
+    med.add_argument("source_id")
+    med.add_argument("--job-id", default="cli")
+
     sub.add_parser("concepts", help="Phase 4b — concept graph + tag every unit (needs an LLM key in .env)")
 
     g = sub.add_parser("generate", help="Phase 5 — RAG topic -> .pdf via OpenRouter and LaTeX")
@@ -101,6 +105,23 @@ def main() -> None:
         label.run()
     elif args.cmd == "embed":
         embed.run(force_full=args.full or args.reset_collection)
+    elif args.cmd == "media":
+        import sys
+        from config import ROOT
+        from core.db import get_connection
+        from ingest.video_worker import process_video
+
+        conn = get_connection()
+        row = conn.execute("SELECT media_path FROM sources WHERE source_id = ?", (args.source_id,)).fetchone()
+        conn.close()
+        if not row or not row[0]:
+            sys.exit(f"[media] no media_path for source {args.source_id}")
+        process_video(args.job_id, args.source_id, str(ROOT / row[0]))
+        conn = get_connection()
+        job = conn.execute("SELECT stage, error FROM jobs WHERE job_id = ?", (args.job_id,)).fetchone()
+        conn.close()
+        if job and job[0] == "failed":  # process_video records failures instead of raising
+            sys.exit(f"[media] failed: {job[1]}")
     elif args.cmd == "concepts":
         from concepts import build
         from tutor.answer import NoProvider
