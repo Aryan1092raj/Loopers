@@ -21,7 +21,7 @@ import json
 import re
 from pathlib import Path
 
-from config import PROCESSED, COLLECTION, EMBED_STATE, METADATA
+from config import PROCESSED, COLLECTION, EMBED_STATE, METADATA, EMBED_MODEL
 from label import load_labels
 
 # Set CLAF_TAGGING=1 in .env to enable LLM-based pedagogical metadata tagging.
@@ -609,8 +609,16 @@ def run(force_full: bool = False) -> None:
     import torch
     from embeddings import encode_hybrid
     device = "GPU (RTX 4050)" if torch.cuda.is_available() else "CPU"
-    print(f"[embed] encoding {len(all_docs)} chunks with BGE-M3 on {device} (dense+sparse)...")
-    dense_vecs, sparse_vecs = encode_hybrid(all_docs)
+    print(f"[embed] encoding {len(all_docs)} chunks with {EMBED_MODEL} on {device}...")
+    inputs = all_docs
+    if "embeddinggemma-2" in EMBED_MODEL.lower():
+        # figure chunks embed the picture together with its caption
+        inputs = [
+            {"text": f"{d} <|image|>", "image": [str(PROCESSED / m["image"])]}
+            if m["kind"] == "image" and m.get("image") and (PROCESSED / m["image"]).exists() else d
+            for d, m in zip(all_docs, all_metas)
+        ]
+    dense_vecs, sparse_vecs = encode_hybrid(inputs)
 
     store.upsert(c, all_ids, dense_vecs, all_metas, sparse_vectors=sparse_vecs)
     _write_units(metas + imetas, ids + iids)
