@@ -86,7 +86,7 @@ EMBED_STATE = METADATA / "embed_state.json"  # tracks per-file sha256 for increm
 
 COLLECTION = os.getenv("COLLECTION", "lms_pilot")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "BAAI/bge-m3")
-VECTOR_SIZE = 1024  # BGE-M3 dense dimension
+VECTOR_SIZE = 768 if "embeddinggemma-2" in EMBED_MODEL.lower() else 1024  # EmbeddingGemma 2 / BGE-M3 dense dimension
 
 # AgentRouter (Claude Opus proxy)
 AGENTROUTER_API_KEY = os.getenv("AGENTROUTER_API_KEY")

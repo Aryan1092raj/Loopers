@@ -32,14 +32,24 @@ def _model():
         print(f"[embeddings] Loading BGE-M3 on {device.upper()}"
               f"{' (fp16)' if use_fp16 else ' (fp32)'}...")
         return BGEM3FlagModel(EMBED_MODEL, use_fp16=use_fp16)
+    elif "embeddinggemma-2" in EMBED_MODEL.lower():
+        from sentence_transformers import SentenceTransformer
+        # bf16 only: fp16 gives silent NaNs. Needs transformers>=5, which FlagEmbedding (pinned 4.44.2) rejects.
+        dtype = torch.bfloat16 if use_fp16 and torch.cuda.is_bf16_supported() else torch.float32
+        print(f"[embeddings] Loading EmbeddingGemma 2 on {device.upper()} ({str(dtype).split('.')[-1]})...")
+        return SentenceTransformer(EMBED_MODEL, device=device, model_kwargs={"torch_dtype": dtype})
     else:
         from sentence_transformers import SentenceTransformer
         print(f"[embeddings] Loading SentenceTransformer '{EMBED_MODEL}' on {device.upper()}...")
         return SentenceTransformer(EMBED_MODEL, device=device)
 
 
-def encode(texts) -> list[list[float]]:
-    """Encode str or list[str] -> list of dense vectors (plain Python lists)."""
+def encode(texts, is_query: bool = False) -> list[list[float]]:
+    """Encode str or list[str] -> list of dense vectors (plain Python lists).
+
+    EmbeddingGemma 2 also takes {"text": "... <|image|>", "image": [path]} items and uses
+    is_query to pick its SearchQuery/Document prompt; BGE-M3 ignores is_query.
+    """
     import torch
     from config import EMBED_MODEL
 
@@ -52,18 +62,22 @@ def encode(texts) -> list[list[float]]:
     if "bge-m3" in EMBED_MODEL.lower():
         out = model.encode(texts, batch_size=batch_size, max_length=512)
         return [v.tolist() for v in out["dense_vecs"]]
+    elif "embeddinggemma-2" in EMBED_MODEL.lower():
+        out = model.encode(texts, batch_size=8, show_progress_bar=False, normalize_embeddings=True,
+                           prompt_name="SearchQuery" if is_query else "Document")
+        return [v.tolist() for v in out]
     else:
         out = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
         return [v.tolist() for v in out]
 
 
-def encode_hybrid(texts) -> tuple[list[list[float]], list[dict]]:
+def encode_hybrid(texts, is_query: bool = False) -> tuple[list[list[float]], list[dict]]:
     """Encode texts and return (dense_vectors, sparse_vectors).
 
     sparse_vectors: list of {"indices": [...], "values": [...]} dicts
     suitable for direct Qdrant SparseVector upsert.
 
-    Falls back to (dense_vectors, None) for non-BGE-M3 models.
+    Falls back to (dense_vectors, None) for non-BGE-M3 models. Pass is_query=True at retrieval time.
     """
     import torch
     from config import EMBED_MODEL
@@ -94,7 +108,7 @@ def encode_hybrid(texts) -> tuple[list[list[float]], list[dict]]:
 
         return dense, sparse
     else:
-        dense = encode(texts)
+        dense = encode(texts, is_query)
         return dense, None  # type: ignore[return-value]
 
 
