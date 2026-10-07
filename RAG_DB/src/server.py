@@ -804,7 +804,7 @@ class PipelineHandler(http.server.BaseHTTPRequestHandler):
             try:
                 import store
                 from embeddings import encode_hybrid
-                dense_vecs, sparse_vecs = encode_hybrid(q)
+                dense_vecs, sparse_vecs = encode_hybrid(q, is_query=True)
                 qvec = dense_vecs[0]
                 qsparse = sparse_vecs[0] if sparse_vecs else None
                 subj = subject_filter if subject_filter and subject_filter != "all" else None

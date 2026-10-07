@@ -228,7 +228,7 @@ def route_query(topic: str) -> dict | None:
         from embeddings import encode_hybrid
         from collections import Counter
 
-        dense, sparse = encode_hybrid([topic])
+        dense, sparse = encode_hybrid([topic], is_query=True)
         c = store.client()
         # Retrieve top 5 chunks without filtering by subject
         results = store.query(
@@ -325,7 +325,7 @@ def _check_retrieval_confidence(topic: str) -> float:
         import store
         from embeddings import encode_hybrid
         from config import COLLECTION
-        dense, sparse = encode_hybrid([topic])
+        dense, sparse = encode_hybrid([topic], is_query=True)
         c = store.client()
         results = store.query(c, dense[0], k=1, sparse_vector=sparse[0] if sparse else None)
         return float(results[0].get("score", 0.0)) if results else 0.0

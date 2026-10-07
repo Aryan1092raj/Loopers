@@ -47,7 +47,7 @@ def _prerequisite_chunks(query: str) -> list[dict]:
             node = concepts.get_concept(pid)
             if node is None:
                 continue
-            dense, sparse = encode_hybrid(node["name"])
+            dense, sparse = encode_hybrid(node["name"], is_query=True)
             for chunk in store.query(store.client(), dense[0], k=1, sparse_vector=sparse[0] if sparse else None,
                                      kind="text", math_boost=False):
                 chunk["_is_prerequisite"] = True

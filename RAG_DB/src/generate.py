@@ -256,7 +256,7 @@ def retrieve(
     import store
     from embeddings import encode_hybrid
 
-    dense_vecs, sparse_vecs = encode_hybrid(query)
+    dense_vecs, sparse_vecs = encode_hybrid(query, is_query=True)
     qvec = dense_vecs[0]
     qsparse = sparse_vecs[0] if sparse_vecs else None
 
@@ -345,7 +345,7 @@ def retrieve(
                 for prereq in prereqs[:3]:
                     # Retrieve chunks ABOUT the prerequisite concept, not a
                     # duplicate of the original query (the old bug).
-                    p_dense, p_sparse = encode_hybrid(prereq)
+                    p_dense, p_sparse = encode_hybrid(prereq, is_query=True)
                     prereq_chunks = store.query(
                         c, p_dense[0], k=2,
                         sparse_vector=p_sparse[0] if p_sparse else None,
