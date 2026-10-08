@@ -41,7 +41,7 @@ services:
       # firewalling to the app VM's IP, e.g.  "10.0.0.5:8000:8000".
       - "8000:8000"
     volumes:
-      - rag-models:/models    # BGE-M3 + reranker cache (~3.5 GB), downloaded once
+      - rag-models:/models    # EmbeddingGemma 2 + reranker cache, downloaded once
       - rag-output:/app/output
     # ── GPU: uncomment to hand the container the NVIDIA GPU ──────────────────────
     # deploy:

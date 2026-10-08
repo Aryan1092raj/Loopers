@@ -26,7 +26,7 @@ services:
       USE_GPU_OCR: "0"
       HF_HOME: /models
     volumes:
-      - rag-models:/models  # BGE-M3 + reranker cache — downloaded once (~3.5 GB)
+      - rag-models:/models  # EmbeddingGemma 2 + reranker cache — downloaded once
       - rag-output:/app/output
     # No published ports: only the app reaches it over the compose network.
     healthcheck:

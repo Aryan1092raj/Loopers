@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # CPU-only torch FIRST, from PyTorch's CPU wheel index, so the FlagEmbedding
-# install below reuses it instead of pulling the multi-GB CUDA build.
+# sentence-transformers install below reuses it instead of pulling the multi-GB CUDA build.
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.docker.txt ./
@@ -47,6 +47,6 @@ ENV QDRANT_URL="" \
 
 EXPOSE 8000
 
-# The BGE-M3 + reranker models (~3.5 GB) download to HF_HOME on the first
+# The EmbeddingGemma 2 + reranker models download to HF_HOME on the first
 # generation and persist in the mounted volume. Start the control server.
 CMD ["python", "src/server.py"]

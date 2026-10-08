@@ -1,7 +1,7 @@
 # Content Studio (RAG) — GPU generation image.
 #
 # Identical in purpose to Dockerfile (the CPU image) but built on a CUDA base
-# with the CUDA build of torch, so BGE-M3 query embedding and the cross-encoder
+# with the CUDA build of torch, so EmbeddingGemma 2 query embedding and the cross-encoder
 # reranker run on the GPU. Like the CPU image it is generation-only: it does NOT
 # do OCR/ingestion (no PaddleOCR), so it stays reliable in a container — the GPU
 # is used purely for the embedding/rerank torch models.
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # CUDA torch FIRST, from the matching CUDA wheel index, so the FlagEmbedding
-# install below reuses it instead of pulling the CPU build.
+# sentence-transformers install below reuses it instead of pulling the CPU build.
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
 
 COPY requirements.docker.txt ./
