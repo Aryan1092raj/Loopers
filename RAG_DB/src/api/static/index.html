@@ -149,8 +149,8 @@
       <h2 id="up-h">Upload a document</h2>
       <form id="upload">
         <label class="drop" id="drop">
-          <input type="file" id="file" name="file" accept=".pdf,.pptx,.docx,.md,.txt" required>
-          <span id="drop-text">Drop a PDF / PPTX / DOCX here<small>or click to pick · max 200 MB</small></span>
+          <input type="file" id="file" name="file" accept=".pdf,.pptx,.docx,.md,.txt,.mp4,.mkv,.webm,.mov,.mp3,.wav,.m4a" required>
+          <span id="drop-text">Drop a PDF / PPTX / DOCX / video / audio file here<small>or click to pick · max 200 MB</small></span>
         </label>
         <label for="title">Title</label>
         <input id="title" name="title" placeholder="Lecture 04 — Topic name">
@@ -158,7 +158,7 @@
           <div>
             <label for="kind">Kind</label>
             <select id="kind" name="kind">
-              <option value="">Auto</option><option value="textbook">Textbook</option><option value="slides">Slides</option>
+              <option value="">Auto</option><option value="textbook">Textbook</option><option value="slides">Slides</option><option value="video">Video / audio</option>
             </select>
           </div>
           <div>
@@ -484,7 +484,7 @@ $("upload").addEventListener("submit", async (ev) => {
   for (const k of ["kind", "lecture_no", "title"]) if (!fd.get(k)) fd.delete(k);
   try {
     const { job_id } = await api("/api/sources", { method: "POST", body: fd });
-    ev.target.reset(); $("drop-text").firstChild.textContent = "Drop a PDF / PPTX / DOCX here";
+    ev.target.reset(); $("drop-text").firstChild.textContent = "Drop a PDF / PPTX / DOCX / video / audio file here";
     loadSources(); watch(job_id);
   } catch (e) { showErr($("up-err"), e.message); }
 });
