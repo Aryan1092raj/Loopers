@@ -4,6 +4,7 @@ One job at a time: the stages share `raw/`, the registry and the embedded Qdrant
 Output goes to `metadata/jobs/<job_id>.log` for the UI to tail.
 """
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -32,8 +33,11 @@ DOCUMENT_STAGES = ["ingest", "extract", "label", "embed", "concepts"]
 MEDIA_STAGES = ["media", "concepts"]  # video and audio sources: transcribe + embed clips, then tag concepts
 
 _busy = threading.Lock()
-# A stuck stage (e.g. endless 429 retries) must not hold `_busy` forever; subprocess.run kills the child on timeout.
+# A stuck stage (e.g. endless 429 retries) must not hold `_busy` forever: it is killed on timeout or via cancel().
 STAGE_TIMEOUT = int(os.environ.get("JOB_STAGE_TIMEOUT", "1800"))
+_proc: subprocess.Popen | None = None
+_proc_job: str | None = None
+_cancelled: str | None = None
 
 
 class Busy(Exception):
@@ -71,10 +75,10 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
                 update_job_progress(job_id, STAGE_LABEL[stage], i / len(stages))
                 log.write(f"\n=== {stage} ===\n")
                 args = ["media", source_id, "--job-id", job_id] if stage == "media" else STAGE_ARGS[stage]
-                code = subprocess.run(
-                    [sys.executable, str(ROOT / "src" / "pipeline.py"), *args],
-                    cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=STAGE_TIMEOUT,
-                ).returncode
+                code = _run_stage([sys.executable, str(ROOT / "src" / "pipeline.py"), *args], env, log, job_id)
+                if _cancelled == job_id:
+                    fail_job(job_id, "cancelled")
+                    return
                 if code != 0:
                     fail_job(job_id, f"{stage} exited with code {code}")
                     return
@@ -85,6 +89,39 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
         fail_job(job_id, str(e))
     finally:
         _busy.release()
+
+
+def _run_stage(cmd: list[str], env: dict, log, job_id: str) -> int:
+    """Run one stage in its own process group so timeout and cancel also reach its children (ffmpeg, workers)."""
+    global _proc, _proc_job
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    _proc, _proc_job = proc, job_id
+    try:
+        return proc.wait(timeout=STAGE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _kill(proc)
+        raise
+    finally:
+        _proc = _proc_job = None
+
+
+def _kill(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    proc.wait()
+
+
+def cancel(job_id: str) -> bool:
+    """Kill the running stage of `job_id`; the job is then marked failed("cancelled"). False if it isn't the running job."""
+    global _cancelled
+    proc = _proc
+    if proc is None or _proc_job != job_id:
+        return False
+    _cancelled = job_id
+    _kill(proc)
+    return True
 
 
 def _count_units(source_id: str) -> int:

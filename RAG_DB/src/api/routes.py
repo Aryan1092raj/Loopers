@@ -197,6 +197,14 @@ def run_pipeline(body: PipelineRun):
         raise HTTPException(409, "A pipeline job is already running")
 
 
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: str):
+    """Kill a running job so a stuck one stops blocking uploads."""
+    if not runner.cancel(job_id):
+        raise HTTPException(404, "No running job with that id")
+    return {"job_id": job_id, "status": "cancelling"}
+
+
 @router.get("/jobs/{job_id}/log")
 def get_job_log(job_id: str, tail: int = 200):
     path = runner.log_path(job_id)
