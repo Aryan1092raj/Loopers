@@ -25,6 +25,10 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_REASONING = os.getenv("DEEPSEEK_REASONING", "")
 
 
+class RateLimited(Exception):
+    pass
+
+
 def _post_request(url: str, headers: dict, payload: dict, auth_keys: list[str] | None = None) -> str:
     """POST to an OpenAI-compatible API endpoint with 429 retry + error retry."""
     MAX_429_RETRIES = 8
@@ -87,14 +91,14 @@ def _post_request(url: str, headers: dict, payload: dict, auth_keys: list[str] |
                 )
             return content
 
-        raise Exception("API persistently rate-limited (429) after all retries.")
+        raise RateLimited("API persistently rate-limited (429) after all retries.")
 
     last_err: Exception | None = None
     delay = 3.0
     for attempt in range(MAX_ERR_RETRIES + 1):
         try:
             return _do_post()
-        except ValueError as e:
+        except (ValueError, RateLimited) as e:  # the 429 budget is already spent; retrying multiplies it 3x
             raise e
         except Exception as e:
             last_err = e
