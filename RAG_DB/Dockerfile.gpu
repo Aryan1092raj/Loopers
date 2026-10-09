@@ -48,8 +48,9 @@ ENV QDRANT_URL="" \
     USE_GPU_OCR=0 \
     MPLBACKEND=Agg \
     HF_HOME=/models \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    LOOPERS_NO_REEXEC=1
 
 EXPOSE 8000
 
-CMD ["python", "src/server.py"]
+CMD ["uvicorn", "api.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]

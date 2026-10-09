@@ -30,6 +30,12 @@ python-pptx==1.0.2
 jsonschema==4.23.0
 python-dotenv==1.0.1
 
+# API server (replaces the old stdlib server)
+fastapi
+uvicorn[standard]
+pydantic>=2
+python-multipart
+
 # diagram rasterization + image dedup used by the slide renderer
 matplotlib
 imagehash

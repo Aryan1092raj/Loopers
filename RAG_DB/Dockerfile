@@ -43,10 +43,11 @@ ENV QDRANT_URL="" \
     USE_GPU_OCR=0 \
     MPLBACKEND=Agg \
     HF_HOME=/models \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    LOOPERS_NO_REEXEC=1
 
 EXPOSE 8000
 
 # The EmbeddingGemma 2 + reranker models download to HF_HOME on the first
-# generation and persist in the mounted volume. Start the control server.
-CMD ["python", "src/server.py"]
+# generation and persist in the mounted volume. Start the API.
+CMD ["uvicorn", "api.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
