@@ -10,6 +10,8 @@ import threading
 import uuid
 from pathlib import Path
 
+from dotenv import dotenv_values
+
 from core.db import get_connection
 from ingest.jobs import create_job, fail_job, update_job_progress
 
@@ -30,6 +32,8 @@ DOCUMENT_STAGES = ["ingest", "extract", "label", "embed", "concepts"]
 MEDIA_STAGES = ["media", "concepts"]  # video and audio sources: transcribe + embed clips, then tag concepts
 
 _busy = threading.Lock()
+# A stuck stage (e.g. endless 429 retries) must not hold `_busy` forever; subprocess.run kills the child on timeout.
+STAGE_TIMEOUT = int(os.environ.get("JOB_STAGE_TIMEOUT", "1800"))
 
 
 class Busy(Exception):
@@ -58,6 +62,8 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     # The CLI child may re-exec to set GPU library paths; only the API process must not.
     env = {k: v for k, v in os.environ.items() if k != "LOOPERS_NO_REEXEC"}
+    # Re-read .env per job: the API process loaded it once at import, so key edits would otherwise need a restart.
+    env.update({k: v for k, v in dotenv_values(ROOT / ".env").items() if v is not None})
     env["PYTHONUNBUFFERED"] = "1"
     try:
         with open(log_path(job_id), "a", buffering=1) as log:
@@ -67,7 +73,7 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
                 args = ["media", source_id, "--job-id", job_id] if stage == "media" else STAGE_ARGS[stage]
                 code = subprocess.run(
                     [sys.executable, str(ROOT / "src" / "pipeline.py"), *args],
-                    cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
+                    cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=STAGE_TIMEOUT,
                 ).returncode
                 if code != 0:
                     fail_job(job_id, f"{stage} exited with code {code}")
