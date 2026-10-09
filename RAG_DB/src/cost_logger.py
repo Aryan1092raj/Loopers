@@ -1,6 +1,5 @@
-"""Cost logger for RAG_DB generation runs — mirrors src/lib/cost.ts in the main
-LMS app so both halves of the project report cost the same way (same pricing
-table, same USD->INR rate, same COST-*.json shape idea).
+"""Cost logger for RAG_DB generation runs: one pricing table, one USD->INR rate,
+one COST-*.json shape for every run.
 
 A single "generate"/"notes"/"assignment" run can fire several parallel LLM
 calls (content writer per slide group, TikZ writer per diagram, judge/eval).

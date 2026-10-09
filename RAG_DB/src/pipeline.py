@@ -1,4 +1,4 @@
-"""LMS pilot pipeline CLI.
+"""Multimodal RAG pipeline CLI.
 
     python src/pipeline.py ingest
     python src/pipeline.py extract

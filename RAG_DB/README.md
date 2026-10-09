@@ -76,13 +76,11 @@ for generation and vision labeling.
 │   ├── embeddings.py        # BGE-M3 encoder (dense + sparse)
 │   ├── ingest.py / extract.py / label.py / embed.py / generate.py
 │   ├── notes.py / assignment.py / chat.py
-│   ├── audio_processor.py   # YouTube download, denoising, transcription
 │   ├── knowledge_graph.py   # PathRAG prerequisite graph
 │   ├── corpus_downloader.py # OpenStax + NCERT textbook downloader
 │   ├── render_latex.py      # LaTeX Beamer PDF renderer
 │   └── parsers/             # Router + MinerU/Docling/GLM-OCR parsers
 ├── templates/
-│   ├── dashboard.html       # Web UI (single-file, embedded CSS/JS)
 │   └── slide_spec.schema.json
 ├── .env.example
 └── requirements.txt
@@ -140,8 +138,8 @@ python src/pipeline.py assignment "quadratic equations" --subject math
 # --- Bulk add a subject (download → ingest → extract → label → embed) ---
 python src/pipeline.py add-subject --source ncert --subjects science --target-subject science --classes 10
 
-# --- Web dashboard ---
-python src/server.py                 # opens http://localhost:8000
+# --- API + web console (from RAG_DB/src) ---
+LOOPERS_NO_REEXEC=1 uvicorn api.main:app --reload   # http://localhost:8000
 ```
 
 Subject is auto-detected from file location (`raw/math/` → "mathematics"), or
@@ -154,18 +152,11 @@ Loose files in `raw/` → subject "general".
 Subject-scoped retrieval: `generate "query" --subject math` only searches that
 subject's chunks.
 
-## Web dashboard
+## API and web console
 
-Zero-dependency web UI at `localhost:8000`:
-
-- **Audio Ingest** — YouTube URL or file upload → transcribe → ingest & embed
-- **Pipeline Controls** — Run ingest/extract/label/embed with one click
-- **RAG Inspector** — Browse chunks, view stats, test similarity search live
-- **Review Queue** — Approve/reject transcript concepts before embedding
-- **Chat** — Natural language ("make slides on calculus", "quiz on photosynthesis")
-- **PDF Viewer** — View generated specs and PDFs inline
-- **Settings** — API keys, pipeline toggles
-- **Subject Manager** — Download → ingest → extract → label → embed a subject in one click
+`uvicorn api.main:app` serves the FastAPI app and a static console at `localhost:8000`.
+Upload documents, video or audio as ingest jobs, tail job logs, cancel a stuck job
+(`POST /api/jobs/{job_id}/cancel`), chat with the tutor, and take quizzes.
 
 ## Extra capabilities
 

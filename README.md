@@ -25,7 +25,7 @@ every unit linked to page / slide / video timestamp)
 RAG_DB/                  # ingestion → retrieval → generation pipeline
   src/                   # ingest, extract, parsers/, label, embed, store,
                          # generate, chat, assignment, eval, knowledge_graph, …
-  templates/             # dashboard.html, eval question set example
+  templates/             # slide spec schema, eval question set example
   raw/ processed/ metadata/ qdrant_db/   # local-only (gitignored scaffolds)
 whisper-server/          # local transcription service
 docker-compose.rag.yml   # opt-in overlay to run the RAG service
@@ -43,7 +43,7 @@ python src/pipeline.py extract
 python src/pipeline.py label     # needs GEMINI_API_KEY
 python src/pipeline.py embed
 python src/pipeline.py eval --k 5
-python src/server.py             # dashboard at http://localhost:8000
+cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app --reload   # API + console at http://localhost:8000
 ```
 
 ## Documents, concepts and the tutor

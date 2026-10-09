@@ -128,8 +128,7 @@ def require_groq_keys() -> list[str]:
 
 
 # Native Anthropic API — used directly (no AgentRouter proxy needed) when this
-# key is set. Shares NOTES_MODEL with the main LMS's .env if ANTHROPIC_MODEL
-# isn't set separately.
+# key is set. Falls back to NOTES_MODEL if ANTHROPIC_MODEL isn't set separately.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL") or os.getenv("NOTES_MODEL", "claude-sonnet-4-6")
 
