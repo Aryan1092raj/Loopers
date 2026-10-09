@@ -3,6 +3,8 @@ pymupdf==1.24.10
 paddleocr==2.9.1
 pillow==10.4.0
 numpy==1.26.4
+pyarrow==21.0.0
+torchvision==0.29.1
 
 # --- embeddings (EmbeddingGemma 2: text, image, audio, video; also hosts the bge reranker) ---
 transformers>=5
