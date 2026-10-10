@@ -1,0 +1,15 @@
+{
+  "mode": "grounded",
+  "answer": "When an eigenvalue repeats, compare algebraic and geometric multiplicity [E1]. The characteristic polynomial gives the multiplicities [E2].",
+  "segments": [
+    {"text":"When an eigenvalue repeats, compare algebraic and geometric multiplicity","evidence_ids":["E1"],"outside":false},
+    {"text":"The characteristic polynomial gives the multiplicities","evidence_ids":["E2"],"outside":false}
+  ],
+  "citations": [
+    {"id":"E1","unit_id":"u_vid1","source_id":"a1b2","source_type":"video","title":"Lecture 04","locator":{"t_start":12.0,"t_end":18.0,"matched_slide_page":24},"seek_url":"/mock/lec.mp4#t=12.0","page_image_url":"/mock/page.svg","thumb_url":null,"excerpt":"Compare algebraic and geometric multiplicity when an eigenvalue repeats."},
+    {"id":"E2","unit_id":"u_pg1","source_id":"c3d4","source_type":"textbook","title":"Chapter 5","locator":{"page_no":142,"bbox":[200,150,600,420]},"seek_url":null,"page_image_url":"/mock/page.svg","thumb_url":null,"excerpt":"The roots of the characteristic polynomial and their multiplicities determine diagonalizability."}
+  ],
+  "gate": {"top_score":0.71,"tier":null,"band":"high","nli":null,"decision":"answer"},
+  "refusal": null,
+  "mastery_updates": []
+}

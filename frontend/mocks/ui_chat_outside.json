@@ -1,0 +1,12 @@
+{
+  "mode": "outside_syllabus",
+  "answer": "This is not from your course material. Rain forms when water vapour condenses around particles in the air.",
+  "segments": [
+    {"text":"This is not from your course material","evidence_ids":[],"outside":true},
+    {"text":"Rain forms when water vapour condenses around particles in the air","evidence_ids":[],"outside":true}
+  ],
+  "citations": [],
+  "gate": {"top_score":0.04,"tier":null,"band":"low","nli":null,"decision":"refuse"},
+  "refusal": null,
+  "mastery_updates": []
+}

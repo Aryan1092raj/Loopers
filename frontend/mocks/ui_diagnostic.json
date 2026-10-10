@@ -1,0 +1,4 @@
+[
+  {"item_id":"d1","concept_id":"determinant","difficulty":-0.5,"stem":"What is the determinant of the 2x2 identity matrix?","options_json":"[\"0\",\"1\",\"2\",\"-1\"]"},
+  {"item_id":"d2","concept_id":"matrix_inverse","difficulty":0.2,"stem":"A matrix with determinant 0 is…","options_json":"[\"invertible\",\"singular\",\"orthogonal\",\"symmetric\"]"}
+]

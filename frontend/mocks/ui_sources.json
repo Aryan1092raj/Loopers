@@ -1,0 +1,4 @@
+[
+  {"source_id":"a1b2","kind":"video","title":"Lecture 04","file_name":"lec04_a1b2.mp4","lecture_no":4,"lang":"en","status":"done","created_at":"2026-10-01T10:00:00Z","unit_count":42},
+  {"source_id":"c3d4","kind":"textbook","title":"Chapter 5","file_name":"ch5_c3d4.pdf","lecture_no":null,"lang":"en","status":"failed","created_at":"2026-10-01T10:05:00Z","unit_count":0}
+]

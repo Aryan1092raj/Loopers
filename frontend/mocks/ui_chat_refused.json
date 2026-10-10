@@ -1,0 +1,9 @@
+{
+  "mode": "refused",
+  "answer": "",
+  "segments": [],
+  "citations": [],
+  "gate": {"top_score":0.04,"tier":null,"band":"low","nli":null,"decision":"refuse"},
+  "refusal": {"reason":"out_of_material","message":"I could not find this in your course material.","offer_outside":true},
+  "mastery_updates": []
+}

@@ -1,0 +1,12 @@
+{
+  "status": "success",
+  "item": {
+    "item_id": "item_mock1",
+    "concept_id": "eigenvalues",
+    "topic_id": "linear_algebra",
+    "type": "mcq",
+    "bloom": "apply",
+    "stem": "Which equation gives the eigenvalues of A?",
+    "options_json": "[\"det(A - λI) = 0\",\"det(A) = λ\",\"Ax = 0\",\"tr(A) = λ\"]"
+  }
+}

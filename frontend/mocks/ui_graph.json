@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {"id":"linear_algebra","name":"Linear algebra","level":"topic","parent_id":null,"p_know":0.4},
+    {"id":"determinant","name":"Determinant","level":"concept","parent_id":"linear_algebra","p_know":0.8},
+    {"id":"matrix_inverse","name":"Matrix inverse","level":"concept","parent_id":"linear_algebra","p_know":0.62},
+    {"id":"characteristic_polynomial","name":"Characteristic polynomial","level":"concept","parent_id":"linear_algebra","p_know":0.31},
+    {"id":"eigenvalues","name":"Eigenvalues","level":"concept","parent_id":"linear_algebra","p_know":0.22},
+    {"id":"diagonalization","name":"Diagonalization","level":"concept","parent_id":"linear_algebra","p_know":0.15}
+  ],
+  "edges": [
+    {"src":"determinant","dst":"matrix_inverse","weight":0.7},
+    {"src":"determinant","dst":"characteristic_polynomial","weight":0.83},
+    {"src":"characteristic_polynomial","dst":"eigenvalues","weight":0.9},
+    {"src":"eigenvalues","dst":"diagonalization","weight":0.88}
+  ]
+}

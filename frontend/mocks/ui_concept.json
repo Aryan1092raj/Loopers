@@ -1,0 +1,8 @@
+{
+  "concept": {"id":"characteristic_polynomial","name":"Characteristic polynomial","level":"concept","parent_id":"linear_algebra","aliases":["characteristic equation"],"description":"det(A - λI) = 0 gives the eigenvalues."},
+  "prerequisites": ["determinant"],
+  "dependents": ["eigenvalues"],
+  "units": [
+    {"id":"E1","unit_id":"u_pg1","source_id":"c3d4","source_type":"textbook","title":"Chapter 5","locator":{"page_no":142,"bbox":[120,80,520,260]},"seek_url":null,"page_image_url":"/mock/page.svg","thumb_url":null,"excerpt":"The characteristic polynomial of a 2x2 matrix is λ² − tr(A)λ + det(A)."}
+  ]
+}
