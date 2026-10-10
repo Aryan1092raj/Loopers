@@ -1,36 +1,26 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import StatusDot from "./StatusDot";
-
-const LINKS = [
-  ["/upload", "Upload"],
-  ["/study", "Study"],
-  ["/graph", "Graph"],
-  ["/quiz", "Quiz"],
-  ["/dashboard", "Dashboard"],
-  ["/onboarding", "Onboarding"],
-] as const;
+import UserMenu from "./UserMenu";
 
 export default function Nav() {
   const path = usePathname();
   return (
-    <nav aria-label="Main" className="mx-auto flex w-full max-w-[96rem] flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-sm sm:px-4">
-      <Link href="/" className="font-semibold">Loopers</Link>
-      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        {LINKS.map(([href, label]) => (
-          <li key={href}>
-            <Link
-              href={href}
-              aria-current={path === href ? "page" : undefined}
-              className={`rounded px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 ${path === href ? "font-semibold underline" : "text-neutral-600 hover:text-neutral-900"}`}
-            >
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <span className="ml-auto"><StatusDot /></span>
+    <nav aria-label="Main" className="mx-auto flex w-full max-w-[96rem] items-center gap-4 px-3 py-2 sm:px-4">
+      <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+        <span aria-hidden className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 text-sm text-white">∞</span>
+        Loopers
+      </Link>
+      <div className="ml-auto flex items-center gap-3">
+        <Link
+          href="/quiz"
+          aria-current={path === "/quiz" ? "page" : undefined}
+          className={`rounded-full px-3 py-1.5 text-sm transition hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${path === "/quiz" ? "font-semibold text-indigo-700" : "text-slate-700"}`}
+        >
+          Quiz
+        </Link>
+        <UserMenu />
+      </div>
     </nav>
   );
 }
