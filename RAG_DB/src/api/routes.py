@@ -125,7 +125,8 @@ MAX_UPLOAD = 200 * 1024 * 1024
 
 @router.post("/sources", status_code=202)
 def create_source(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    url: str | None = Form(None),
     kind: str | None = Form(None),
     title: str | None = Form(None),
     lecture_no: int | None = Form(None),
@@ -134,8 +135,12 @@ def create_source(
 ):
     """Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.
 
-    Videos and the JSON {url, kind} variant arrive with B1.
+    Send either `file` or `url` (a YouTube or other http(s) video link).
     """
+    if (file is None) == (url is None):
+        raise HTTPException(422, "Send either file or url")
+    if url is not None:
+        return _start_url_source(url, title, lecture_no, lang)
     ext = Path(file.filename or "").suffix.lower()
     if ext not in DOC_EXTS | MEDIA_EXTS:
         raise HTTPException(415, f"Unsupported file type {ext or '(none)'}; allowed: {sorted(DOC_EXTS | MEDIA_EXTS)}")
@@ -163,23 +168,41 @@ def create_source(
     dest = dest_dir / f"{safe}_{source_id[:8]}{ext}"
     tmp.replace(dest)
 
+    _register_source(source_id, kind or ("video" if ext in MEDIA_EXTS else "slides" if ext == ".pptx" else "textbook"),
+                     title, dest.name, str(dest.relative_to(runner.ROOT)), lecture_no, lang)
+    try:
+        job_id = runner.start(runner.MEDIA_STAGES if ext in MEDIA_EXTS else runner.DOCUMENT_STAGES, source_id)
+    except runner.Busy:
+        raise HTTPException(409, "A pipeline job is already running; the file is saved, run the pipeline later")
+    return {"source_id": source_id, "job_id": job_id}
+
+
+def _register_source(source_id, kind, title, file_name, media_path, lecture_no, lang) -> None:
     conn = get_connection()
     try:
         conn.execute(
             "INSERT INTO sources (source_id, kind, title, file_name, media_path, lecture_no, lang, status, created_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)"
             " ON CONFLICT(source_id) DO UPDATE SET status = 'running', title = excluded.title",
-            (source_id, kind or ("video" if ext in MEDIA_EXTS else "slides" if ext == ".pptx" else "textbook"), title, dest.name,
-             str(dest.relative_to(runner.ROOT)), lecture_no, lang, datetime.now(timezone.utc).isoformat()),
+            (source_id, kind, title, file_name, media_path, lecture_no, lang, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
     finally:
         conn.close()
+
+
+def _start_url_source(url: str, title: str | None, lecture_no: int | None, lang: str) -> dict:
+    """YouTube or other yt-dlp URL: audio is downloaded, transcribed and embedded; media_path holds the URL itself."""
+    if not re.match(r"https?://\S+$", url):
+        raise HTTPException(422, "url must start with http:// or https://")
+    if runner._busy.locked():
+        raise HTTPException(409, "A pipeline job is already running")
+    source_id = hashlib.sha256(url.encode()).hexdigest()[:16]
+    _register_source(source_id, "video", title or url, url[:200], url, lecture_no, lang)
     try:
-        job_id = runner.start(runner.MEDIA_STAGES if ext in MEDIA_EXTS else runner.DOCUMENT_STAGES, source_id)
+        return {"source_id": source_id, "job_id": runner.start(runner.MEDIA_STAGES, source_id)}
     except runner.Busy:
-        raise HTTPException(409, "A pipeline job is already running; the file is saved, run the pipeline later")
-    return {"source_id": source_id, "job_id": job_id}
+        raise HTTPException(409, "A pipeline job is already running; the url is saved, run the pipeline later")
 
 
 class PipelineRun(BaseModel):
