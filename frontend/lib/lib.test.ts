@@ -4,6 +4,7 @@ import { bboxStyle, chipLabel, citationTarget } from "./citation";
 import { layoutGraph } from "./layout";
 import { masteryColor } from "./mastery";
 import { parseOptions } from "./quiz";
+import { topicsOf } from "./topics";
 import type { Citation, GraphEdge, GraphNode } from "./types";
 
 const cite = (id: string, over: Partial<Citation> = {}): Citation => ({
@@ -99,5 +100,19 @@ describe("parseOptions", () => {
     expect(parseOptions('["A","B"]')).toEqual(["A", "B"]);
     expect(parseOptions("not json")).toEqual([]);
     expect(parseOptions(null)).toEqual([]);
+  });
+});
+
+describe("topicsOf", () => {
+  it("collects concepts through subtopics and averages their mastery", () => {
+    const n = (id: string, level: GraphNode["level"], parent_id: string | null, p_know = 0): GraphNode => ({ id, name: id, level, parent_id, p_know });
+    const [t1, t2] = topicsOf({
+      nodes: [n("T1", "topic", null), n("S1", "subtopic", "T1"), n("a", "concept", "S1", 0.2), n("b", "concept", "T1", 0.6), n("T2", "topic", null)],
+      edges: [],
+    });
+    expect(t1.concepts.map((c) => c.id).sort()).toEqual(["a", "b"]);
+    expect(t1.mastery).toBeCloseTo(0.4);
+    expect(t2.concepts).toEqual([]);
+    expect(t2.mastery).toBe(0);
   });
 });
