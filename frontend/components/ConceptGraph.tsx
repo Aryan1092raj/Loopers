@@ -6,7 +6,7 @@ import { layoutGraph } from "@/lib/layout";
 import { masteryColor } from "@/lib/mastery";
 import type { Graph } from "@/lib/types";
 
-export default function ConceptGraph({ graph, onSelect }: { graph: Graph; onSelect: (id: string) => void }) {
+export default function ConceptGraph({ graph, onSelect, className = "h-[70vh]" }: { graph: Graph; onSelect: (id: string) => void; className?: string }) {
   const { nodes, edges } = useMemo(() => {
     const concepts = graph.nodes.filter((n) => n.level !== "topic");
     const shown = concepts.length ? concepts : graph.nodes;
@@ -31,7 +31,7 @@ export default function ConceptGraph({ graph, onSelect }: { graph: Graph; onSele
   );
 
   return (
-    <div className="h-[70vh] rounded border bg-white">
+    <div className={`${className} overflow-hidden rounded-xl border border-slate-200 bg-white`}>
       <ReactFlow nodes={nodes} edges={edges} fitView nodesDraggable={false} nodesConnectable={false} onSelectionChange={onSelectionChange}>
         <Background />
         <Controls showInteractive={false} />
