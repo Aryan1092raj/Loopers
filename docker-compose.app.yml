@@ -1,0 +1,76 @@
+# Full Loopers stack: Next.js frontend, FastAPI backend, Qdrant, optional Whisper server.
+#
+#   cp RAG_DB/.env.example RAG_DB/.env      # add LLM keys
+#   docker compose -f docker-compose.app.yml up -d --build
+#   open http://localhost:3000              # API docs and console: http://localhost:8000
+#
+# Ingest or embed inside the api container (data persists in the named volumes):
+#   docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py embed
+#
+# Whisper server (profile "asr", CPU): add --profile asr. Not wired to the api yet: video_worker.py posts to
+# WHISPER_SERVER_URL expecting a /transcribe route with a "segments" reply, while whisper-server serves the
+# OpenAI-style /v1/audio/transcriptions. Until they match, video ingest uses in-process faster-whisper.
+#
+# This file is separate from docker-compose.yml / docker-compose.rag.yml, which belong to the Content Studio image.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.6
+    restart: unless-stopped
+    volumes:
+      - qdrant-storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./RAG_DB
+      dockerfile: Dockerfile.app
+    restart: unless-stopped
+    env_file:
+      - path: ./RAG_DB/.env
+        required: false
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    ports:
+      - "8000:8000"
+    volumes:
+      - app-raw:/app/raw
+      - app-processed:/app/processed
+      - app-metadata:/app/metadata
+      - app-output:/app/output
+      - hf-models:/models
+    depends_on:
+      qdrant:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        API_URL: http://api:8000
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  whisper:
+    profiles: ["asr"]
+    build: ./whisper-server
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-base}
+    volumes:
+      - hf-models:/models
+
+volumes:
+  qdrant-storage:
+  app-raw:
+  app-processed:
+  app-metadata:
+  app-output:
+  hf-models:
