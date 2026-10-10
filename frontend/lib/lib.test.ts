@@ -35,14 +35,18 @@ describe("splitAnswer", () => {
 describe("citationTarget", () => {
   it("gives a video seek and a page for a video unit matched to a slide", () => {
     const c = cite("E1", { locator: { t_start: 1425.2, matched_slide_page: 18 }, seek_url: "/media/video/lec04.mp4#t=1425.2", page_image_url: "/media/pages/s/18.webp" });
-    expect(citationTarget(c)).toEqual({ video: { src: "/media/video/lec04.mp4", t: 1425.2 }, page: { url: "/media/pages/s/18.webp", bbox: null } });
+    expect(citationTarget(c)).toEqual({ video: { src: "/media/video/lec04.mp4", t: 1425.2 }, page: { url: "/media/pages/s/18.webp", bbox: null }, link: null });
+  });
+  it("links to the original for a URL source instead of playing a local file", () => {
+    const c = cite("E1", { locator: { t_start: 83.9 }, seek_url: "https://www.youtube.com/watch?v=abc&t=83s" });
+    expect(citationTarget(c)).toEqual({ video: null, page: null, link: "https://www.youtube.com/watch?v=abc&t=83s" });
   });
   it("gives only a page, with its bbox, for a textbook unit", () => {
     const c = cite("E1", { source_type: "textbook", locator: { page_no: 142, bbox: [1, 2, 3, 4] }, page_image_url: "/media/pages/s/142.webp" });
-    expect(citationTarget(c)).toEqual({ video: null, page: { url: "/media/pages/s/142.webp", bbox: [1, 2, 3, 4] } });
+    expect(citationTarget(c)).toEqual({ video: null, page: { url: "/media/pages/s/142.webp", bbox: [1, 2, 3, 4] }, link: null });
   });
   it("gives nothing when the citation has no media urls", () => {
-    expect(citationTarget(cite("E1", { locator: { page_no: 3 } }))).toEqual({ video: null, page: null });
+    expect(citationTarget(cite("E1", { locator: { page_no: 3 } }))).toEqual({ video: null, page: null, link: null });
   });
 });
 

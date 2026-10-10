@@ -3,14 +3,18 @@ import type { Citation } from "./types";
 export interface Target {
   video: { src: string; t: number } | null;
   page: { url: string; bbox: number[] | null } | null;
+  /** A URL source (e.g. YouTube): there is no local file to play, so link to the original at the cited second. */
+  link: string | null;
 }
 
 /** What the source panel shows for a citation. Reads stored fields only; never parses text. */
 export function citationTarget(c: Citation): Target {
   const t = c.locator.t_start;
+  const external = !!c.seek_url && /^https?:\/\//.test(c.seek_url);
   return {
-    video: c.seek_url && t != null ? { src: c.seek_url.split("#")[0], t } : null,
+    video: c.seek_url && !external && t != null ? { src: c.seek_url.split("#")[0], t } : null,
     page: c.page_image_url ? { url: c.page_image_url, bbox: c.locator.bbox ?? null } : null,
+    link: external ? c.seek_url! : null,
   };
 }
 
