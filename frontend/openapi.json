@@ -22,7 +22,7 @@
       },
       "post": {
         "summary": "Create Source",
-        "description": "Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.\n\nVideos and the JSON {url, kind} variant arrive with B1.",
+        "description": "Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.\n\nSend either `file` or `url` (a YouTube or other http(s) video link).",
         "operationId": "create_source_api_sources_post",
         "requestBody": {
           "content": {
@@ -31,8 +31,7 @@
                 "$ref": "#/components/schemas/Body_create_source_api_sources_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "202": {
@@ -838,9 +837,27 @@
       "Body_create_source_api_sources_post": {
         "properties": {
           "file": {
-            "type": "string",
-            "format": "binary",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "binary"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "File"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           },
           "kind": {
             "anyOf": [
@@ -887,9 +904,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "file"
-        ],
         "title": "Body_create_source_api_sources_post"
       },
       "Body_voice_stt_api_voice_stt_post": {

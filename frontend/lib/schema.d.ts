@@ -18,7 +18,7 @@ export interface paths {
          * Create Source
          * @description Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.
          *
-         *     Videos and the JSON {url, kind} variant arrive with B1.
+         *     Send either `file` or `url` (a YouTube or other http(s) video link).
          */
         post: operations["create_source_api_sources_post"];
         delete?: never;
@@ -382,11 +382,10 @@ export interface components {
     schemas: {
         /** Body_create_source_api_sources_post */
         Body_create_source_api_sources_post: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
+            /** File */
+            file?: string | null;
+            /** Url */
+            url?: string | null;
             /** Kind */
             kind?: string | null;
             /** Title */
@@ -672,7 +671,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_create_source_api_sources_post"];
             };
