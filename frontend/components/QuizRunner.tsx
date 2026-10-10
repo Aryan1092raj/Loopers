@@ -22,7 +22,7 @@ async function generate(concept: GraphNode, itemType: string): Promise<QuizItem 
   return null;
 }
 
-export default function QuizRunner({ studentId, concepts, names }: { studentId: string; concepts: GraphNode[]; names: Map<string, string> }) {
+export default function QuizRunner({ studentId, concepts, names, initialPicked = [] }: { studentId: string; concepts: GraphNode[]; names: Map<string, string>; initialPicked?: string[] }) {
   const router = useRouter();
   // Refs, not state: load/advance/finish run async and must see the values of the current attempt, not of the render that started it.
   const quizId = useRef(newQuizId());
@@ -31,7 +31,7 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
   const totalRef = useRef(4);
   const retryRef = useRef<QuizSet | null>(null); // set while replaying a saved quiz
   const [phase, setPhase] = useState<Phase>("setup");
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(initialPicked));
   const [count, setCount] = useState(4);
   const [mode, setMode] = useState<Mode>("practice");
   const [mixed, setMixed] = useState(false);
@@ -152,7 +152,7 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
   useEffect(() => { if (expired) finish("Time is up."); }, [expired]);
 
   if (concepts.length === 0) {
-    return <Empty>No concepts to quiz on yet. <Link href="/upload" className="underline">Upload material</Link> first.</Empty>;
+    return <Empty>No concepts to quiz on yet. <Link href="/" className="underline">Upload material</Link> first.</Empty>;
   }
 
   if (phase === "setup") {
