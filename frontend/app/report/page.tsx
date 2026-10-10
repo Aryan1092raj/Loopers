@@ -39,7 +39,7 @@ function Report() {
 
   if (!quiz) return <Empty>No quiz selected. <Link href="/quiz" className="underline">Start a quiz</Link>.</Empty>;
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="max-w-4xl space-y-4">
       <h1 className="text-xl font-semibold">{set ? `Quiz ${set.n} · attempt ${current}` : "Quiz report"}</h1>
       <ErrorNote message={report.error} />
       {report.loading && !report.data && <p className="text-sm text-neutral-500">Building your report…</p>}

@@ -19,8 +19,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
-      <p className="text-xs text-neutral-500">Student {ids?.studentId ?? "…"}</p>
+      <header className="space-y-1">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <p className="text-xs text-neutral-500">Student {ids?.studentId ?? "…"}</p>
+      </header>
       <ErrorNote message={graph.error ?? mastery.error} />
       {touched === 0 && graph.data && (
         <Empty>No activity yet. <Link href="/onboarding" className="underline">Do the diagnostic</Link> or <Link href="/quiz" className="underline">take a quiz</Link> to start tracking mastery.</Empty>

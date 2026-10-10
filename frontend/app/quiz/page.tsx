@@ -10,7 +10,7 @@ export default function QuizPage() {
   const { data, error, loading } = useGet<Graph>(ids ? `/api/graph?student_id=${encodeURIComponent(ids.studentId)}` : null);
   const concepts = (data?.nodes ?? []).filter((n) => n.level !== "topic");
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="max-w-4xl space-y-4">
       <h1 className="text-xl font-semibold">Quiz</h1>
       <ErrorNote message={error} />
       {(loading || !ids) && !data && <p className="text-sm text-neutral-500">Loading…</p>}
