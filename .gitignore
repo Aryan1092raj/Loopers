@@ -1,24 +1,85 @@
-# Ignore temporary SQLite files
-*.db-shm
-*.db-wal
-
-# Ignore untracked processing directories
-processed/
-raw/
-metadata/
-qdrant_db/
+# Secrets and environment files (.env.example stays tracked)
+.env
+.env.*
+!.env.example
+RAG_DB/brain.config.json
+*.pem
 
 # Local docs: every .md stays on disk only, except README files
 *.md
 !README.md
 
-# Python caches
-__pycache__/
-*.pyc
-.venv/
+# Runtime data, rebuilt by the pipeline
+processed/
+raw/
+metadata/
+qdrant_db/
+qdrant_storage/
+output/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
 
-# Foreign secret, never track
-RAG_DB/brain.config.json
+# Uploaded or downloaded media and documents
+*.pdf
+*.docx
+*.pptx
+*.mp3
+*.wav
+*.m4a
+*.mkv
+*.mov
+*.webm
+# the one small mock clip the frontend mock mode plays
+!frontend/public/mock/lec.mp4
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node and Next.js (frontend/.gitignore covers the rest)
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs, editors, OS
+*.log
+npm-debug.log*
+.DS_Store
+.idea/
+.vscode/
+
+# Local tooling and agent config
 .agents/
 .claude/
+.serena/
+.playwright-mcp/
+.tokensave/
+.commandcode/
 skills-lock.json
+mempalace.yaml
+entities.json
+graphify-out/
+design-system/
+
+# Unused or stale files kept on disk only
+frontend/public/file.svg
+frontend/public/globe.svg
+frontend/public/next.svg
+frontend/public/vercel.svg
+frontend/public/window.svg
+scripts/demo_smoke_test.sh
+RAG_DB/check_chunks.py
+RAG_DB/check_qdrant.py
