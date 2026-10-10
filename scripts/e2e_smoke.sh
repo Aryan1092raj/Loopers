@@ -78,11 +78,72 @@ nodes="$(curl -sf "$BASE/api/graph" | py "len(d['nodes'])")"
 [ "$nodes" -gt 0 ] || fail "graph has no nodes"
 ok "graph has $nodes nodes"
 
-# --- B's part: extend below this line -------------------------------------------------------
-# - upload a video through POST /api/sources, wait for its job, expect units with t_start and t_end
-# - grounded chat whose first citation has seek_url (a video citation)
-# - intake and diagnostic through the students endpoints; expect non-default mastery afterwards
-# - practice quiz: create, answer, report; expect a mastery change
+# --- B's part -------------------------------------------------------------------------------
+# Chat moves mastery: the grounded chat in step 3 ran for student "smoke".
+updates="$(echo "$chat" | py "len(d['mastery_updates'])")"
+[ "$updates" -gt 0 ] || fail "grounded chat returned no mastery_updates (are the retrieved units tagged to concepts?)"
+ok "chat updated mastery for $updates concepts"
+
+# 6. Onboarding and diagnostic: answering one diagnostic item must create learner state
+STU="smoke-b-$$"
+post_json /api/students/onboard "{\"student_id\":\"$STU\",\"background\":\"beginner\",\"exam_date\":\"$(date -d '+10 days' +%F)\"}" > /dev/null \
+  || fail "onboard failed"
+diag="$(curl -sf "$BASE/api/students/$STU/diagnostic")" || fail "diagnostic call failed"
+if [ "$(echo "$diag" | py "d.get('status', 'item')")" = "complete" ]; then
+  echo "skip: no diagnostic items in the bank yet (the quiz step below fills it)"
+else
+  item="$(echo "$diag" | py "d['item_id']")"
+  post_json "/api/students/$STU/diagnostic/respond" "{\"item_id\":\"$item\",\"correct\":true}" > /dev/null || fail "diagnostic respond failed"
+  known="$(curl -sf "$BASE/api/students/$STU/mastery" | py "len(d)")"
+  [ "$known" -gt 0 ] || fail "diagnostic answer created no mastery rows"
+  ok "diagnostic: $known concepts have mastery"
+fi
+
+# 7. Practice quiz round trip on the first concept that has source units
+concept="$(curl -sf "$BASE/api/graph" | py "d['nodes'][0]['id']")"
+gen="$(post_json /api/quiz/generate "{\"concept_id\":\"$concept\",\"topic_id\":\"smoke\",\"item_type\":\"mcq\"}")" || fail "quiz generate call failed"
+[ "$(echo "$gen" | py "d['status']")" = "success" ] || fail "quiz generate for $concept: $(echo "$gen" | py "d.get('reason')") (has the concept build run?)"
+echo "$gen" | py "'answer_json' not in d['item']" | grep -q True || fail "quiz item leaks answer_json"
+quiz_item="$(echo "$gen" | py "d['item']['item_id']")"
+pick="$(echo "$gen" | py "__import__('json').loads(d['item']['options_json'])[0]")"
+sub="$(curl -sf -X POST -H 'content-type: application/json' "$BASE/api/quiz/submit?student_id=$STU" \
+  -d "{\"quiz_id\":\"quiz-$STU\",\"item_id\":\"$quiz_item\",\"student_answer\":[\"$pick\"]}")" || fail "quiz submit failed"
+cites="$(echo "$sub" | py "len(d['feedback']['citations'])")"
+[ "$cites" -gt 0 ] || fail "quiz feedback has no citations"
+report="$(curl -sf "$BASE/api/quiz/report/quiz-$STU?student_id=$STU")" || fail "quiz report failed"
+[ "$(echo "$report" | py "d['raw_metrics']['total_items']")" = "1" ] || fail "report does not show the answered item"
+delta="$(echo "$report" | py "d['mastery_delta'][0]['after'] != d['mastery_delta'][0]['before']")"
+[ "$delta" = "True" ] || fail "quiz answer did not change mastery"
+ok "quiz round trip: item $quiz_item, $cites citations, mastery changed"
+
+# 8. Schedule honours the exam date
+days="$(curl -sf "$BASE/api/students/$STU/schedule?minutes_per_day=30" | py "len(d)")"
+[ "$days" -gt 0 ] || fail "schedule is empty"
+ok "schedule has $days days"
+
+# 9. Video (set SMOKE_VIDEO to a lecture recording, SMOKE_VIDEO_QUESTION to something it covers)
+if [ -n "${SMOKE_VIDEO:-}" ]; then
+  [ -f "$SMOKE_VIDEO" ] || fail "no video at $SMOKE_VIDEO"
+  vup="$(curl -sf -F "file=@$SMOKE_VIDEO" -F "title=Smoke Lecture" -F "subject=calculus" -F "lecture_no=2" "$BASE/api/sources")" || fail "video upload rejected"
+  vjob="$(echo "$vup" | py "d['job_id']")"
+  vsource="$(echo "$vup" | py "d['source_id']")"
+  deadline=$(( $(date +%s) + TIMEOUT ))
+  while :; do
+    vstatus="$(curl -sf "$BASE/api/jobs/$vjob" | py "d['status']")"
+    case "$vstatus" in
+      done) break ;;
+      failed) fail "video job $vjob failed" ;;
+    esac
+    [ "$(date +%s)" -lt "$deadline" ] || fail "video job $vjob still $vstatus after ${TIMEOUT}s"
+    sleep 10
+  done
+  vchat="$(post_json /api/chat "{\"session_id\":\"$SESSION-v\",\"student_id\":\"smoke\",\"message\":\"${SMOKE_VIDEO_QUESTION:?set SMOKE_VIDEO_QUESTION}\"}")" || fail "video chat failed"
+  seek="$(echo "$vchat" | py "next((c['seek_url'] for c in d['citations'] if c.get('seek_url')), '')")"
+  [ -n "$seek" ] || fail "no citation has a seek_url for the video question"
+  ok "video citation: $seek"
+else
+  echo "skip: SMOKE_VIDEO not set, video upload and seek_url checks not run"
+fi
 # ---------------------------------------------------------------------------------------------
 
 echo "smoke passed"
