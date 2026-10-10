@@ -1,22 +1,76 @@
+import json
+import re
 import uuid
 
-def generate_item(concept_id: str, topic_id: str, custom_stem: str = None) -> dict:
-    """
-    Mock LLM generation step retrieving from concepts.api.
-    Generates a structured assessment item adhering to core/models.
-    """
-    item_id = f"item_{uuid.uuid4().hex[:8]}"
+from core.db import get_connection
+from tutor.answer import complete
+
+BLOOM_B = {"remember": -1.0, "understand": -0.5, "apply": 0.0, "analyze": 0.5, "evaluate": 1.0}
+UNIT_CHARS = 1200
+MAX_UNITS = 3
+
+SYSTEM = (
+    "You write one exam question from course material. Use ONLY the numbered excerpts; never rely on outside facts. "
+    "Reply with a single JSON object and nothing else, with keys: "
+    '"stem" (the question), "bloom" (one of remember, understand, apply, analyze), '
+    '"answer" (see below), "explanation" (one or two sentences saying why the answer is right, using the excerpts), '
+    '"distractor_notes" (object mapping each wrong option to the misconception that makes it tempting; {} if not mcq), '
+    '"options" (list of exactly 4 option strings if type is mcq, else []), "tolerance" (relative tolerance, numeric only, else null). '
+    'For mcq, "answer" is the exact text of the one correct option. For short, "answer" is a one-sentence model answer. '
+    'For numeric, "answer" is the number as a string with no units.'
+)
+
+
+class NoMaterial(ValueError):
+    """The concept has no tagged source units to write a question from."""
+
+
+def concept_units(concept_id: str) -> tuple[str, list[tuple[str, str]]]:
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT name FROM concepts WHERE concept_id=?", (concept_id,)).fetchone()
+        units = conn.execute(
+            "SELECT u.unit_id, u.text FROM unit_concepts uc JOIN units u ON u.unit_id=uc.unit_id"
+            " WHERE uc.concept_id=? ORDER BY uc.score DESC LIMIT ?", (concept_id, MAX_UNITS)
+        ).fetchall()
+    finally:
+        conn.close()
+    if not row or not units:
+        raise NoMaterial(f"no source material tagged to concept {concept_id}")
+    return row[0], units
+
+
+def _parse(reply: str) -> dict:
+    m = re.search(r"\{.*\}", reply, re.S)
+    if not m:
+        raise ValueError("generator reply has no JSON object")
+    return json.loads(m.group(0))
+
+
+def generate_item(concept_id: str, topic_id: str, item_type: str = "mcq", custom_stem: str | None = None) -> dict:
+    """Write one item grounded in the concept's top source units; unit_ids_json records exactly what it was written from."""
+    name, units = concept_units(concept_id)
+    excerpts = "\n\n".join(f"[{i}] {text[:UNIT_CHARS]}" for i, (_, text) in enumerate(units, 1))
+    ask = f"Concept: {name}\nType: {item_type}\n" + (f"Question must be about: {custom_stem}\n" if custom_stem else "") + f"\nExcerpts:\n{excerpts}"
+    d = _parse(complete([{"role": "system", "content": SYSTEM}, {"role": "user", "content": ask}], max_tokens=900))
+
+    options = [str(o) for o in d.get("options") or []]
+    answer = str(d["answer"]).strip()
+    if item_type == "mcq" and (len(options) != 4 or answer not in options):
+        raise ValueError("generator mcq must have 4 options including the answer")
+    bloom = d.get("bloom") if d.get("bloom") in BLOOM_B else "apply"
     return {
-        "item_id": item_id,
+        "item_id": f"item_{uuid.uuid4().hex[:8]}",
         "concept_id": concept_id,
         "topic_id": topic_id,
-        "type": "mcq",
-        "bloom": "apply",
-        "stem": custom_stem or f"Assess concept {concept_id}",
-        "options_json": '["A", "B", "C", "D"]',
-        "answer_json": '["A"]',
-        "rubric_json": '{"explanation": "A is correct"}',
-        "unit_ids_json": '["u_123"]', # Linked via tutor.cite.resolve
-        "difficulty_b": 0.0,
-        "discrimination_a": 1.0
+        "type": item_type,
+        "bloom": bloom,
+        "stem": str(d["stem"]).strip(),
+        "options_json": json.dumps(options) if item_type == "mcq" else None,
+        "answer_json": json.dumps([answer]),
+        "rubric_json": json.dumps({"explanation": d.get("explanation", ""), "distractor_notes": d.get("distractor_notes") or {},
+                                   "tolerance": d.get("tolerance")}),
+        "unit_ids_json": json.dumps([u for u, _ in units]),
+        "difficulty_b": BLOOM_B[bloom],  # ponytail: Bloom-level prior, recalibrate from attempts when there are enough
+        "discrimination_a": 1.0,
     }
