@@ -340,10 +340,11 @@ class RespondReq(BaseModel):
 def respond_diagnostic(student_id: str, req: RespondReq):
     correct = req.correct
     if req.response is not None:
-        rows = _rows("SELECT answer_json FROM items WHERE item_id = ?", (req.item_id,))
+        rows = _rows("SELECT answer_json, type, rubric_json FROM items WHERE item_id = ?", (req.item_id,))
         if not rows:
             raise HTTPException(404, "Item not found")
-        correct = sorted(req.response) == sorted(json.loads(rows[0]["answer_json"]))
+        tolerance = json.loads(rows[0]["rubric_json"] or "{}").get("tolerance")
+        correct = same_answer(rows[0]["type"], json.loads(rows[0]["answer_json"])[0], req.response[0] if req.response else "", tolerance)
     if correct is None:
         raise HTTPException(422, "Give response or correct")
     try:
@@ -430,7 +431,7 @@ def voice_tts(req: TTSRequest):
 from pydantic import BaseModel
 from assess.generate import NoMaterial, generate_item
 from assess.dedup import check_duplicate
-from assess.verify import blind_verify
+from assess.verify import blind_verify, same_answer
 from assess.grade import grade_submission, item_feedback
 from assess.report import generate_report
 from tutor.answer import NoProvider
