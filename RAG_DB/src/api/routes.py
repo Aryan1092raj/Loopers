@@ -97,6 +97,13 @@ class FlashcardRequest(BaseModel):
     student_id: str
     concept_ids: list[str] | None = None
     n: int = 10
+    lang: str = "en"
+
+
+class BriefRequest(BaseModel):
+    student_id: str
+    concept_ids: list[str] | None = None
+    lang: str = "en"
 
 
 class TtsRequest(BaseModel):
@@ -489,3 +496,19 @@ def quiz_submit(student_id: str, req: QuizSubmitReq):
 @router.get("/quiz/report/{session_id}")
 def quiz_report(student_id: str, session_id: str):
     return generate_report(student_id, session_id)
+
+
+# --- 6.6 revision (PS 6b) ---
+
+@router.post("/revision/flashcards")
+def revision_flashcards(req: FlashcardRequest):
+    from revision.flashcards import flashcards
+
+    return {"cards": flashcards(req.student_id, req.concept_ids, req.n, req.lang)}
+
+
+@router.post("/revision/brief")
+def revision_brief(req: BriefRequest):
+    from revision.brief import brief
+
+    return brief(req.student_id, req.concept_ids, req.lang)

@@ -111,15 +111,12 @@ def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
     questions = load_questions(figures)
     hits = 0
     rows = []
-    
-    # Infer subject from eval questions (math domain)
-    subject = "mathematics"
-    
+
     print(f"\n{'#':>2}  hit@{k}  question")
     print("-" * 70)
     for i, item in enumerate(questions, 1):
         q = item["q"]
-        chunks, _ = retrieve(q, k, subject=subject)
+        chunks, _ = retrieve(q, k, subject=item.get("subject", "mathematics"))
         joined = "\n".join(c.get("text", "") for c in chunks)
         hit = _hit(joined, item.get("must_contain", []))
         if item.get("figure_page"):
@@ -129,8 +126,6 @@ def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
         print(f"{i:>2}  {'✓' if hit else '✗':>5}  {q[:56]}")
 
         if judge:
-            import time
-            time.sleep(3.0)  # Avoid rate limits on free keys
             score = _judge_answer(q, joined)
             rows[-1]["judge"] = score
             print(f"      answer score: {score}/5")
@@ -147,13 +142,18 @@ def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
 def _judge_answer(question: str, context: str) -> int:
     from generate import generate_spec  # noqa: F401  (kept for parity/imports)
 
-    try:
-        text = judge_answer_with_llm(question, context).strip()
-        for tok in text.split():
-            if tok.isdigit():
-                return max(1, min(5, int(tok)))
-    except Exception as e:
-        print(f"[eval] judge grading failed: {e}")
+    import time
+
+    for attempt in range(3):  # free keys rate-limit; back off only after a failure
+        try:
+            text = judge_answer_with_llm(question, context).strip()
+            for tok in text.split():
+                if tok.isdigit():
+                    return max(1, min(5, int(tok)))
+            return 1
+        except Exception as e:
+            print(f"[eval] judge grading failed (attempt {attempt + 1}/3): {e}")
+            time.sleep(3.0 * (attempt + 1))
     return 1
 
 
