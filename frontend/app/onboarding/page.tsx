@@ -21,6 +21,7 @@ export default function OnboardingPage() {
   const ids = useIds();
   const [phase, setPhase] = usePersisted<Phase>("loopers.onboarding.phase", "intake");
   const [level, setLevel] = usePersisted<string>("loopers.onboarding.level", "beginner");
+  const [examDate, setExamDate] = usePersisted<string>("loopers.onboarding.exam", "");
   const [item, setItem] = usePersisted<DiagnosticItem | null>("loopers.onboarding.item", null);
   const [answered, setAnswered] = usePersisted("loopers.onboarding.answered", 0);
   const [result, setResult] = usePersisted<boolean | null>("loopers.onboarding.result", null);
@@ -47,7 +48,7 @@ export default function OnboardingPage() {
 
   async function start() {
     if (!ids) return;
-    const ok = await run(() => post(`/api/students/onboard`, { student_id: ids.studentId, background: level }));
+    const ok = await run(() => post(`/api/students/onboard`, { student_id: ids.studentId, background: level, exam_date: examDate || null }));
     if (ok === undefined) return;
     setPhase("diagnostic");
     await loadNext(0);
@@ -65,7 +66,7 @@ export default function OnboardingPage() {
 
   if (!ids) return <p className="text-sm text-neutral-500">Loading…</p>;
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <h1 className="text-xl font-semibold">Welcome</h1>
       <ErrorNote message={error} />
 
@@ -80,6 +81,10 @@ export default function OnboardingPage() {
               </label>
             ))}
           </fieldset>
+          <label className="flex flex-col gap-1 text-sm">
+            Exam date (optional, shapes your study schedule)
+            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} className="w-44 rounded border bg-white px-2 py-1" />
+          </label>
           <button type="submit" disabled={busy} className="rounded bg-neutral-900 px-3 py-1 text-white disabled:opacity-50">Start diagnostic</button>
         </form>
       )}
