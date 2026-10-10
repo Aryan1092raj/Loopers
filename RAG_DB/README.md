@@ -139,7 +139,7 @@ python src/pipeline.py assignment "quadratic equations" --subject math
 python src/pipeline.py add-subject --source ncert --subjects science --target-subject science --classes 10
 
 # --- API + web console (from RAG_DB/src) ---
-LOOPERS_NO_REEXEC=1 uvicorn api.main:app --reload   # http://localhost:8000
+LOOPERS_NO_REEXEC=1 uvicorn api.main:app   # http://localhost:8000 (no --reload: a reload orphans a running ingest job)
 ```
 
 Subject is auto-detected from file location (`raw/math/` → "mathematics"), or

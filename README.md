@@ -43,7 +43,7 @@ python src/pipeline.py extract
 python src/pipeline.py label     # needs GEMINI_API_KEY
 python src/pipeline.py embed
 python src/pipeline.py eval --k 5
-cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app --reload   # API only at http://localhost:8000 (UI: frontend on :3000)
+cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app   # API only (no --reload: a reload orphans a running ingest job) at http://localhost:8000 (UI: frontend on :3000)
 ```
 
 ## Documents, concepts and the tutor
