@@ -14,8 +14,8 @@ WORKDIR /app
 # CPU wheels first so requirements.txt does not pull the multi-GB CUDA build.
 RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.app.txt ./
+RUN pip install --no-cache-dir -r requirements.app.txt
 
 COPY src ./src
 COPY templates ./templates
