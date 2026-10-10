@@ -2,13 +2,16 @@
 import Link from "next/link";
 import { Empty, ErrorNote } from "@/components/Note";
 import MasteryHeatmap from "@/components/MasteryHeatmap";
+import RevisionPanel from "@/components/RevisionPanel";
 import ScheduleView from "@/components/ScheduleView";
 import { useIds } from "@/lib/session";
 import { useGet } from "@/lib/useGet";
+import { useStudent } from "@/lib/useStudent";
 import type { Graph, Mastery } from "@/lib/types";
 
 export default function DashboardPage() {
   const ids = useIds();
+  const { name } = useStudent();
   const sid = ids ? encodeURIComponent(ids.studentId) : null;
   const graph = useGet<Graph>(sid ? `/api/graph?student_id=${sid}` : null);
   const mastery = useGet<Mastery[]>(sid ? `/api/students/${sid}/mastery` : null);
@@ -21,7 +24,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-xs text-neutral-500">Student {ids?.studentId ?? "…"}</p>
+        <p className="text-xs text-neutral-500">{name ?? "Student"} · <span className="font-mono">{ids?.studentId ?? "…"}</span></p>
       </header>
       <ErrorNote message={graph.error ?? mastery.error} />
       {touched === 0 && graph.data && (
@@ -41,6 +44,13 @@ export default function DashboardPage() {
           </ul>
         )}
       </section>
+
+      {ids && (
+        <section aria-label="Revision" className="space-y-2">
+          <h2 className="font-medium">Revision</h2>
+          <RevisionPanel studentId={ids.studentId} />
+        </section>
+      )}
 
       {ids && (
         <section aria-label="Study schedule" className="space-y-2">
