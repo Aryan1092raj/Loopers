@@ -83,7 +83,7 @@ function Workspace() {
           toolbar={<TopicPicker topics={topics} value={topic?.node.id ?? null} onChange={setTopicId} />}
         />
 
-        <aside aria-label="Course" className="min-h-0 lg:overflow-y-auto">
+        <aside aria-label="Course" className="min-h-0 min-w-0 overflow-x-hidden lg:overflow-y-auto">
           <div className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <Section id="material" title="Add course material" hint="PDFs, slides, lecture videos or a YouTube link">
               <UploadPanel onJob={(j) => { setJob(j); setSourcesTick((n) => n + 1); }} />

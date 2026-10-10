@@ -46,6 +46,31 @@ python src/pipeline.py eval --k 5
 cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app   # API only (no --reload: a reload orphans a running ingest job) at http://localhost:8000 (UI: frontend on :3000)
 ```
 
+## Run with Docker
+
+Full stack on CPU (qdrant, api, web, optional whisper). Copy the env file first and add the LLM keys:
+
+```bash
+cp RAG_DB/.env.example RAG_DB/.env
+docker compose -f docker-compose.app.yml up -d --build              # UI :3000, API :8000
+docker compose -f docker-compose.app.yml --profile asr up -d        # adds the whisper server
+docker compose -f docker-compose.app.yml logs -f api                # tail the api
+docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py embed
+docker compose -f docker-compose.app.yml down                       # stop; volumes keep the data
+```
+
+Docker Desktop runs containers in a VM with no GPU and about 3.5 GB of RAM, which is too small for
+EmbeddingGemma 2 on CPU: the `embed` stage gets killed with `exited with code -9` and the UI then shows
+"Failed to fetch" while the api restarts. For GPU embedding and transcription, run only qdrant in Docker and
+the rest on the host (the host GPU is used through the `.venv` CUDA build of torch):
+
+```bash
+docker compose -f docker-compose.app.yml up -d qdrant
+cd RAG_DB/src && QDRANT_URL=http://localhost:6333 LOOPERS_NO_REEXEC=1 uvicorn api.main:app --port 8000
+python whisper-server/server.py --port 8300      # large-v3-turbo, float16 on the GPU
+cd frontend && npm run dev                       # UI :3000, proxies /api to localhost:8000
+```
+
 ## Documents, concepts and the tutor
 
 Every chunk of a slide deck or textbook becomes a *unit* with a stored locator: a page number for PDFs and

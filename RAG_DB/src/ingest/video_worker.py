@@ -16,7 +16,7 @@ from core.db import get_connection
 
 logger = logging.getLogger(__name__)
 
-WHISPER_URL = os.getenv("WHISPER_SERVER_URL", "http://localhost:8000/transcribe")
+WHISPER_URL = os.getenv("WHISPER_SERVER_URL", "http://localhost:8300/v1/audio/transcriptions")
 MEDIA_DIR = PROCESSED / "media"
 MAX_CLIP_SECONDS = 60  # longest slice of a transcript unit that is embedded as video + audio
 
@@ -53,25 +53,30 @@ def get_transcript(audio_path: Path) -> List[Dict[str, Any]]:
         with open(audio_path, "rb") as f:
             # Faster-Whisper uses Silero VAD natively via vad_filter flag
             response = requests.post(
-                WHISPER_URL, 
-                files={"file": f}, 
-                data={"vad_filter": "true", "word_timestamps": "true"},
+                WHISPER_URL,
+                files={"file": f},
+                data={"response_format": "verbose_json", "timestamp_granularities[]": "segment"},
                 timeout=300
             )
         response.raise_for_status()
-        
+
         data = response.json()
-        return data.get("segments", [])
+        return [{"start": float(s["start"]), "end": float(s["end"]), "text": s["text"]} for s in data.get("segments", [])]
     except Exception as e:
         logger.warning(f"Whisper server failed ({e}); falling back to local faster-whisper")
         return _local_transcript(audio_path)
 
 
 def _local_transcript(audio_path: Path) -> List[Dict[str, Any]]:
-    # ponytail: English-only base model on CPU; set up the whisper server for other languages or speed
+    # ponytail: CUDA runs large-v3-turbo fp16; CPU fallback is English-only base.en int8. Upgrade the CPU model if the server stays down.
+    import torch
     from faster_whisper import WhisperModel
 
-    segments, _ = WhisperModel("base.en", device="cpu", compute_type="int8").transcribe(str(audio_path), vad_filter=True)
+    if torch.cuda.is_available():
+        model, device, compute_type = "large-v3-turbo", "cuda", "float16"
+    else:
+        model, device, compute_type = "base.en", "cpu", "int8"
+    segments, _ = WhisperModel(model, device=device, compute_type=compute_type).transcribe(str(audio_path), vad_filter=True)
     return [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
 
 

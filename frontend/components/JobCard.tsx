@@ -18,10 +18,10 @@ export default function JobCard({ jobId, title, onFinished }: { jobId: string; t
 
   const pct = Math.round((job?.progress ?? 0) * 100);
   return (
-    <section aria-label={`Ingestion of ${title}`} className="space-y-2 rounded border bg-white p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium">{title}</h2>
-        <span className={`rounded px-2 py-0.5 text-xs ${done ? "bg-green-100 text-green-800" : failed ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}`}>
+    <section aria-label={`Ingestion of ${title}`} className="min-w-0 space-y-2 rounded border bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="min-w-0 break-all font-medium">{title}</h2>
+        <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${done ? "bg-green-100 text-green-800" : failed ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800"}`}>
           {job?.status ?? "starting"}
         </span>
       </div>
@@ -44,7 +44,7 @@ export default function JobCard({ jobId, title, onFinished }: { jobId: string; t
         </button>
       )}
       <ErrorNote message={job?.error ?? error ?? cancelError} />
-      {failed && log.length > 0 && <pre className="max-h-48 overflow-auto rounded bg-neutral-900 p-2 text-xs text-neutral-100">{log.join("\n")}</pre>}
+      {failed && log.length > 0 && <pre className="max-h-48 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded bg-neutral-900 p-2 text-xs text-neutral-100">{log.join("\n")}</pre>}
     </section>
   );
 }

@@ -7,9 +7,12 @@
 # Ingest or embed inside the api container (data persists in the named volumes):
 #   docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py embed
 #
-# Whisper server (profile "asr", CPU): add --profile asr. Not wired to the api yet: video_worker.py posts to
-# WHISPER_SERVER_URL expecting a /transcribe route with a "segments" reply, while whisper-server serves the
-# OpenAI-style /v1/audio/transcriptions. Until they match, video ingest uses in-process faster-whisper.
+# Whisper server (profile "asr", CPU): add --profile asr. The api posts to it at WHISPER_SERVER_URL below and
+# falls back to in-process faster-whisper when it is not running.
+#
+# Docker Desktop runs containers in a small VM with no GPU, so this stack is CPU-only and `embed` can be
+# OOM-killed ("embed exited with code -9") when the VM has under ~6 GB. For GPU embedding and transcription run
+# the api and whisper natively and keep only qdrant here; see "Run with Docker" in README.md.
 #
 # This file is separate from docker-compose.yml / docker-compose.rag.yml, which belong to the Content Studio image.
 
@@ -35,6 +38,7 @@ services:
         required: false
     environment:
       QDRANT_URL: http://qdrant:6333
+      WHISPER_SERVER_URL: http://whisper:8300/v1/audio/transcriptions
     ports:
       - "8000:8000"
     volumes:
