@@ -382,7 +382,10 @@ export interface components {
     schemas: {
         /** Body_create_source_api_sources_post */
         Body_create_source_api_sources_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Kind */
             kind?: string | null;
@@ -403,7 +406,10 @@ export interface components {
         };
         /** Body_voice_stt_api_voice_stt_post */
         Body_voice_stt_api_voice_stt_post: {
-            /** Audio */
+            /**
+             * Audio
+             * Format: binary
+             */
             audio: string;
         };
         /** ChatRequest */
@@ -523,10 +529,14 @@ export interface components {
             concept_id: string;
             /** Topic Id */
             topic_id: string;
+            /**
+             * Item Type
+             * @default mcq
+             * @enum {string}
+             */
+            item_type: "mcq" | "short" | "numeric";
             /** Stem Override */
             stem_override?: string | null;
-            /** Mock Solver Answer */
-            mock_solver_answer?: string | null;
         };
         /** QuizSubmitReq */
         QuizSubmitReq: {
@@ -623,10 +633,6 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
     };
     responses: never;
