@@ -52,10 +52,18 @@ def citation_from_payload(eid: str, p: dict) -> Citation:
         source_type=p.get("source_type") or ("video" if p.get("t_start") is not None else "textbook"),
         title=p.get("title") or p.get("doc") or "",
         locator=loc,
-        seek_url=f"/media/video/{Path(media).name}#t={loc.t_start}" if media and loc.t_start is not None else None,
+        seek_url=_seek_url(media, loc.t_start),
         page_image_url=_page_image_url(source_id, loc),
         excerpt=body(p.get("text") or "", p.get("heading"))[:EXCERPT_CHARS],
     )
+
+
+def _seek_url(media: str | None, t_start: float | None) -> str | None:
+    if not media or t_start is None:
+        return None
+    if media.startswith(("http://", "https://")):  # URL source: no local file, link to the original at the same second
+        return f"{media}{'&' if '?' in media else '?'}t={int(t_start)}s"
+    return f"/media/video/{Path(media).name}#t={t_start}"
 
 
 def resolve(unit_ids: list[str]) -> list[Citation]:
