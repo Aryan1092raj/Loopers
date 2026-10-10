@@ -26,7 +26,7 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
     
     unlocked_concepts = []
     now = datetime.datetime.now(datetime.timezone.utc)
-    
+
     for node in G.nodes:
         # Check prerequisites
         preds = list(G.predecessors(node))
@@ -58,6 +58,7 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
         
         # FSRS urgency: if overdue, extremely urgent. If new, high priority.
         is_overdue = False
+        nxt_dt = None
         if nxt:
             try:
                 nxt_dt = datetime.datetime.fromisoformat(nxt)
@@ -83,6 +84,7 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
             "concept_id": node,
             "p_mastery": p,
             "is_overdue": is_overdue,
+            "next_review": nxt_dt,
             "sort_score": score,
             "topo_bonus": topo_bonus
         })
@@ -92,3 +94,46 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
     
     conn.close()
     return ranked[:limit]
+
+
+WEAK_BELOW = 0.6
+LEARN_MIN, REVIEW_MIN = 20, 10
+DEFAULT_HORIZON, MAX_HORIZON = 7, 14
+
+
+def plan_days(student_id: str, minutes_per_day: int = 60, today: datetime.date | None = None) -> list[dict]:
+    """
+    Day-by-day plan from the ranked concepts. A weak or overdue concept is due today; otherwise it is due on its
+    FSRS next_review date. Each day holds at most minutes_per_day, a concept that does not fit moves to the next
+    day with room, and nothing is planned past the exam date (or a 7-day horizon without one, 14 at most).
+    """
+    today = today or datetime.date.today()
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT exam_date FROM students WHERE student_id=?", (student_id,)).fetchone()
+    finally:
+        conn.close()
+    days_left = None
+    if row and row[0]:
+        try:
+            days_left = (datetime.date.fromisoformat(row[0][:10]) - today).days
+        except ValueError:
+            pass
+    horizon = DEFAULT_HORIZON if days_left is None else max(1, min(days_left, MAX_HORIZON))
+
+    used = [0] * horizon
+    plan = [[] for _ in range(horizon)]
+    for c in get_next_schedule(student_id, limit=10_000):
+        p, nxt = c["p_mastery"], c["next_review"]
+        weak = p < WEAK_BELOW
+        due = 0 if (c["is_overdue"] or weak or nxt is None) else max(0, (nxt.date() - today).days)
+        minutes = min(LEARN_MIN if weak else REVIEW_MIN, minutes_per_day)
+        day = next((d for d in range(due, horizon) if used[d] + minutes <= minutes_per_day), None)
+        if day is None:
+            continue
+        used[day] += minutes
+        reason = "review overdue" if c["is_overdue"] else f"mastery gap ({p:.0%})" if weak else "scheduled review"
+        if days_left is not None:
+            reason += f", exam in {days_left} days"
+        plan[day].append({"concept_id": c["concept_id"], "minutes": minutes, "reason": reason})
+    return [{"date": (today + datetime.timedelta(days=d)).isoformat(), "tasks": t} for d, t in enumerate(plan) if t]
