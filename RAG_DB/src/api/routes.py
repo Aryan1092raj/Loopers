@@ -421,40 +421,49 @@ def voice_tts(req: TTSRequest):
 
 # --- 6.5 quizzes (B5) ---
 from pydantic import BaseModel
-from assess.generate import generate_item
+from assess.generate import NoMaterial, generate_item
 from assess.dedup import check_duplicate
 from assess.verify import blind_verify
-from assess.grade import grade_submission
+from assess.grade import grade_submission, item_feedback
 from assess.report import generate_report
+from tutor.answer import NoProvider
 
 class QuizGenerateReq(BaseModel):
     concept_id: str
     topic_id: str
+    item_type: Literal["mcq", "short", "numeric"] = "mcq"
     stem_override: str | None = None
-    mock_solver_answer: str | None = None
+
+# fields the student may see; answer_json and rubric_json hold the key and the explanation
+PUBLIC_ITEM_FIELDS = ("item_id", "concept_id", "topic_id", "type", "bloom", "stem", "options_json")
 
 @router.post("/quiz/generate")
 def quiz_generate(req: QuizGenerateReq):
-    item = generate_item(req.concept_id, req.topic_id, req.stem_override)
-    
-    # Dedup
+    try:
+        item = generate_item(req.concept_id, req.topic_id, req.item_type, req.stem_override)
+    except NoMaterial:
+        return {"status": "rejected", "reason": "no_material"}
+    except NoProvider:
+        raise HTTPException(503, "no LLM provider is configured for quiz generation")
+    except (ValueError, KeyError, json.JSONDecodeError):  # generator reply was not a usable item
+        return {"status": "rejected", "reason": "bad_generation"}
+
     if check_duplicate(req.concept_id, item["stem"]):
         return {"status": "rejected", "reason": "duplicate"}
-        
-    # Verify
-    if not blind_verify(item["stem"], item["options_json"], item["answer_json"], req.mock_solver_answer):
+
+    tolerance = json.loads(item["rubric_json"]).get("tolerance")
+    if not blind_verify(item["stem"], item["options_json"], item["answer_json"], item["type"], tolerance):
         return {"status": "rejected", "reason": "solver_conflict"}
-        
-    # Commit item
+
     conn = get_connection()
     conn.execute(
-        "INSERT INTO items (item_id, concept_id, topic_id, type, bloom, stem, options_json, answer_json, rubric_json, unit_ids_json, difficulty_b, discrimination_a, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+        "INSERT INTO items (item_id, concept_id, topic_id, type, bloom, stem, options_json, answer_json, rubric_json, unit_ids_json, difficulty_b, discrimination_a, verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))",
         (item["item_id"], item["concept_id"], item["topic_id"], item["type"], item["bloom"], item["stem"], item["options_json"], item["answer_json"], item["rubric_json"], item["unit_ids_json"], item["difficulty_b"], item["discrimination_a"])
     )
     conn.commit()
     conn.close()
-    
-    return {"status": "success", "item": item}
+
+    return {"status": "success", "item": {k: item[k] for k in PUBLIC_ITEM_FIELDS}}
 
 class QuizSubmitReq(BaseModel):
     quiz_id: str
@@ -467,7 +476,7 @@ def quiz_submit(student_id: str, req: QuizSubmitReq):
         correct = grade_submission(student_id, req.quiz_id, req.item_id, req.student_answer)
     except ValueError as e:  # unknown item
         raise HTTPException(404, str(e))
-    return {"status": "success", "correct": correct}
+    return {"status": "success", "correct": correct, "feedback": item_feedback(req.item_id)}
 
 @router.get("/quiz/report/{session_id}")
 def quiz_report(student_id: str, session_id: str):
