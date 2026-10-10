@@ -5,15 +5,18 @@ import { useEffect, useRef, useState } from "react";
 import { post } from "@/lib/api";
 import { parseOptions } from "@/lib/quiz";
 import { newQuizId, readQuizSets, recordAnswer, type QuizSet } from "@/lib/session";
-import type { GraphNode, QuizItem } from "@/lib/types";
+import { chipLabel } from "@/lib/citation";
+import type { GraphNode, QuizFeedback, QuizItem } from "@/lib/types";
 import { Empty, ErrorNote } from "./Note";
 
 type Mode = "practice" | "mock";
 type Phase = "setup" | "loading" | "answering" | "feedback" | "done";
 
-async function generate(concept: GraphNode): Promise<QuizItem | null> {
+const MIXED_TYPES = ["mcq", "short", "numeric"] as const;
+
+async function generate(concept: GraphNode, itemType: string): Promise<QuizItem | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const r = await post<{ status: string; item?: QuizItem }>("/api/quiz/generate", { concept_id: concept.id, topic_id: concept.parent_id ?? "" });
+    const r = await post<{ status: string; item?: QuizItem }>("/api/quiz/generate", { concept_id: concept.id, topic_id: concept.parent_id ?? "", item_type: itemType });
     if (r.status === "success" && r.item) return r.item;
   }
   return null;
@@ -31,10 +34,12 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [count, setCount] = useState(4);
   const [mode, setMode] = useState<Mode>("practice");
+  const [mixed, setMixed] = useState(false);
   const [index, setIndex] = useState(0);
   const [item, setItem] = useState<QuizItem | null>(null);
   const [choice, setChoice] = useState<string | null>(null);
   const [correct, setCorrect] = useState<boolean | null>(null);
+  const [feedback, setFeedback] = useState<QuizFeedback | null>(null);
   const [left, setLeft] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [skipped, setSkipped] = useState(0);
@@ -78,7 +83,7 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
     setPhase("loading");
     setError(null);
     try {
-      const next = retryRef.current ? retryRef.current.items[i] : await generate(chosen[i % chosen.length]);
+      const next = retryRef.current ? retryRef.current.items[i] : await generate(chosen[i % chosen.length], mixed ? MIXED_TYPES[i % MIXED_TYPES.length] : "mcq");
       if (!next) {
         skippedRef.current += 1;
         setSkipped((n) => n + 1);
@@ -87,6 +92,7 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
       setItem(next);
       setChoice(null);
       setCorrect(null);
+      setFeedback(null);
       setPhase("answering");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -119,12 +125,13 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
   const retry = (set: QuizSet) => begin(set.items.length, set);
 
   async function submit() {
-    if (!item || choice === null) return;
+    if (!item || !choice?.trim()) return;
     setError(null);
     try {
-      const r = await post<{ correct: boolean }>(`/api/quiz/submit?student_id=${encodeURIComponent(studentId)}`, {
-        quiz_id: quizId.current, item_id: item.item_id, student_answer: [choice],
+      const r = await post<{ correct: boolean; feedback?: QuizFeedback }>(`/api/quiz/submit?student_id=${encodeURIComponent(studentId)}`, {
+        quiz_id: quizId.current, item_id: item.item_id, student_answer: [choice.trim()],
       });
+      setFeedback(r.feedback ?? null);
       answered.current += 1;
       setAnsweredN(answered.current);
       recordAnswer(quizId.current, item, retryRef.current?.n ?? null);
@@ -178,6 +185,12 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
             <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} className="rounded border bg-white px-2 py-1">
               <option value="practice">Practice (feedback after each answer)</option>
               <option value="mock">Mock exam (timed, feedback at the end)</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">Question types
+            <select value={mixed ? "mixed" : "mcq"} onChange={(e) => setMixed(e.target.value === "mixed")} className="rounded border bg-white px-2 py-1">
+              <option value="mcq">Multiple choice</option>
+              <option value="mixed">Mixed: multiple choice, short answer, numeric</option>
             </select>
           </label>
         </div>
@@ -242,40 +255,68 @@ export default function QuizRunner({ studentId, concepts, names }: { studentId: 
         <>
           <p className="text-xs text-neutral-500">{concepts.find((c) => c.id === item.concept_id)?.name ?? item.concept_id} · {item.type} · {item.bloom}</p>
           <p className="font-medium">{item.stem}</p>
-          <div className="grid gap-2" role="radiogroup" aria-label="Answer options">
-            {parseOptions(item.options_json).map((o) => (
-              <button
-                key={o}
-                type="button"
-                role="radio"
-                aria-checked={choice === o}
-                disabled={phase === "feedback"}
-                onClick={() => setChoice(o)}
-                className={`rounded border px-3 py-1 text-left ${choice === o ? "border-blue-600 bg-blue-50" : "hover:bg-neutral-100"}`}
-              >
-                {o}
-              </button>
-            ))}
-          </div>
+          {parseOptions(item.options_json).length > 0 ? (
+            <div className="grid gap-2" role="radiogroup" aria-label="Answer options">
+              {parseOptions(item.options_json).map((o) => (
+                <button
+                  key={o}
+                  type="button"
+                  role="radio"
+                  aria-checked={choice === o}
+                  disabled={phase === "feedback"}
+                  onClick={() => setChoice(o)}
+                  className={`rounded border px-3 py-1 text-left ${choice === o ? "border-blue-600 bg-blue-50" : "hover:bg-neutral-100"}`}
+                >
+                  {o}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <label className="flex flex-col gap-1 text-sm">
+              {item.type === "numeric" ? "Your answer (a number)" : "Your answer (a sentence or two)"}
+              {item.type === "numeric" ? (
+                <input type="number" step="any" value={choice ?? ""} disabled={phase === "feedback"} onChange={(e) => setChoice(e.target.value)} className="w-40 rounded border px-2 py-1 disabled:opacity-60" />
+              ) : (
+                <textarea rows={3} value={choice ?? ""} disabled={phase === "feedback"} onChange={(e) => setChoice(e.target.value)} className="w-full rounded border px-2 py-1 disabled:opacity-60" />
+              )}
+            </label>
+          )}
           {phase === "answering" && (
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={submit} disabled={choice === null} className="rounded bg-neutral-900 px-3 py-1 text-white disabled:opacity-50">Submit answer</button>
+              <button type="button" onClick={submit} disabled={!choice?.trim()} className="rounded bg-neutral-900 px-3 py-1 text-white disabled:opacity-50">Submit answer</button>
               {answeredN > 0 && (
                 <button type="button" onClick={() => finish("You ended the quiz early.")} className="rounded border px-3 py-1 hover:bg-neutral-100">Finish quiz</button>
               )}
             </div>
           )}
           {phase === "feedback" && (
-            <div className="flex flex-wrap items-center gap-3">
-              <span className={`rounded px-2 py-0.5 text-xs ${correct ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{correct ? "Correct" : "Not quite"}</span>
-              {!last && <button type="button" onClick={() => advance(index)} className="rounded bg-neutral-900 px-3 py-1 text-white">Next question</button>}
-              <button
-                type="button"
-                onClick={() => (last ? finish() : finish("You ended the quiz early."))}
-                className={last ? "rounded bg-neutral-900 px-3 py-1 text-white" : "rounded border px-3 py-1 hover:bg-neutral-100"}
-              >
-                Finish quiz
-              </button>
+            <div className="space-y-3">
+              <div role="status" aria-atomic="true">
+                <span className={`rounded px-2 py-0.5 text-xs ${correct ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{correct ? "Correct" : "Not quite"}</span>
+              </div>
+              {feedback && (
+                <div className="space-y-2 text-sm">
+                  {!correct && feedback.correct_answer.length > 0 && <p>Correct answer: <strong>{feedback.correct_answer.join(", ")}</strong></p>}
+                  {feedback.explanation && <p className="text-neutral-700">{feedback.explanation}</p>}
+                  {feedback.citations.length > 0 && (
+                    <ul aria-label="Sources" className="space-y-1 text-xs text-neutral-600">
+                      {feedback.citations.map((c) => (
+                        <li key={c.id + c.unit_id}><span className="font-medium">{chipLabel(c)}</span>: {c.excerpt}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-3">
+                {!last && <button type="button" onClick={() => advance(index)} className="rounded bg-neutral-900 px-3 py-1 text-white">Next question</button>}
+                <button
+                  type="button"
+                  onClick={() => (last ? finish() : finish("You ended the quiz early."))}
+                  className={last ? "rounded bg-neutral-900 px-3 py-1 text-white" : "rounded border px-3 py-1 hover:bg-neutral-100"}
+                >
+                  Finish quiz
+                </button>
+              </div>
             </div>
           )}
         </>

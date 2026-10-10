@@ -72,15 +72,21 @@ export interface DiagnosticItem {
 }
 export type DiagnosticReply = DiagnosticItem | { status: "complete" };
 
-// answer_json is deliberately absent: /api/quiz/generate leaks it and the UI must not use it
+// The server no longer sends answer_json; the key arrives in QuizFeedback after the answer is graded
 export interface QuizItem {
   item_id: string;
   concept_id: string;
   topic_id: string;
-  type: string;
+  type: "mcq" | "short" | "numeric" | string;
   bloom: string;
   stem: string;
-  options_json: string;
+  options_json: string | null; // null for short and numeric items
+}
+
+export interface QuizFeedback {
+  correct_answer: string[];
+  explanation: string;
+  citations: Citation[];
 }
 
 export interface QuizReport {

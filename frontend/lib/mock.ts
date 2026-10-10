@@ -40,7 +40,11 @@ const routes: Route[] = [
   ["GET", /^\/api\/students\/[^/]+\/mastery$/, () => mastery],
   ["GET", /^\/api\/students\/[^/]+\/schedule$/, () => schedule],
   ["POST", /^\/api\/quiz\/generate$/, () => quizItem],
-  ["POST", /^\/api\/quiz\/submit$/, (b) => ({ status: "success", correct: (b.student_answer as string[])[0] === "det(A - λI) = 0" })],
+  ["POST", /^\/api\/quiz\/submit$/, (b) => ({
+    status: "success",
+    correct: (b.student_answer as string[])[0] === "det(A - λI) = 0",
+    feedback: { correct_answer: ["det(A - λI) = 0"], explanation: "Eigenvalues are the roots of the characteristic polynomial.", citations: chatGrounded.citations.slice(0, 1) },
+  })],
   ["GET", /^\/api\/quiz\/report\/[^/]+$/, () => ({ ...report, raw_metrics: { total_items: 8, correct_items: 5 } })],
   ["POST", /^\/api\/voice\/stt$/, () => ({ text: "what is an eigenvalue" })],
 ];
