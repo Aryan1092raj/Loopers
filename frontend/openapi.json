@@ -1209,6 +1209,17 @@
           "background": {
             "type": "string",
             "title": "Background"
+          },
+          "exam_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exam Date"
           }
         },
         "type": "object",

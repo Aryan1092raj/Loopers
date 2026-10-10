@@ -517,6 +517,8 @@ export interface components {
             student_id: string;
             /** Background */
             background: string;
+            /** Exam Date */
+            exam_date?: string | null;
         };
         /** PipelineRun */
         PipelineRun: {
