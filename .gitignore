@@ -12,3 +12,6 @@ qdrant_db/
 __pycache__/
 *.pyc
 .venv/
+
+# Foreign secret, never track
+RAG_DB/brain.config.json
