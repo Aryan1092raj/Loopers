@@ -4,9 +4,23 @@ import datetime
 from core.db import get_connection
 from learner.bkt import update_p_know
 from learner.fsrs import next_interval
+from assess.verify import same_answer
+from tutor.cite import resolve
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def item_feedback(item_id: str) -> dict:
+    """Key, explanation and citations for a graded item. Citations come from stored unit locators, never from the model."""
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT answer_json, rubric_json, unit_ids_json FROM items WHERE item_id=?", (item_id,)).fetchone()
+    finally:
+        conn.close()
+    answer, rubric, unit_ids = (json.loads(c or "{}") for c in row)
+    return {"correct_answer": answer, "explanation": rubric.get("explanation", ""),
+            "citations": [c.model_dump() for c in resolve(unit_ids)]}
 
 def grade_submission(student_id: str, quiz_id: str, item_id: str, student_answer: list) -> bool:
     """
@@ -18,23 +32,27 @@ def grade_submission(student_id: str, quiz_id: str, item_id: str, student_answer
         conn.execute("BEGIN IMMEDIATE")
         
         # 1. Fetch Item
-        item = conn.execute("SELECT concept_id, answer_json FROM items WHERE item_id=?", (item_id,)).fetchone()
+        item = conn.execute("SELECT concept_id, answer_json, type, rubric_json FROM items WHERE item_id=?", (item_id,)).fetchone()
         if not item:
             raise ValueError(f"Item {item_id} not found in database.")
-            
-        concept_id, ans_str = item
+
+        concept_id, ans_str, item_type, rubric_str = item
         correct_ans = json.loads(ans_str)
-        
-        is_correct = sorted(student_answer) == sorted(correct_ans)
+        rubric = json.loads(rubric_str or "{}")
+
+        given = student_answer[0] if student_answer else ""
+        is_correct = same_answer(item_type, correct_ans[0], given, rubric.get("tolerance"))
         score = 1.0 if is_correct else 0.0
         now = datetime.datetime.now(datetime.timezone.utc)
-        
+        misconception = None if is_correct else (rubric.get("distractor_notes") or {}).get(given)
+
         # 2. Log Attempt
         attempt_id = f"att_{uuid.uuid4().hex[:8]}"
         conn.execute(
-            "INSERT INTO attempts (attempt_id, quiz_id, item_id, student_id, response_json, correct, ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (attempt_id, quiz_id, item_id, student_id, json.dumps(student_answer), score, now.isoformat())
+            "INSERT INTO attempts (attempt_id, quiz_id, item_id, student_id, response_json, correct, misconception, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (attempt_id, quiz_id, item_id, student_id, json.dumps(student_answer), score, misconception, now.isoformat())
         )
+        conn.execute("INSERT OR IGNORE INTO served_items (student_id, item_id, ts) VALUES (?, ?, ?)", (student_id, item_id, now.isoformat()))
         
         # 3. Log Evidence
         evidence_id = f"ev_{uuid.uuid4().hex[:8]}"
@@ -88,7 +106,11 @@ def grade_submission(student_id: str, quiz_id: str, item_id: str, student_answer
                 next_review=excluded.next_review,
                 updated_at=excluded.updated_at
         """, (student_id, concept_id, new_p, new_s, new_d, now.isoformat(), next_rev.isoformat(), now.isoformat()))
-        
+        conn.execute(
+            "INSERT INTO mastery_events (student_id, concept_id, ts, source, ref_id, y, p_before, p_after) VALUES (?, ?, ?, 'quiz', ?, ?, ?, ?)",
+            (student_id, concept_id, now.isoformat(), quiz_id, score, p_mastery, new_p)
+        )
+
         conn.commit()
         return is_correct
         
