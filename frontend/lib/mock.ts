@@ -15,6 +15,7 @@ type Route = [method: string, pattern: RegExp, reply: (body: Record<string, unkn
 
 let jobPolls = 0;
 let diagnosticCalls = 0;
+let studentName = "Demo Student";
 
 const routes: Route[] = [
   ["GET", /^\/api\/status$/, () => ({ ok: true })],
@@ -34,6 +35,18 @@ const routes: Route[] = [
     if (!/weather/i.test(String(b.message))) return chatGrounded;
     return b.allow_outside ? chatOutside : chatRefused;
   }],
+  ["GET", /^\/api\/students\/[^/]+$/, () => ({ student_id: "stu_mock", name: studentName, lang: "en", exam_date: null, created_at: "2026-10-01T00:00:00Z" })],
+  ["PUT", /^\/api\/students\/[^/]+$/, (b) => { studentName = String(b.name).trim(); return { student_id: "stu_mock", name: studentName }; }],
+  ["POST", /^\/api\/revision\/flashcards$/, () => ({ cards: [
+    { concept_id: "c1", front: "What is an eigenvalue?", back: "A scalar λ with Av = λv for some non-zero v.", citations: chatGrounded.citations.slice(0, 1) },
+    { concept_id: "c1", front: "How do you find eigenvalues?", back: "Solve det(A − λI) = 0.", citations: chatGrounded.citations.slice(0, 1) },
+  ] })],
+  ["POST", /^\/api\/revision\/brief$/, () => ({
+    text: "An eigenvector keeps its direction under the matrix. Its eigenvalue is the stretch factor.",
+    segments: [{ text: "An eigenvector keeps its direction under the matrix" }, { text: "Its eigenvalue is the stretch factor" }],
+    citations: chatGrounded.citations.slice(0, 1),
+    audio_url: null,
+  })],
   ["POST", /^\/api\/students\/onboard$/, () => ({ status: "success", theta_0: -1 })],
   ["GET", /^\/api\/students\/[^/]+\/diagnostic$/, () => diagnostic[diagnosticCalls++] ?? { status: "complete" }],
   ["POST", /^\/api\/students\/[^/]+\/diagnostic\/respond$/, () => ({ status: "success", new_theta: 0.3, correct: true })],

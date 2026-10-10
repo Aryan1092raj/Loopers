@@ -6,7 +6,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: "GET" | "POST" | "PUT", path: string, body?: unknown): Promise<T> {
   if (MOCK) return (await import("./mock")).mock<T>(method, path, body);
   const isForm = body instanceof FormData;
   const res = await fetch(path, {
@@ -23,3 +23,4 @@ export async function api<T>(method: "GET" | "POST", path: string, body?: unknow
 
 export const get = <T,>(path: string) => api<T>("GET", path);
 export const post = <T,>(path: string, body?: unknown) => api<T>("POST", path, body);
+export const put = <T,>(path: string, body?: unknown) => api<T>("PUT", path, body);

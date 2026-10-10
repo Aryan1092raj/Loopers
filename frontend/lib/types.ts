@@ -50,6 +50,17 @@ export interface ConceptDetail {
   units: Citation[];
 }
 
+export interface Student {
+  student_id: string;
+  name: string | null;
+  lang: string;
+  exam_date: string | null;
+  created_at: string;
+}
+
+export interface Flashcard { concept_id: string; front: string; back: string; citations: Citation[] }
+export interface Brief { text: string; segments: { text: string }[]; citations: Citation[]; audio_url: string | null }
+
 export interface Mastery {
   concept_id: string;
   p_know: number;
