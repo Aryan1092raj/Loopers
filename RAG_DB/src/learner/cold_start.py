@@ -63,7 +63,8 @@ def get_next_diagnostic_item(student_id: str) -> Dict[str, Any] | None:
     query = """
         SELECT item_id, concept_id, difficulty_b, stem, options_json 
         FROM items 
-        WHERE item_id NOT IN (SELECT item_id FROM attempts WHERE student_id=?)
+        WHERE type='mcq' AND verified=1  -- the diagnostic UI renders options only; skips mock-era unverified items
+          AND item_id NOT IN (SELECT item_id FROM attempts WHERE student_id=?)
         ORDER BY abs(difficulty_b - ?) ASC LIMIT 1
     """
     item = conn.execute(query, (student_id, theta)).fetchone()
