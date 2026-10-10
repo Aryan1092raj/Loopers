@@ -2,7 +2,7 @@
 #
 #   cp RAG_DB/.env.example RAG_DB/.env      # add LLM keys
 #   docker compose -f docker-compose.app.yml up -d --build
-#   open http://localhost:3000              # API docs and console: http://localhost:8000
+#   open http://localhost:3000              # API docs: http://localhost:8000/docs
 #
 # Ingest or embed inside the api container (data persists in the named volumes):
 #   docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py embed

@@ -36,11 +36,6 @@ MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "../../processed/media")).resolve()
 # Page images (A1): <source_id>/<n>.webp, written by ingest/pages.py under processed/media/pages.
 app.mount("/media/pages", StaticFiles(directory=PAGES_DIR, check_dir=False), name="pages")
 
-@app.get("/", include_in_schema=False)
-def console():
-    """Neobrutalist study console: ingest, tutor with citations, concept map, learner and quiz (static, no build step)."""
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
-
 @app.get("/api/status")
 def get_status():
     return {"ok": True}
