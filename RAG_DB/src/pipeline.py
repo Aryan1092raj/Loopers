@@ -116,7 +116,7 @@ def main() -> None:
         conn.close()
         if not row or not row[0]:
             sys.exit(f"[media] no media_path for source {args.source_id}")
-        process_video(args.job_id, args.source_id, str(ROOT / row[0]))
+        process_video(args.job_id, args.source_id, row[0] if row[0].startswith(("http://", "https://")) else str(ROOT / row[0]))
         conn = get_connection()
         job = conn.execute("SELECT stage, error FROM jobs WHERE job_id = ?", (args.job_id,)).fetchone()
         conn.close()
