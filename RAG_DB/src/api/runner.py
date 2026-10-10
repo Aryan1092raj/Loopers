@@ -34,7 +34,7 @@ MEDIA_STAGES = ["media", "concepts"]  # video and audio sources: transcribe + em
 
 _busy = threading.Lock()
 # A stuck stage (e.g. endless 429 retries) must not hold `_busy` forever: it is killed on timeout or via cancel().
-STAGE_TIMEOUT = int(os.environ.get("JOB_STAGE_TIMEOUT", "1800"))
+STAGE_TIMEOUT = int(os.environ.get("JOB_STAGE_TIMEOUT", "600"))
 _proc: subprocess.Popen | None = None
 _proc_job: str | None = None
 _cancelled: str | None = None

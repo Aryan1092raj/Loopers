@@ -36,13 +36,14 @@ def client():
     url = os.getenv("QDRANT_URL")  # e.g. "http://localhost:6333" for server mode
     if url:
         api_key = os.getenv("QDRANT_API_KEY")
+        # No embedded fallback: the API and a pipeline subprocess would each open qdrant_db/ and write it at once.
+        c = QdrantClient(url=url, api_key=api_key or None, timeout=5.0)
         try:
-            c = QdrantClient(url=url, api_key=api_key or None, timeout=5.0)
             c.get_collections()
-            logging.info(f"Connected to Qdrant server at {url}")
-            return c
         except Exception as e:
-            logging.warning(f"Qdrant server at {url} unreachable, falling back to embedded: {e}")
+            raise RuntimeError(f"Qdrant server at {url} unreachable ({e}); start it with docker compose -f docker-compose.qdrant.yml up -d, or unset QDRANT_URL for embedded mode") from e
+        logging.info(f"Connected to Qdrant server at {url}")
+        return c
     return QdrantClient(path=str(QDRANT_DIR))
 
 

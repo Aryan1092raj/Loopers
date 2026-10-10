@@ -514,9 +514,22 @@ def _infer_subject(stem: str) -> str:
 # ---------------------------------------------------------------------------
 
 def run(force_full: bool = False) -> None:
+    """Dump all thread stacks to the job log every 60 s, so a stall shows exactly where it is stuck."""
+    import faulthandler
+
+    faulthandler.dump_traceback_later(60, repeat=True)
+    try:
+        _run(force_full)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+
+
+def _run(force_full: bool) -> None:
     import store
 
+    print("[embed] connecting to Qdrant...")
     c = store.client()
+    print("[embed] connected, checking which docs changed...")
     state = _load_embed_state()
     seen = state if c.collection_exists(COLLECTION) else {}  # a new collection holds none of the hashed docs
 
