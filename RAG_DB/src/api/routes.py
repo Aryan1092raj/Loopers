@@ -328,6 +328,37 @@ def onboard(req: OnboardReq):
     theta = onboard_student(req.student_id, req.background, req.exam_date)
     return {"status": "success", "theta_0": theta}
 
+class StudentName(BaseModel):
+    name: str
+
+
+@router.put("/students/{student_id}")
+def put_student(student_id: str, body: StudentName):
+    """Create the student if new, else rename. The id comes from the browser (no auth, TRD §11)."""
+    name = body.name.strip()
+    if not name or len(name) > 60:
+        raise HTTPException(422, "name must be 1 to 60 characters")
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO students (student_id, name, created_at) VALUES (?, ?, ?)"
+            " ON CONFLICT(student_id) DO UPDATE SET name = excluded.name",
+            (student_id, name, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"student_id": student_id, "name": name}
+
+
+@router.get("/students/{student_id}")
+def get_student(student_id: str):
+    rows = _rows("SELECT student_id, name, lang, exam_date, created_at FROM students WHERE student_id = ?", (student_id,))
+    if not rows:
+        raise HTTPException(404, "Student not found")
+    return rows[0]
+
+
 @router.get("/students/{student_id}/diagnostic")
 def get_diagnostic(student_id: str):
     try:

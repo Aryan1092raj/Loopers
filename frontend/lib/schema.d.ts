@@ -186,6 +186,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/students/{student_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Student */
+        get: operations["get_student_api_students__student_id__get"];
+        /**
+         * Put Student
+         * @description Create the student if new, else rename. The id comes from the browser (no auth, TRD §11).
+         */
+        put: operations["put_student_api_students__student_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/students/{student_id}/diagnostic": {
         parameters: {
             query?: never;
@@ -339,6 +360,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/revision/flashcards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revision Flashcards */
+        post: operations["revision_flashcards_api_revision_flashcards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/revision/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revision Brief */
+        post: operations["revision_brief_api_revision_brief_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/status": {
         parameters: {
             query?: never;
@@ -411,6 +466,18 @@ export interface components {
              */
             audio: string;
         };
+        /** BriefRequest */
+        BriefRequest: {
+            /** Student Id */
+            student_id: string;
+            /** Concept Ids */
+            concept_ids?: string[] | null;
+            /**
+             * Lang
+             * @default en
+             */
+            lang: string;
+        };
         /** ChatRequest */
         ChatRequest: {
             /** Session Id */
@@ -461,6 +528,23 @@ export interface components {
             thumb_url?: string | null;
             /** Excerpt */
             excerpt: string;
+        };
+        /** FlashcardRequest */
+        FlashcardRequest: {
+            /** Student Id */
+            student_id: string;
+            /** Concept Ids */
+            concept_ids?: string[] | null;
+            /**
+             * N
+             * @default 10
+             */
+            n: number;
+            /**
+             * Lang
+             * @default en
+             */
+            lang: string;
         };
         /** GateResult */
         GateResult: {
@@ -599,6 +683,11 @@ export interface components {
              * @default false
              */
             outside: boolean;
+        };
+        /** StudentName */
+        StudentName: {
+            /** Name */
+            name: string;
         };
         /** TTSRequest */
         TTSRequest: {
@@ -984,6 +1073,72 @@ export interface operations {
             };
         };
     };
+    get_student_api_students__student_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_student_api_students__student_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentName"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_diagnostic_api_students__student_id__diagnostic_get: {
         parameters: {
             query?: never;
@@ -1260,6 +1415,72 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revision_flashcards_api_revision_flashcards_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlashcardRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revision_brief_api_revision_brief_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BriefRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
