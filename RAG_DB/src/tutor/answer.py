@@ -157,10 +157,7 @@ def _grounded(question: str, evidence: list[Evidence], history: list[dict], lang
 
 
 def _observe(student_id: str, message: str, evidence: list[Evidence]) -> list:
-    try:
-        from learner.evidence import observe  # B3 seam; not there yet
-    except ImportError:
-        return []
+    from learner.evidence import observe
     try:
         return observe(student_id, message, evidence)
     except Exception as e:  # mastery tracking must not break an answer
@@ -182,7 +179,8 @@ def respond(message: str, student_id: str, session_id: str, scope: dict | None =
         resp = _outside(message, history, lang, gate) if allow_outside else _refused(gate, "not_entailed" if gate.nli else "out_of_material")
     else:
         resp = _grounded(message, evidence, history, lang, gate)
-    resp.mastery_updates = _observe(student_id, message, evidence)
+    if gate.decision == "answer":
+        resp.mastery_updates = _observe(student_id, message, evidence)
     session.add_turn(session_id, student_id, "user", message)
     session.add_turn(session_id, student_id, "assistant", resp.answer or resp.refusal.message, resp.mode,
                      [c.model_dump() for c in resp.citations], gate.model_dump())
