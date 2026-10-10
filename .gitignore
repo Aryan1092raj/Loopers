@@ -8,6 +8,10 @@ raw/
 metadata/
 qdrant_db/
 
+# Local docs: every .md stays on disk only, except README files
+*.md
+!README.md
+
 # Python caches
 __pycache__/
 *.pyc
@@ -15,3 +19,6 @@ __pycache__/
 
 # Foreign secret, never track
 RAG_DB/brain.config.json
+.agents/
+.claude/
+skills-lock.json
