@@ -19,7 +19,7 @@ def get_priors(background: str) -> Tuple[float, float, float]:
         return 0.0, 0.4, 2.0
     return -1.0, 0.2, 1.0
 
-def onboard_student(student_id: str, background: str) -> float:
+def onboard_student(student_id: str, background: str, exam_date: str | None = None) -> float:
     """
     Registers a student and initializes their base IRT theta in the intake profile.
     Priors will be lazily flushed to concepts during diagnostic testing or evidence generation.
@@ -35,10 +35,11 @@ def onboard_student(student_id: str, background: str) -> float:
     })
     
     conn.execute("""
-        INSERT INTO students (student_id, name, intake_json, created_at) 
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(student_id) DO UPDATE SET intake_json=excluded.intake_json
-    """, (student_id, "New Learner", intake_json, now))
+        INSERT INTO students (student_id, name, exam_date, intake_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(student_id) DO UPDATE SET intake_json=excluded.intake_json,
+            exam_date=COALESCE(excluded.exam_date, students.exam_date)
+    """, (student_id, "New Learner", exam_date, intake_json, now))
     
     conn.commit()
     conn.close()

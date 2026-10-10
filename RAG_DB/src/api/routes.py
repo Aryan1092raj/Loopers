@@ -291,10 +291,11 @@ from learner.state import get_learner_state
 class OnboardReq(BaseModel):
     student_id: str
     background: str
+    exam_date: str | None = None  # additive: ISO date, drives the study schedule
 
 @router.post("/students/onboard")
 def onboard(req: OnboardReq):
-    theta = onboard_student(req.student_id, req.background)
+    theta = onboard_student(req.student_id, req.background, req.exam_date)
     return {"status": "success", "theta_0": theta}
 
 @router.get("/students/{student_id}/diagnostic")
@@ -365,26 +366,9 @@ def get_mastery(student_id: str):
 
 @router.get("/students/{student_id}/schedule")
 def get_schedule(student_id: str, minutes_per_day: int = 60):
-    from learner.scheduler import get_next_schedule
-    import datetime
-    
-    sched = get_next_schedule(student_id, limit=10)
-    today = datetime.date.today().isoformat()
-    
-    tasks = []
-    for item in sched:
-        tasks.append({
-            "concept_id": item["concept_id"],
-            "minutes": 15,
-            "reason": "retrievability low" if item.get("is_overdue") else "mastery gap"
-        })
-        
-    return [
-        {
-            "date": today,
-            "tasks": tasks
-        }
-    ]
+    from learner.scheduler import plan_days
+
+    return plan_days(student_id, minutes_per_day)
 
 # --- 6.6 voice (B6) ---
 from fastapi import UploadFile, File, Form
