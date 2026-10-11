@@ -1,0 +1,32 @@
+# GPU overlay for docker-compose.app.yml: the api (EmbeddingGemma 2, reranker) and the whisper server
+# (large-v3-turbo, float16) run on the NVIDIA GPU.
+#
+# Needs the native Docker Engine (not Docker Desktop) with the NVIDIA Container Toolkit:
+#   docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
+#
+#   docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml --profile asr up -d --build
+
+x-gpu: &gpu
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+
+services:
+  api:
+    build:
+      args:
+        TORCH_INDEX: https://download.pytorch.org/whl/cu130
+    deploy: *gpu
+
+  whisper:
+    build:
+      args:
+        EXTRA_PIP: nvidia-cublas-cu12 nvidia-cudnn-cu12
+    environment:
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE_TYPE: float16
+      WHISPER_MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
+    deploy: *gpu

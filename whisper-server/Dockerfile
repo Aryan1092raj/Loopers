@@ -1,7 +1,9 @@
 # Local Whisper transcription server (OpenAI-compatible /v1/audio/transcriptions), CPU by default.
 FROM python:3.12-slim-bookworm
 WORKDIR /app
-RUN pip install --no-cache-dir faster-whisper fastapi "uvicorn[standard]" python-multipart
+# EXTRA_PIP: docker-compose.gpu.yml adds the CUDA 12 cuBLAS/cuDNN wheels that CTranslate2 needs on a GPU.
+ARG EXTRA_PIP=""
+RUN pip install --no-cache-dir faster-whisper fastapi "uvicorn[standard]" python-multipart ${EXTRA_PIP}
 COPY server.py ./
 ENV HF_HOME=/models \
     WHISPER_DEVICE=cpu \

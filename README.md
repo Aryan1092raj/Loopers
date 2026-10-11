@@ -61,8 +61,15 @@ docker compose -f docker-compose.app.yml down                       # stop; volu
 
 Docker Desktop runs containers in a VM with no GPU and about 3.5 GB of RAM, which is too small for
 EmbeddingGemma 2 on CPU: the `embed` stage gets killed with `exited with code -9` and the UI then shows
-"Failed to fetch" while the api restarts. For GPU embedding and transcription, run only qdrant in Docker and
-the rest on the host (the host GPU is used through the `.venv` CUDA build of torch):
+"Failed to fetch" while the api restarts. On the native Docker Engine with the NVIDIA Container Toolkit
+(`docker context use default`), add the GPU overlay so the api and whisper run on the GPU:
+
+```bash
+docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml --profile asr up -d --build
+```
+
+Without Docker GPU support, run only qdrant in Docker and the rest on the host (the host GPU is used
+through the `.venv` CUDA build of torch):
 
 ```bash
 docker compose -f docker-compose.app.yml up -d qdrant
