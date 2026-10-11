@@ -170,10 +170,17 @@ def create_source(
             digest.update(chunk)
             out.write(chunk)
     source_id = digest.hexdigest()[:16]
-    # Never write the client's file name: sanitized title plus content hash.
-    safe = re.sub(r"[^A-Za-z0-9_-]", "_", title)[:40]
-    dest = dest_dir / f"{safe}_{source_id[:8]}{ext}"
-    tmp.replace(dest)
+    # The same content uploaded again (under any title) reuses its file: a second copy would be extracted and
+    # embedded as a second document with the same source_id, duplicating every chunk.
+    existing = next((runner.ROOT / "raw").rglob(f"*_{source_id[:8]}{ext}"), None)
+    if existing:
+        tmp.unlink()
+        dest = existing
+    else:
+        # Never write the client's file name: sanitized title plus content hash.
+        safe = re.sub(r"[^A-Za-z0-9_-]", "_", title)[:40]
+        dest = dest_dir / f"{safe}_{source_id[:8]}{ext}"
+        tmp.replace(dest)
 
     _register_source(source_id, kind or ("video" if ext in MEDIA_EXTS else "slides" if ext == ".pptx" else "textbook"),
                      title, dest.name, str(dest.relative_to(runner.ROOT)), lecture_no, lang)
