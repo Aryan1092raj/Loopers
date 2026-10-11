@@ -5,7 +5,9 @@ it is served. Bank items the student has already been served are never reused, s
 happen when the bank is exhausted and generation fails.
 """
 import json
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from assess.dedup import check_duplicate
@@ -18,6 +20,7 @@ from tutor.cite import resolve
 DEFAULT_P_KNOW = 0.15
 GEN_TRIES = 2          # generation attempts per slot and concept before moving to the next concept
 SECONDS_PER_ITEM = 90  # mock exam time budget
+WORKERS = 4            # parallel slot fillers; more trips provider rate limits
 PUBLIC_FIELDS = ("item_id", "concept_id", "topic_id", "type", "bloom", "stem", "options_json", "difficulty_b")
 
 
@@ -114,18 +117,21 @@ def build_quiz(student_id: str, mode: str, topic_ids: list[str], concept_ids: li
     if not concepts:
         raise NoMaterial("no concept in scope has tagged source material")
     slots = [t for t, n in mix.items() for _ in range(max(0, n))]
-    items, taken, skipped, k = [], set(), [], 0
-    for item_type in slots:
-        found = None
-        for _ in range(len(concepts)):
-            concept_id, topic_id = concepts[k % len(concepts)]
-            k += 1
-            conn = get_connection()
-            try:
-                found = _bank_item(conn, student_id, concept_id, item_type, difficulty, taken)
-            finally:
-                conn.close()
-            for _ in range(0 if found else GEN_TRIES):
+    taken, lock = set(), threading.Lock()
+
+    def fill(slot: int, item_type: str) -> dict | None:
+        for j in range(len(concepts)):  # slot i starts at the i-th weakest concept, then moves on
+            concept_id, topic_id = concepts[(slot + j) % len(concepts)]
+            with lock:
+                conn = get_connection()
+                try:
+                    found = _bank_item(conn, student_id, concept_id, item_type, difficulty, taken)
+                finally:
+                    conn.close()
+                if found:
+                    taken.add(found["item_id"])
+                    return found
+            for _ in range(GEN_TRIES):
                 try:
                     found, _reason = make_item(concept_id, topic_id, item_type, difficulty=difficulty)
                 except NoMaterial:
@@ -133,14 +139,17 @@ def build_quiz(student_id: str, mode: str, topic_ids: list[str], concept_ids: li
                 except (ValueError, KeyError, json.JSONDecodeError):
                     found = None
                 if found:
-                    break
-            if found:
-                break
-        if found:
-            items.append(found)
-            taken.add(found["item_id"])
-        else:
-            skipped.append(item_type)
+                    with lock:  # another slot's bank lookup may already have claimed this freshly stored item
+                        if found["item_id"] not in taken:
+                            taken.add(found["item_id"])
+                            return found
+        return None
+
+    # Each new item is a generator call plus a blind-solver call, so slots are filled in parallel.
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        results = list(pool.map(fill, range(len(slots)), slots))
+    items = [r for r in results if r]
+    skipped = [t for t, r in zip(slots, results) if not r]
 
     quiz_id = f"quiz_{uuid.uuid4().hex[:10]}"
     now = datetime.now(timezone.utc).isoformat()

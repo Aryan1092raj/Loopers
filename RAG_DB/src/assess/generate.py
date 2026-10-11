@@ -13,7 +13,7 @@ SYSTEM = (
     "You write one exam question from course material. Use ONLY the numbered excerpts; never rely on outside facts. "
     "Reply with a single JSON object and nothing else, with keys: "
     '"stem" (the question), "bloom" (one of remember, understand, apply, analyze), '
-    '"answer" (see below), "explanation" (one or two sentences saying why the answer is right, using the excerpts), '
+    '"answer" (see below), "explanation" (one or two sentences saying why the answer is right, using the excerpts but never mentioning them or their numbers), '
     '"distractor_notes" (object mapping each wrong option to the misconception that makes it tempting; {} if not mcq), '
     '"options" (list of exactly 4 option strings if type is mcq, else []), "tolerance" (relative tolerance, numeric only, else null). '
     'For mcq, "answer" is the exact text of the one correct option. For short, "answer" is a one-sentence model answer. '
