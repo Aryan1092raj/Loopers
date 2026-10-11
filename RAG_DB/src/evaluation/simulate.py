@@ -3,7 +3,7 @@
     cd RAG_DB/src
     python -m evaluation.simulate --students 20 --sessions 10 --items 10
 
-Parametric students (fast, average and slow profiles) practise over several sessions, once under the adaptive policy
+Parametric students (fast, average and slow profiles) practise the stored concept graph over several sessions, once under the adaptive policy
 and once under a control policy, with the same students in both arms. Adaptive uses the same BKT update as
 `learner/evidence.py` to pick the weakest concept whose prerequisites look mastered, and never re-serves an item.
 Control picks a random concept and a random item with replacement, like a fixed quiz bank. No LLM and no database is
@@ -39,13 +39,23 @@ PROFILES = {       # learn rate, slip, guess, memory stability in days
 
 
 def load_graph() -> tuple[list[str], dict[str, list[str]]]:
-    """Leaf concepts and their prerequisites from the fixture graph."""
-    g = json.loads(FIXTURE.read_text())
-    ids = [n["id"] for n in g["nodes"] if n["level"] != "topic"]
+    """Leaf concepts and their prerequisites: the stored concept graph, else the fixture graph (no corpus ingested yet)."""
+    from core.db import get_connection
+
+    conn = get_connection()
+    try:
+        ids = [r[0] for r in conn.execute("SELECT concept_id FROM concepts WHERE level != 'topic'")]
+        edges = [(r[0], r[1]) for r in conn.execute("SELECT src, dst FROM concept_edges")]
+    finally:
+        conn.close()
+    if len(ids) < 3:
+        g = json.loads(FIXTURE.read_text())
+        ids = [n["id"] for n in g["nodes"] if n["level"] != "topic"]
+        edges = [(e["src"], e["dst"]) for e in g["edges"]]
     prereqs = {c: [] for c in ids}
-    for e in g["edges"]:
-        if e["src"] in prereqs and e["dst"] in prereqs:
-            prereqs[e["dst"]].append(e["src"])
+    for src, dst in edges:
+        if src in prereqs and dst in prereqs:
+            prereqs[dst].append(src)
     return ids, prereqs
 
 

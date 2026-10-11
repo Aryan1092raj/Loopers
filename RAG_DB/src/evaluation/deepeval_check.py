@@ -4,7 +4,7 @@ Runs in its own venv, because deepeval pins packages that conflict with `transfo
 
     python -m venv $TMPDIR/de && $TMPDIR/de/bin/pip install deepeval requests python-dotenv
     cd RAG_DB/src && python -m evaluation.run --answers --limit 10 --dump samples.json
-    $TMPDIR/de/bin/python -m evaluation.deepeval_check samples.json
+    $TMPDIR/de/bin/python -m evaluation.deepeval_check samples.json 6   # first 6 samples
 
 The judge is Groq (`openai/gpt-oss-120b`), a different model from the DeepSeek generator (CLAUDE.md rule 7). It is called
 over HTTP here so this file needs neither the repo's `llm.py` nor torch. Prints the mean of each of the four metrics.
@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 import requests
@@ -35,18 +36,26 @@ class GroqJudge(DeepEvalBaseLLM):
 
     def generate(self, prompt: str, schema=None):
         suffix = f"\n\nReply with JSON only, matching this schema: {json.dumps(schema.model_json_schema())}" if schema else ""
-        for _ in range(4):
+        text = ""
+        for attempt in range(8):
             key = KEYS[self.n % len(KEYS)]
             self.n += 1
             r = requests.post("https://api.groq.com/openai/v1/chat/completions", timeout=120,
                               headers={"Authorization": f"Bearer {key}"},
                               json={"model": MODEL, "max_tokens": 3000, "messages": [{"role": "user", "content": prompt + suffix}]})
-            text = (r.json().get("choices") or [{}])[0].get("message", {}).get("content") or ""
-            if r.status_code == 200 and text:
-                break
+            if r.status_code == 200:
+                text = (r.json()["choices"][0]["message"].get("content") or "")
+                if text:
+                    break
+            elif r.status_code == 429:
+                time.sleep(min(60, float(r.headers.get("retry-after", 5 * (attempt + 1)))))
+            else:
+                raise RuntimeError(f"Groq {r.status_code}: {r.text[:120]}")
         if schema is None:
             return text
         m = re.search(r"\{.*\}", text, re.S)
+        if not m:
+            raise RuntimeError("judge returned no JSON after retries")
         return schema(**json.loads(m.group(0)))
 
     async def a_generate(self, prompt: str, schema=None):
@@ -56,8 +65,8 @@ class GroqJudge(DeepEvalBaseLLM):
         return f"groq/{MODEL}"
 
 
-def main(path: str) -> None:
-    samples = json.loads(Path(path).read_text())
+def main(path: str, n: int = 6) -> None:
+    samples = json.loads(Path(path).read_text())[:n]
     judge = GroqJudge()
     names = {"faithfulness": FaithfulnessMetric, "answer_relevancy": AnswerRelevancyMetric,
              "context_precision": ContextualPrecisionMetric, "context_recall": ContextualRecallMetric}
@@ -77,4 +86,4 @@ def main(path: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 6)

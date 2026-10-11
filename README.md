@@ -59,14 +59,19 @@ docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py emb
 docker compose -f docker-compose.app.yml down                       # stop; volumes keep the data
 ```
 
-Docker Desktop runs containers in a VM with no GPU and about 3.5 GB of RAM, which is too small for
-EmbeddingGemma 2 on CPU: the `embed` stage gets killed with `exited with code -9` and the UI then shows
+Docker Desktop runs containers in a VM with no GPU. Give that VM at least 8 GB of memory (Settings →
+Resources); at about 3.5 GB the `embed` stage is killed with `exited with code -9` and the UI shows
 "Failed to fetch" while the api restarts. On the native Docker Engine with the NVIDIA Container Toolkit
-(`docker context use default`), add the GPU overlay so the api and whisper run on the GPU:
+(`docker context use default`), add the GPU overlay so the api runs on the GPU:
 
 ```bash
 docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml --profile asr up -d --build
 ```
+
+On a 6 GB card the overlay leaves Whisper on CPU (int8): the api's models and an ingest job already use most
+of the card. On a card with 8 GB or more set `WHISPER_DEVICE=cuda WHISPER_COMPUTE_TYPE=float16` before `up`.
+The reranker visits the GPU only while it scores a query, then returns to CPU memory
+(`RERANK_KEEP_ON_GPU=1` keeps it resident). If port 8000 or 3000 is taken, set `API_PORT` and `WEB_PORT`.
 
 Without Docker GPU support, run only qdrant in Docker and the rest on the host (the host GPU is used
 through the `.venv` CUDA build of torch):
@@ -111,6 +116,51 @@ fixture graph. `GET /api/graph` and `GET /api/concepts/{id}` read the stored gra
    refused question is answered from general knowledge and marked `outside_syllabus`.
 
 Without an LLM key the chat endpoint quotes the best evidence with its markers instead of generating text.
+
+## Assessment and the learner model
+
+`POST /api/quiz/generate` writes one item (multiple choice, short answer or numeric) from the source units
+tagged to a concept or topic, and records which units it came from, so feedback cites stored locators. Three
+checks run before the item is served: the stem must not be a near-duplicate of an earlier item for that
+concept, a different model solves it blind and must reach the same key (`solver_conflict` otherwise), and
+the generator is told which questions were already asked. The answer key never leaves the server until the
+student submits. Grading is by type (exact option, numeric tolerance, fuzzy match for short answers), and the
+post-quiz report lists weak concepts, recorded misconceptions and the mastery change per concept.
+
+Mastery is a Bayesian knowledge tracing estimate per concept (slip 0.10, guess 0.20, learn 0.05 per answered
+item, 0.02 per grounded chat turn). Each answer also updates a simple FSRS-style stability, which sets the next
+review date. A new student answers an intake question (background sets the prior ability and starting
+mastery) and a diagnostic of up to five verified multiple-choice items, scored with a one-parameter IRT
+model. `GET /api/students/{id}/schedule` plans study days up to the exam date: weak or overdue concepts come
+first, a concept unlocks once its prerequisites reach 0.70, and each day is capped at `minutes_per_day`.
+
+## Evaluation
+
+All of it lives in `RAG_DB/src/evaluation/` and is saved to the `eval_runs` table, which the web app shows at
+`/eval`.
+
+- `python -m evaluation.run --k 5 --indexed-only` measures hit@k, MRR and locator precision against the golden
+  set, per question type, and calibrates the refusal gate (`--write-thresholds` writes
+  `metadata/gate_thresholds.json`). It stops if the cross-encoder fails instead of calibrating on the wrong
+  score scale.
+- `--answers --limit N` also answers questions through the tutor and reports citation accuracy, refusal
+  honesty, over-refusal and four judge metrics (faithfulness, answer relevancy, context precision, context
+  recall). The judge is a different model from the generator. `--dump file.json` saves the samples, and
+  `python -m evaluation.deepeval_check file.json` scores the same samples with DeepEval in a separate
+  virtualenv as a cross-check (its dependencies conflict with the main environment).
+- `python -m evaluation.gen_golden` writes golden questions for whatever is indexed, copying gold locators
+  from stored fields; `python -m evaluation.golden --spotcheck` prints 20 random items to open by hand.
+- `python -m evaluation.simulate` runs simulated students (fast, average and slow learners) through ten
+  sessions, adaptive versus a random-question control, and reports mastery gain and question repetition.
+
+The golden set and simulated students are generated, so treat the numbers as a check on the pipeline, not as
+a benchmark. Results are in the Status section.
+
+## Testing
+
+`docs/TESTING.md` walks through every service by hand with copy-paste commands, and
+`scripts/e2e_smoke.sh` runs the main path end to end against a running API (`SMOKE_VIDEO` adds a lecture
+video). Backend unit tests: `cd RAG_DB && python -m pytest tests -q`.
 
 ## Corpus
 

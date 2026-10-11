@@ -135,7 +135,9 @@ def main() -> None:
 
     rows = []
     for it in items:
-        evidence, _ = retrieve_evidence(it["question"])
+        evidence, reranked = retrieve_evidence(it["question"])
+        if not reranked and any(e.unit.kind != "figure" and not e.is_prerequisite for e in evidence):  # text hits scored by dense similarity are on another scale; image-only hits have nothing to rerank
+            raise SystemExit(f"cross-encoder reranking failed on {it['id']} (see the [generate] warning above); fix it and rerun")
         rows.append({"item": it, "evidence": evidence, "top": gate_mod.top_score(evidence)})
         print(f"[retrieve] {it['id']} top={rows[-1]['top']:.3f}")
 
