@@ -100,8 +100,11 @@ else
 fi
 
 # 7. Practice quiz round trip on the first concept that has source units
-concept="$(curl -sf "$BASE/api/graph" | py "d['nodes'][0]['id']")"
-gen="$(post_json /api/quiz/generate "{\"concept_id\":\"$concept\",\"topic_id\":\"smoke\",\"item_type\":\"mcq\"}")" || fail "quiz generate call failed"
+# The concept build can leave a node with no units under it, so take the first node that has material.
+for concept in $(curl -sf "$BASE/api/graph" | py "' '.join(n['id'] for n in d['nodes'])"); do
+  gen="$(post_json /api/quiz/generate "{\"concept_id\":\"$concept\",\"topic_id\":\"smoke\",\"item_type\":\"mcq\"}")" || fail "quiz generate call failed"
+  [ "$(echo "$gen" | py "d.get('reason')")" = "no_material" ] || break
+done
 [ "$(echo "$gen" | py "d['status']")" = "success" ] || fail "quiz generate for $concept: $(echo "$gen" | py "d.get('reason')") (has the concept build run?)"
 echo "$gen" | py "'answer_json' not in d['item']" | grep -q True || fail "quiz item leaks answer_json"
 quiz_item="$(echo "$gen" | py "d['item']['item_id']")"

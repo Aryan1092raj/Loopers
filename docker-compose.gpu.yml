@@ -1,5 +1,5 @@
-# GPU overlay for docker-compose.app.yml: the api (EmbeddingGemma 2, reranker) and the whisper server
-# (large-v3-turbo, float16) run on the NVIDIA GPU.
+# GPU overlay for docker-compose.app.yml: the api (EmbeddingGemma 2, reranker) runs on the NVIDIA GPU; the whisper
+# server (large-v3-turbo) uses CPU int8 unless WHISPER_DEVICE=cuda (see below).
 #
 # Needs the native Docker Engine (not Docker Desktop) with the NVIDIA Container Toolkit:
 #   docker run --rm --gpus all nvidia/cuda:12.1.1-base-ubuntu22.04 nvidia-smi
@@ -25,8 +25,10 @@ services:
     build:
       args:
         EXTRA_PIP: nvidia-cublas-cu12 nvidia-cudnn-cu12
+    # A 6 GB card cannot hold whisper (2.2 GB) next to the api's models (3 GB) and an ingest job's embedder (1.5 GB),
+    # so whisper defaults to CPU int8. Set WHISPER_DEVICE=cuda WHISPER_COMPUTE_TYPE=float16 on an 8 GB+ GPU.
     environment:
-      WHISPER_DEVICE: cuda
-      WHISPER_COMPUTE_TYPE: float16
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
       WHISPER_MODEL: deepdml/faster-whisper-large-v3-turbo-ct2
     deploy: *gpu
