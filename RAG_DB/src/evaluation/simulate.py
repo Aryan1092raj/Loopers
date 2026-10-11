@@ -10,7 +10,8 @@ Control picks a random concept and a random item with replacement, like a fixed 
 involved except the final `eval_runs` row, so the run is cheap and repeatable.
 
 Reported: mean true mastery gain per arm, the paired adaptive-minus-control difference with its standard error,
-the share of served items a student had already seen, and how closely the BKT estimate tracks true mastery.
+the share of served items a student had already seen, and how closely the BKT estimate tracks true mastery after
+each session (the learner model should get closer as evidence accumulates).
 Limits: the student model is an assumption (learning rate, slip, guess, forgetting), so the numbers show the policy
 effect under that model, not real learners. LLM-simulated students are not run.
 """
@@ -67,6 +68,8 @@ def run_student(seed: int, profile: dict, policy: str, sessions: int, items: int
     seen = {c: set() for c in concepts}
     served = repeats = 0
     curve = [sum(true.values()) / len(concepts)]
+    mae = lambda: sum(abs(est[c] - true[c]) for c in concepts) / len(concepts)
+    mae_curve = [mae()]  # how far the learner model is from the truth, after each session
     for _ in range(sessions):
         for c in concepts:  # forgetting since the last session
             true[c] *= retrievability(GAP_DAYS, profile["stability"])
@@ -86,8 +89,9 @@ def run_student(seed: int, profile: dict, policy: str, sessions: int, items: int
             gate = 0.3 + 0.7 * min((true[p] for p in prereqs[c]), default=1.0)  # learning needs prerequisites
             true[c] += profile["rate"] * gate * (1 - true[c])
         curve.append(sum(true.values()) / len(concepts))
-    mae = sum(abs(est[c] - true[c]) for c in concepts) / len(concepts)
-    return {"curve": curve, "gain": curve[-1] - curve[0], "repetition": repeats / served, "estimate_mae": mae}
+        mae_curve.append(mae())
+    return {"curve": curve, "gain": curve[-1] - curve[0], "repetition": repeats / served, "estimate_mae": mae_curve[-1],
+            "mae_curve": mae_curve}
 
 
 def _mean(xs):
@@ -116,6 +120,7 @@ def simulate(students: int = 20, sessions: int = 10, items: int = 10) -> dict:
             "by_profile": {p: _mean([r["gain"] for r in rs if r["profile"] == p]) for p in PROFILES},
         }
     out["adaptive"]["estimate_mae"] = _mean([r["estimate_mae"] for r in runs["adaptive"]])
+    out["adaptive"]["estimate_mae_curve"] = [_mean([r["mae_curve"][t] for r in runs["adaptive"]]) for t in range(sessions + 1)]
     diffs = [a["gain"] - c["gain"] for a, c in zip(runs["adaptive"], runs["control"])]  # paired by student
     out["paired_gain_difference"] = {"mean": _mean(diffs), "se": _se(diffs), "n": len(diffs),
                                      "students_where_adaptive_won": sum(d > 0 for d in diffs) / len(diffs)}
@@ -147,7 +152,7 @@ def main() -> None:
         r = result[p]
         print(f"{p:9} gain {r['mean_gain']:.3f}  repetition {r['repetition_rate']:.3f}  by profile "
               + " ".join(f"{k} {v:.3f}" for k, v in r["by_profile"].items()))
-    print(f"BKT estimate MAE (adaptive): {result['adaptive']['estimate_mae']:.3f}")
+    print("BKT estimate MAE by session (adaptive): " + " ".join(f"{v:.3f}" for v in result["adaptive"]["estimate_mae_curve"]))
 
 
 if __name__ == "__main__":
