@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from api.routes import router
-from config import PAGES_DIR
+from config import PAGES_DIR, RAW
 from core.db import init_db
 
 # Setup logging
@@ -44,9 +44,13 @@ def get_status():
 def stream_video(file_path: str, request: Request):
     """Serves video files with HTTP Range support."""
     
-    # Security: Prevent directory traversal
-    video_path = (MEDIA_DIR / "video" / file_path).resolve()
-    if not video_path.is_file() or not str(video_path).startswith(str(MEDIA_DIR)):
+    # Uploaded lectures live under raw/<subject>/ (the seek_url carries that relative path); keep the old video dir too.
+    # Security: each candidate must stay inside its own root (no directory traversal).
+    for root in (MEDIA_DIR / "video", RAW.resolve()):
+        video_path = (root / file_path).resolve()
+        if video_path.is_file() and video_path.is_relative_to(root.resolve()):
+            break
+    else:
         raise HTTPException(status_code=404, detail="Video not found")
     
     file_size = video_path.stat().st_size

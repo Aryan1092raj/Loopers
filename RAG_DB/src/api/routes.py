@@ -264,6 +264,18 @@ def get_job(job_id: str):
 
 # --- 6.2 knowledge ---
 
+@router.get("/eval/runs")
+def eval_runs(kind: Literal["golden", "simulation"] | None = None, limit: int = 20):
+    """Saved evaluation runs, newest first: retrieval/judge metrics ("golden") and simulated-student runs ("simulation")."""
+    sql = "SELECT run_id, kind, config_json, metrics_json, created_at FROM eval_runs"
+    args: tuple = ()
+    if kind:
+        sql, args = sql + " WHERE kind = ?", (kind,)
+    rows = _rows(sql + " ORDER BY created_at DESC LIMIT ?", (*args, max(1, min(limit, 100))))
+    return [{"run_id": r["run_id"], "kind": r["kind"], "created_at": r["created_at"],
+             "config": json.loads(r["config_json"] or "{}"), "metrics": json.loads(r["metrics_json"] or "{}")} for r in rows]
+
+
 @router.get("/graph")
 def get_graph(student_id: str | None = None):
     g = concepts.get_graph(fixture=False)
