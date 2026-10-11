@@ -4,9 +4,9 @@
 FROM python:3.12-slim-bookworm
 
 # ffmpeg: audio/keyframe extraction for video. libgl1/libglib2.0-0: opencv (scenedetect, rapidocr).
-# libgomp1: torch CPU runtime. curl: healthcheck.
+# libgomp1: torch CPU runtime. curl: healthcheck. libreoffice-impress: pptx -> pdf so slide citations get images.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg libgl1 libglib2.0-0 libgomp1 curl ca-certificates \
+    ffmpeg libgl1 libglib2.0-0 libgomp1 curl ca-certificates libreoffice-impress fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
