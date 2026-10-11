@@ -466,7 +466,8 @@ def build_image_chunks(
             "type": lab.get("type", ""),
             "image": lab.get("image", ""),
             "caption": lab.get("caption", ""),
-            "page_no": lab.get("page_no") or _page_from_name(name),
+            "page_no": lab.get("page_no") or (None if lab.get("slide_no") else _page_from_name(name)),
+            "slide_no": lab.get("slide_no"),  # deck pictures (extract_pptx)
             "bbox": lab.get("bbox"),
             "text": text,
         })

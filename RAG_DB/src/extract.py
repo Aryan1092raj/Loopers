@@ -780,10 +780,15 @@ def extract_image(path: Path, stem: str) -> str:
 
 
 def extract_pptx(path: Path, stem: str) -> str:
+    from io import BytesIO
+
+    from PIL import Image
     from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
     prs = Presentation(path)
     md_lines = []
-    
+    figures = {}  # s<slide>_figure_<n>.png -> {"slide_no": n}; label.py copies it into the figure's unit
+
     for idx, slide in enumerate(prs.slides, 1):
         md_lines.append(f"\n<!-- slide {idx} -->\n## Slide {idx}")
         
@@ -822,7 +827,16 @@ def extract_pptx(path: Path, stem: str) -> str:
                         table_md.append("| " + " | ".join(["---"] * len(row_cells)) + " |")
                 if table_md:
                     md_lines.append("\n".join(table_md))
-                    
+
+            # Pictures become figure units, captioned by label.py like PDF figures (PS 1d)
+            elif shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                name = f"s{idx}_figure_{len([f for f in figures if f.startswith(f's{idx}_')]) + 1}.png"
+                (IMAGES / stem).mkdir(parents=True, exist_ok=True)
+                Image.open(BytesIO(shape.image.blob)).save(IMAGES / stem / name)
+                figures[name] = {"slide_no": idx}
+                md_lines.append(f"![figure](images/{stem}/{name})")
+
+    _write_figure_index(stem, figures)
     return "\n".join(md_lines)
 
 
