@@ -31,7 +31,8 @@ class RateLimited(Exception):
 
 def _post_request(url: str, headers: dict, payload: dict, auth_keys: list[str] | None = None) -> str:
     """POST to an OpenAI-compatible API endpoint with 429 retry + error retry."""
-    MAX_429_RETRIES = 8
+    # A chat request waits on these retries before the next provider is tried, so keep the chain short (~45 s).
+    MAX_429_RETRIES = int(os.getenv("LLM_429_RETRIES", "4"))
     MAX_ERR_RETRIES = 2
 
     def _do_post() -> str:
@@ -128,9 +129,11 @@ def call_groq(messages: list, max_tokens: int = 1000, model: str | None = None) 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 
 
-def call_gemini(messages: list, max_tokens: int = 1000, model: str = "gemini-3.8-flash") -> str:
-    """Gemini through its OpenAI-compatible endpoint (accepts image_url data URIs)."""
+def call_gemini(messages: list, max_tokens: int = 1000, model: str | None = None) -> str:
+    """Gemini through its OpenAI-compatible endpoint (accepts image_url data URIs).
+    Default model from GEMINI_MODEL: gemini-3.8-flash's free quota runs out daily, flash-lite's lasts."""
     import config
+    model = model or os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     keys = [k for k in config.GEMINI_KEYS if k]
     if not keys:
         raise Exception("GEMINI_API_KEY is not set in .env. Please set it to proceed.")
