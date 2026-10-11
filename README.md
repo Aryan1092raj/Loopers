@@ -115,6 +115,11 @@ fixture graph. `GET /api/graph` and `GET /api/concepts/{id}` read the stored gra
 4. Sessions and turns are stored in SQLite, so two sessions never share history. With `allow_outside` a
    refused question is answered from general knowledge and marked `outside_syllabus`.
 
+The answer adapts to the student. Before generating, the tutor reads the student's BKT mastery of the concepts
+tagged on the answering units: below 0.40 it explains step by step, defines terms first, leans on the
+prerequisite evidence and ends with a check question; at 0.75 or above it answers concisely and points out the
+subtle detail; in between it gives one worked example. Every grounded turn then nudges that mastery up.
+
 Without an LLM key the chat endpoint quotes the best evidence with its markers instead of generating text.
 
 ## Assessment and the learner model
@@ -126,6 +131,16 @@ concept, a different model solves it blind and must reach the same key (`solver_
 the generator is told which questions were already asked. The answer key never leaves the server until the
 student submits. Grading is by type (exact option, numeric tolerance, fuzzy match for short answers), and the
 post-quiz report lists weak concepts, recorded misconceptions and the mastery change per concept.
+
+`POST /api/quizzes` builds a practice quiz or a timed mock exam (`mode: "mock"`, 90 s per item) over the
+topics and concepts the student picks, with a mix such as `{"mcq": 4, "short": 2, "numeric": 2}` and an
+optional target difficulty (IRT b). Slots rotate over the in-scope concepts, weakest mastery first. Each slot is
+filled from the verified bank if the student has never been served that item, otherwise by generating a new
+item through the same three checks, so questions do not repeat across assessments. Every served item carries
+its topic, concept, Bloom level, difficulty label and source locations (page, slide or timestamp).
+`POST /api/quizzes/{id}/answers` grades a batch and returns per-item correctness, the cited explanation, the
+misconception behind a wrong option and the mastery updates; `GET /api/quizzes/{id}/report` gives the
+post-assessment report.
 
 Mastery is a Bayesian knowledge tracing estimate per concept (slip 0.10, guess 0.20, learn 0.05 per answered
 item, 0.02 per grounded chat turn). Each answer also updates a simple FSRS-style stability, which sets the next

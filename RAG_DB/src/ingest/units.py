@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import List
 
 from core.models import SourceUnit
@@ -142,8 +143,9 @@ def write_units(units: List[SourceUnit], qdrant: bool = True, media: dict | None
     except Exception as e:  # a unit in SQLite but not in Qdrant is unsearchable, so the job must fail visibly
         raise RuntimeError(f"Qdrant write failed for {len(units)} units: {e}") from e
 
-    # 3. Knowledge Graph Extraction (M3.2 Bridge)
-    for unit in units:
+    # 3. Knowledge Graph Extraction (M3.2 Bridge). One LLM call per unit, so it is opt-in like embed.py's:
+    # the concepts stage rebuilds the graph anyway, and with a rate-limited key this held a lecture job for hours.
+    for unit in units if os.getenv("KG_EXTRACTION", "0") == "1" else []:
         if len(unit.text.strip()) > 50:  # Only extract from substantial chunks
             try:
                 extract_and_add(unit.text)
