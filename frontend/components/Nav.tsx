@@ -19,6 +19,13 @@ export default function Nav() {
         >
           Quiz
         </Link>
+        <Link
+          href="/eval"
+          aria-current={path === "/eval" ? "page" : undefined}
+          className={`rounded-full px-3 py-1.5 text-sm transition hover:bg-indigo-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${path === "/eval" ? "font-semibold text-indigo-700" : "text-slate-700"}`}
+        >
+          Evaluation
+        </Link>
         <UserMenu />
       </div>
     </nav>
