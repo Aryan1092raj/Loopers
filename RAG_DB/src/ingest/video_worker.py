@@ -68,14 +68,14 @@ def get_transcript(audio_path: Path) -> List[Dict[str, Any]]:
 
 
 def _local_transcript(audio_path: Path) -> List[Dict[str, Any]]:
-    # ponytail: CUDA runs large-v3-turbo fp16; CPU fallback is English-only base.en int8. Upgrade the CPU model if the server stays down.
+    # ponytail: CUDA runs large-v3-turbo fp16; CPU fallback is the multilingual base model in int8. Upgrade the CPU model if the server stays down.
     import torch
     from faster_whisper import WhisperModel
 
     if torch.cuda.is_available():
         model, device, compute_type = "large-v3-turbo", "cuda", "float16"
     else:
-        model, device, compute_type = "base.en", "cpu", "int8"
+        model, device, compute_type = "base", "cpu", "int8"  # multilingual: PS.md 6d wants Hindi explanations
     segments, _ = WhisperModel(model, device=device, compute_type=compute_type).transcribe(str(audio_path), vad_filter=True)
     return [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
 
