@@ -13,6 +13,7 @@ import argparse
 import json
 import re
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 
 import config
@@ -118,6 +119,7 @@ def main() -> None:
     ap.add_argument("--answers", action="store_true", help="generate answers and run citation, refusal and judge metrics")
     ap.add_argument("--limit", type=int, default=0, help="max items per class for --answers")
     ap.add_argument("--write-thresholds", action="store_true")
+    ap.add_argument("--dump", help="with --answers, write question/answer/contexts/reference samples to this JSON file (for deepeval_check.py)")
     ap.add_argument("--indexed-only", action="store_true", help="skip items whose gold sources are not in the collection")
     a = ap.parse_args()
 
@@ -163,7 +165,7 @@ def main() -> None:
     if a.answers:
         sel_in = ins[: a.limit or None]
         sel_off = offs[: a.limit or None]
-        cited, golds, in_ref, off_ref, judged = [], [], [], [], []
+        cited, golds, in_ref, off_ref, judged, samples = [], [], [], [], [], []
         for r in sel_in + sel_off:
             it = r["item"]
             resp = answer_one(it, r["evidence"])
@@ -180,7 +182,12 @@ def main() -> None:
             used = {c.unit_id for c in resp.citations}
             ctxs = [e.unit.text for e in r["evidence"] if not e.is_prerequisite and e.unit.kind != "figure"][: a.k]
             judged.append(judge_metrics(it["question"], resp.answer, [s.text for s in resp.segments], ctxs, it["reference_answer"]))
+            samples.append({"id": it["id"], "question": it["question"], "answer": resp.answer, "contexts": ctxs,
+                            "reference": it["reference_answer"]})
             print(f"[answer] {it['id']} mode={resp.mode} cited={len(used & set(by_id))}")
+        if a.dump:
+            Path(a.dump).write_text(json.dumps(samples, ensure_ascii=False, indent=1))
+            print(f"[eval] wrote {len(samples)} samples to {a.dump}")
         result["citation_accuracy"] = metrics.citation_accuracy(cited, golds)
         result.update(metrics.refusal_rates(in_ref, off_ref))
         for key in ("faithfulness", "answer_relevancy", "context_precision", "context_recall"):

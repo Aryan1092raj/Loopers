@@ -44,9 +44,27 @@ def validate(items: list[dict]) -> list[str]:
     return problems
 
 
+def spotcheck(items: list[dict], n: int = 20, seed: int = 0) -> str:
+    """n random in-scope items with their gold locators, for a person to open and confirm (PLAN E1)."""
+    import random
+
+    pool = [i for i in items if i["gold_locators"]]
+    lines = []
+    for it in random.Random(seed).sample(pool, min(n, len(pool))):
+        where = "; ".join(f"{g['source_id']} " + (f"page {g['page_no']}" if g.get("page_no") is not None else
+                          f"slide {g['slide_no']}" if g.get("slide_no") is not None else f"t={g.get('t_start')}s")
+                          for g in it["gold_locators"])
+        lines.append(f"{it['id']}  [{where}]\n  Q: {it['question']}\n  A: {it['reference_answer']}")
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
+    import sys
+
     data = load()
     errs = validate(data)
     print(f"{len(data)} items, {len(errs)} problems")
     print("\n".join(errs))
+    if "--spotcheck" in sys.argv:
+        print(spotcheck(data))
     raise SystemExit(bool(errs))

@@ -23,6 +23,8 @@ from evaluation.run import _judge
 MIN_CHARS = 300   # shorter units rarely carry a self-contained fact
 MAX_CHARS = 1800  # prompt budget per unit
 _OBJ = re.compile(r"\{.*\}", re.S)
+_LEAK = re.compile(r"\b(passages?|excerpts?|the (given |provided )?text|the (above|following) )", re.I)  # refers to the prompt, not the course
+_LABEL = re.compile(r"^\s*(प्रश्न|उत्तर|question|answer)\s*[:：]\s*", re.I)
 _ARR = re.compile(r"\[.*\]", re.S)
 
 
@@ -82,11 +84,14 @@ def concepts_for(unit_ids: list[str]) -> list[str]:
 def qa(units: list[dict]) -> dict | None:
     passages = "\n\n".join(f"Passage {i}:\n{u['text'][:MAX_CHARS]}" for i, u in enumerate(units, 1))
     need = "one question that needs information from every passage" if len(units) > 1 else "one question"
-    out = _json(
-        f"{passages}\n\nWrite {need} that a student could answer only from the passage(s), and a 1-2 sentence reference "
-        "answer. The question must stand alone: no 'according to the passage'. "
-        'Reply with JSON only: {"question": "...", "reference_answer": "..."}', _OBJ)
-    return out if isinstance(out, dict) and out.get("question") and out.get("reference_answer") else None
+    for _ in range(3):  # the model sometimes writes "according to the passage" despite the instruction
+        out = _json(
+            f"{passages}\n\nWrite {need} that a student could answer only from the passage(s), and a 1-2 sentence reference "
+            "answer. The question must stand alone, as if asked in a lecture: never use the words passage, excerpt or text. "
+            'Reply with JSON only: {"question": "...", "reference_answer": "..."}', _OBJ)
+        if isinstance(out, dict) and out.get("question") and out.get("reference_answer") and not _LEAK.search(str(out["question"])):
+            return out
+    return None
 
 
 def make_item(kind: str, n: int, units: list[dict], q: dict) -> dict:
@@ -109,7 +114,7 @@ def to_hindi(item: dict, n: int) -> dict | None:
     if not (isinstance(out, dict) and out.get("question") and out.get("reference_answer")):
         return None
     return {**item, "id": f"{item['id']}-hi", "type": "hindi", "lang": "hi",
-            "question": out["question"].strip(), "reference_answer": out["reference_answer"].strip()}
+            "question": _LABEL.sub("", out["question"]).strip(), "reference_answer": _LABEL.sub("", out["reference_answer"]).strip()}
 
 
 def off_material(titles: list[str], n: int, start: int) -> list[dict]:
