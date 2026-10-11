@@ -448,11 +448,11 @@ def voice_stt(audio: UploadFile = File(...)):
         f.write(audio.file.read())
         
     try:
-        res = transcribe_audio(path)
+        return transcribe_audio(path)
+    except Exception as e:  # server down and local model failed
+        raise HTTPException(502, f"transcription failed: {e}")
     finally:
         os.remove(path)
-        
-    return res
 
 class TTSRequest(BaseModel):
     text: str

@@ -30,8 +30,10 @@ def concept_units(concept_id: str) -> tuple[str, list[tuple[str, str]]]:
     try:
         row = conn.execute("SELECT name FROM concepts WHERE concept_id=?", (concept_id,)).fetchone()
         units = conn.execute(
-            "SELECT u.unit_id, u.text FROM unit_concepts uc JOIN units u ON u.unit_id=uc.unit_id"
-            " WHERE uc.concept_id=? ORDER BY uc.score DESC LIMIT ?", (concept_id, MAX_UNITS)
+            # A topic has no units of its own; it draws on the units of its child concepts.
+            "SELECT u.unit_id, MAX(u.text) FROM unit_concepts uc JOIN units u ON u.unit_id=uc.unit_id"
+            " WHERE uc.concept_id=? OR uc.concept_id IN (SELECT concept_id FROM concepts WHERE parent_id=?)"
+            " GROUP BY u.unit_id ORDER BY MAX(uc.score) DESC LIMIT ?", (concept_id, concept_id, MAX_UNITS)
         ).fetchall()
     finally:
         conn.close()

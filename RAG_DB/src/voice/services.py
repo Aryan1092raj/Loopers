@@ -1,69 +1,48 @@
-import os
+"""Speech to text through the Whisper server (local faster-whisper fallback) and text to speech with Piper."""
 import hashlib
+import os
+import subprocess
+import sys
+import wave
+from functools import lru_cache
 from pathlib import Path
-import logging
 
-logger = logging.getLogger(__name__)
+from ingest.video_worker import get_transcript
 
-# Fallback gracefully for sandbox/CI environments
-try:
-    from faster_whisper import WhisperModel
-    HAS_WHISPER = True
-except ImportError:
-    HAS_WHISPER = False
+VOICE = os.getenv("PIPER_VOICE", "en_US-lessac-medium")
+VOICE_DIR = Path(os.getenv("HF_HOME", Path.home() / ".cache")) / "piper"
+
 
 def transcribe_audio(file_path: str) -> dict:
-    """
-    Transcribes audio using faster-whisper (INT8).
-    Returns {"text": str, "language": str, "duration": float, "confidence": float}
-    """
+    """{"text", "language", "duration"}; raises when neither the server nor the local model can transcribe."""
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Audio file {file_path} not found.")
-        
-    if HAS_WHISPER:
-        try:
-            model = WhisperModel("tiny", device="cpu", compute_type="int8")
-            segments, info = model.transcribe(file_path, beam_size=1)
-            text = " ".join([seg.text for seg in segments])
-            return {
-                "text": text.strip(),
-                "language": info.language,
-                "duration": info.duration,
-                "confidence": info.language_probability
-            }
-        except Exception as e:
-            logger.error(f"Whisper inference failed: {e}")
-            # Fallthrough to mock
-            pass
-            
-    # Mock fallback for test environment
+    segments = get_transcript(Path(file_path))
     return {
-        "text": "This is a mock transcription of the sine wave.",
-        "language": "en",
-        "duration": 2.0,
-        "confidence": 0.99
+        "text": " ".join(s["text"].strip() for s in segments).strip(),
+        "language": None,  # ponytail: the server reply carries it; add when the UI needs it
+        "duration": segments[-1]["end"] if segments else 0.0,
     }
 
+
+@lru_cache(maxsize=1)
+def _voice():
+    from piper import PiperVoice
+
+    model = VOICE_DIR / f"{VOICE}.onnx"
+    if not model.exists():  # first call downloads about 60 MB into the model volume
+        VOICE_DIR.mkdir(parents=True, exist_ok=True)
+        subprocess.run([sys.executable, "-m", "piper.download_voices", "--download-dir", str(VOICE_DIR), VOICE], check=True)
+    return PiperVoice.load(model)
+
+
 def synthesize_speech(text: str, output_dir: Path) -> Path:
-    """
-    Synthesizes speech using piper-tts (or returns mock cache).
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-    output_path = output_dir / f"{text_hash}.wav"
-    
-    if output_path.exists():
-        return output_path
-        
-    # In a real environment, we'd invoke piper-tts here.
-    # We will generate a dummy 16kHz WAV file.
-    import wave, struct, math
-    with wave.open(str(output_path), 'w') as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(16000)
-        # Generate 0.5 sec of silence
-        for _ in range(int(16000 * 0.5)):
-            f.writeframes(struct.pack('h', 0))
-            
+    """Speak `text` to a cached wav named by its hash."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{hashlib.md5(f'{VOICE}:{text}'.encode()).hexdigest()}.wav"
+    if not output_path.exists():
+        tmp = output_path.with_suffix(".part")
+        with wave.open(str(tmp), "wb") as f:
+            _voice().synthesize_wav(text, f)
+        tmp.rename(output_path)
     return output_path

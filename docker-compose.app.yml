@@ -40,7 +40,7 @@ services:
       QDRANT_URL: http://qdrant:6333
       WHISPER_SERVER_URL: http://whisper:8300/v1/audio/transcriptions
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - app-raw:/app/raw
       - app-processed:/app/processed
@@ -58,7 +58,7 @@ services:
         API_URL: http://api:8000
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
     depends_on:
       - api
 

@@ -81,6 +81,18 @@ def judge_metrics(question: str, answer: str, sentences: list[str], contexts: li
     return out
 
 
+def indexed_sources() -> set[str]:
+    """source_ids present in the active Qdrant collection."""
+    import store
+
+    c, ids, offset = store.client(), set(), None
+    while True:
+        points, offset = c.scroll(config.COLLECTION, limit=512, offset=offset, with_payload=["source_id"], with_vectors=False)
+        ids |= {(p.payload or {}).get("source_id") for p in points}
+        if offset is None:
+            return ids
+
+
 def _units(evidence) -> list[tuple[str, dict]]:
     return [(e.unit.source_id, e.unit.locator.model_dump()) for e in evidence if not e.is_prerequisite]
 
@@ -106,12 +118,18 @@ def main() -> None:
     ap.add_argument("--answers", action="store_true", help="generate answers and run citation, refusal and judge metrics")
     ap.add_argument("--limit", type=int, default=0, help="max items per class for --answers")
     ap.add_argument("--write-thresholds", action="store_true")
+    ap.add_argument("--indexed-only", action="store_true", help="skip items whose gold sources are not in the collection")
     a = ap.parse_args()
 
     items = golden.load()
     problems = golden.validate(items)
     if problems:
         raise SystemExit("golden set invalid:\n" + "\n".join(problems))
+    if a.indexed_only:
+        idx = indexed_sources()
+        kept = [it for it in items if all(g["source_id"] in idx for g in it["gold_locators"])]
+        print(f"[eval] --indexed-only: {len(kept)} of {len(items)} items")
+        items = kept
 
     rows = []
     for it in items:
@@ -124,6 +142,11 @@ def main() -> None:
     result = {"n_in_scope": len(ins), "n_off_material": len(offs)}
     ranks = [metrics.first_hit_rank(_units(r["evidence"][: a.k]), r["item"]["gold_locators"]) for r in ins]
     result.update(metrics.retrieval_metrics(ranks, a.k))
+    result["by_type"] = {
+        t: {"n": sum(r["item"]["type"] == t for r in ins),
+            **metrics.retrieval_metrics([k for k, r in zip(ranks, ins) if r["item"]["type"] == t], a.k)}
+        for t in sorted({r["item"]["type"] for r in ins})
+    }
     pairs = [(r, s, l) for r in ins for s, l in _units(r["evidence"][: a.k])]
     result["locator_precision"] = sum(
         any(metrics.matches(s, l, g) for g in r["item"]["gold_locators"]) for r, s, l in pairs
