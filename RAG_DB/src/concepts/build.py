@@ -16,7 +16,7 @@ REPORT = METADATA / "concept_report.json"
 def _llm():
     from tutor.answer import complete
 
-    return lambda prompt: complete([{"role": "user", "content": prompt}], role="gate", max_tokens=2000)
+    return lambda prompt: complete([{"role": "user", "content": prompt}], role="concepts", max_tokens=2000)
 
 
 def _encode():

@@ -42,7 +42,8 @@ def complete(messages: list[dict], role: str = "answer", max_tokens: int = 1200)
         "groq": (bool(config.GROQ_KEYS), lambda m: llm.call_groq(messages, max_tokens=max_tokens, model=m)),
         "gemini": (bool(config.GEMINI_KEYS), lambda m: llm.call_gemini(messages, max_tokens=max_tokens, **({"model": m} if m else {}))),
     }
-    order = ["deepseek", "groq", "gemini"] if role == "answer" else ["groq", "gemini", "deepseek"]
+    # concept extraction is bulk work, not judging, so it may share the generator's provider (CLAUDE.md rule 7)
+    order = ["deepseek", "groq", "gemini"] if role in ("answer", "concepts") else ["groq", "gemini", "deepseek"]
     model = (config.GENERATOR_MODEL or None) if role == "answer" else None
     errors = []
     for name in order:
