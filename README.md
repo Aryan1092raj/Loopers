@@ -179,11 +179,17 @@ video). Backend unit tests: `cd RAG_DB && python -m pytest tests -q`.
 
 ## Corpus
 
-Interim text corpus while the demo course is undecided: OpenStax *Calculus
-Volume 1* (Strang, Herman et al., Rice University), licensed CC BY-NC-SA 4.0.
-Fetched with `python src/pipeline.py download --source openstax --subjects calculus-vol1`
-into `RAG_DB/raw/openstax_calculus-vol1.pdf` (gitignored, not redistributed here).
-The pipeline is subject-agnostic; any course material dropped into `raw/` works.
+The demo course is *Limits and Continuity*, in all three modalities, uploaded through `POST /api/sources`
+with no manual preprocessing:
+
+- Textbook: OpenStax *Calculus Volume 1*, Chapter 2 through section 2.4 (book pages 113–176, 64 pages),
+  CC BY-NC-SA 4.0. Cut from the full PDF fetched with `python src/pipeline.py download --source openstax
+  --subjects calculus-vol1`.
+- Lecture video: MIT OpenCourseWare 18.01 Single Variable Calculus, Fall 2007, Lecture 2 "Limits,
+  Continuity; Trigonometric Limits" (52:46), CC BY-NC-SA 4.0, https://www.youtube.com/watch?v=ryLdyDrBfvI.
+- Slides: a 12-slide deck on limits and continuity written for this project, with four plotted figures.
+
+None of these files are redistributed here. The pipeline is subject-agnostic; any course material works.
 
 ## Status
 

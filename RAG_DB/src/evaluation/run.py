@@ -25,21 +25,25 @@ from tutor.retrieve import retrieve_evidence
 _LIST = re.compile(r"\[[\s\d.,]*\]")
 
 
-_gemini_ok = True
-
-
 def _judge(prompt: str) -> str:
-    global _gemini_ok
+    """Judge call on Gemini, else Groq; never the DeepSeek generator (CLAUDE.md rule 7). Both are free tiers with
+    per-minute limits, so when both are rate limited the call waits and tries again instead of failing the run."""
+    import time
+
     import llm
 
     msgs = [{"role": "user", "content": prompt}]
-    if config.GEMINI_KEYS and _gemini_ok:
-        try:
-            return llm.call_gemini(msgs, max_tokens=300)
-        except Exception as e:  # quota errors repeat, so stay on Groq for the rest of the run
-            print(f"[eval] gemini judge failed, using Groq from now on: {e}")
-            _gemini_ok = False
-    return llm.call_groq(msgs, max_tokens=1500)  # gpt-oss spends part of the budget on reasoning tokens
+    calls = ([lambda: llm.call_gemini(msgs, max_tokens=300)] if config.GEMINI_KEYS else []) + [
+        lambda: llm.call_groq(msgs, max_tokens=1500)]  # gpt-oss spends part of the budget on reasoning tokens
+    for attempt in range(4):
+        for call in calls:
+            try:
+                return call()
+            except Exception as e:  # rate limit or empty reply: try the other judge
+                err = e
+        print(f"[eval] both judges failed ({err}); waiting {30 * (attempt + 1)} s")
+        time.sleep(30 * (attempt + 1))
+    raise err
 
 
 def _scores(prompt: str, n: int) -> list[float]:
