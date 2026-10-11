@@ -139,8 +139,8 @@ def write_units(units: List[SourceUnit], qdrant: bool = True, media: dict | None
             store.reset_collection(q_client)
         store.ensure_indexes(q_client)
         store.upsert(q_client, ids, dense_vecs, payloads, sparse_vecs)
-    except Exception as e:
-        logger.warning(f"Qdrant insertion gracefully bypassed (offline/missing): {e}")
+    except Exception as e:  # a unit in SQLite but not in Qdrant is unsearchable, so the job must fail visibly
+        raise RuntimeError(f"Qdrant write failed for {len(units)} units: {e}") from e
 
     # 3. Knowledge Graph Extraction (M3.2 Bridge)
     for unit in units:

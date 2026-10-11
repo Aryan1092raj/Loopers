@@ -63,7 +63,9 @@ def _seek_url(media: str | None, t_start: float | None) -> str | None:
         return None
     if media.startswith(("http://", "https://")):  # URL source: no local file, link to the original at the same second
         return f"{media}{'&' if '?' in media else '?'}t={int(t_start)}s"
-    return f"/media/video/{Path(media).name}#t={t_start}"
+    parts = Path(media).parts  # uploads are stored as raw/<subject>/<file>; /media/video serves raw/
+    rel = Path(*parts[parts.index("raw") + 1:]) if "raw" in parts else Path(media).name
+    return f"/media/video/{rel}#t={t_start}"
 
 
 def resolve(unit_ids: list[str]) -> list[Citation]:

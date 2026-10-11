@@ -161,6 +161,26 @@ def _reranker():
                         model_kwargs={"torch_dtype": torch.float16 if cuda else torch.float32})
 
 
+def rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """Sigmoid cross-encoder scores in [0, 1]. The model sits in CPU memory between calls and visits the GPU only
+    while scoring, so the 6 GB card is free for the embedder, Whisper and ingest jobs the rest of the time.
+    RERANK_KEEP_ON_GPU=1 keeps it resident (saves ~0.2 s per query on a bigger card)."""
+    import os
+    import torch
+
+    model = _reranker()
+    cuda = torch.cuda.is_available()
+    offload = cuda and os.getenv("RERANK_KEEP_ON_GPU") != "1"
+    if cuda:
+        model.model.to("cuda")
+    try:
+        return model.predict([[query, t] for t in texts], activation_fn=torch.nn.Sigmoid()).tolist()
+    finally:
+        if offload:
+            model.model.to("cpu")
+            torch.cuda.empty_cache()
+
+
 # Scores are sigmoid-normalized to [0,1] (compute_score(normalize=True)), so
 # thresholds are interpretable probabilities, not raw logits, and transfer
 # across queries. Paired with a keep-top-k safety net so a grading miss can
@@ -283,15 +303,12 @@ def retrieve(
 
     reranked = False
     images = [c for c in broad if c.get("kind") == "image"]
-    texts = [c for c in broad if c.get("kind") == "text"]
+    texts = [c for c in broad if c.get("kind") != "image"]  # text and video transcript chunks
 
     # Stage 2.5: Cross-Encoder reranking for text chunks
     if texts:
         try:
-            model = _reranker()
-            pairs = [[query, c.get("text", "")] for c in texts]
-            import torch
-            scores = model.predict(pairs, activation_fn=torch.nn.Sigmoid()).tolist()  # sigmoid -> [0,1]
+            scores = rerank_scores(query, [c.get("text", "") for c in texts])  # sigmoid -> [0,1]
             for c, score in zip(texts, scores):
                 c["score"] = float(score)
             texts.sort(key=lambda x: x["score"], reverse=True)

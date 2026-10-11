@@ -183,4 +183,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    import logging
+
+    # Workers report failures through `logging`; without a handler they never reach the job log.
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     main()
