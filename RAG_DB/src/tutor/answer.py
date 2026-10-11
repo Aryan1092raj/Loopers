@@ -17,6 +17,8 @@ REFUSAL_MESSAGE = "I could not find this in your course material."
 NOT_ENTAILED_MESSAGE = "The material I found does not clearly answer this question."
 EVIDENCE_CHARS = 1500  # per unit in the prompt
 EXTRACT_CHARS = 300    # per unit when no LLM is configured
+DEFAULT_P_KNOW = 0.15  # learner prior for a concept with no evidence yet
+WEAK, STRONG = 0.4, 0.75
 
 SYSTEM = (
     "You are a study tutor. Answer the student's question using ONLY the numbered evidence. "
@@ -69,9 +71,38 @@ def _turns(history: list[dict]) -> list[dict]:
     return [{"role": t["role"], "content": MARKER.sub("", t["content"])} for t in history]
 
 
-def _generate(question: str, evidence: list[Evidence], history: list[dict], lang: str) -> str:
+def learner_note(student_id: str, evidence: list[Evidence]) -> str:
+    """How deep to go, from the student's BKT mastery of the concepts tagged on the answering units."""
+    from core.db import get_connection
+
+    unit_ids = [e.unit.unit_id for e in evidence if not e.is_prerequisite]
+    if not unit_ids:
+        return ""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT c.name, COALESCE(ls.p_mastery, ?) FROM (SELECT DISTINCT concept_id FROM unit_concepts"
+            f" WHERE unit_id IN ({','.join('?' * len(unit_ids))})) uc JOIN concepts c ON c.concept_id = uc.concept_id"
+            " LEFT JOIN learner_state ls ON ls.concept_id = uc.concept_id AND ls.student_id = ?",
+            (DEFAULT_P_KNOW, *unit_ids, student_id)).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return ""
+    p = sum(r[1] for r in rows) / len(rows)
+    weak = [r[0] for r in rows if r[1] < WEAK][:3]
+    if p < WEAK:
+        return (f" The student is new to this (mastery {p:.2f}): explain step by step, define each term first, "
+                "use the background evidence for missing basics, and end with one short check-your-understanding question."
+                + (f" Weak concepts: {', '.join(weak)}." if weak else ""))
+    if p >= STRONG:
+        return f" The student already knows this well (mastery {p:.2f}): answer concisely and point out the subtle or exam-relevant detail."
+    return f" The student partly knows this (mastery {p:.2f}): give a clear explanation with one worked example from the evidence."
+
+
+def _generate(question: str, evidence: list[Evidence], history: list[dict], lang: str, note: str = "") -> str:
     user = f"Evidence:\n{_evidence_block(evidence)}\n\nQuestion: {question}"
-    return complete([{"role": "system", "content": SYSTEM.format(lang=lang)}, *_turns(history), {"role": "user", "content": user}])
+    return complete([{"role": "system", "content": SYSTEM.format(lang=lang) + note}, *_turns(history), {"role": "user", "content": user}])
 
 
 def _repair(sentences: list[str], evidence: list[Evidence]) -> list[str]:
@@ -125,10 +156,10 @@ def _outside(question: str, history: list[dict], lang: str, gate) -> TutorRespon
     )
 
 
-def _grounded(question: str, evidence: list[Evidence], history: list[dict], lang: str, gate) -> TutorResponse:
+def _grounded(question: str, evidence: list[Evidence], history: list[dict], lang: str, gate, note: str = "") -> TutorResponse:
     ids = {e.id for e in evidence}
     try:
-        sentences = split_sentences(_generate(question, evidence, history, lang))
+        sentences = split_sentences(_generate(question, evidence, history, lang, note))
     except NoProvider:
         # no LLM configured: quote the best evidence so the API still returns cited, grounded text
         sentences = [
@@ -178,7 +209,12 @@ def respond(message: str, student_id: str, session_id: str, scope: dict | None =
     if gate.decision == "refuse":
         resp = _outside(message, history, lang, gate) if allow_outside else _refused(gate, "not_entailed" if gate.nli else "out_of_material")
     else:
-        resp = _grounded(message, evidence, history, lang, gate)
+        try:
+            note = learner_note(student_id, evidence)
+        except Exception as e:  # personalisation must not break an answer
+            print(f"[tutor] learner_note failed: {e}")
+            note = ""
+        resp = _grounded(message, evidence, history, lang, gate, note)
     if gate.decision == "answer":
         resp.mastery_updates = _observe(student_id, message, evidence)
     session.add_turn(session_id, student_id, "user", message)
