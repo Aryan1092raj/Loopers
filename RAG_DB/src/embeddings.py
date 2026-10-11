@@ -63,7 +63,9 @@ def encode(texts, is_query: bool = False) -> list[list[float]]:
         out = model.encode(texts, batch_size=batch_size, max_length=512)
         return [v.tolist() for v in out["dense_vecs"]]
     elif "embeddinggemma-2" in EMBED_MODEL.lower():
-        out = model.encode(texts, batch_size=8, show_progress_bar=False, normalize_embeddings=True,
+        # a video clip is up to 120 frames, so eight at once overflow a 6 GB card
+        video = any(isinstance(t, dict) and "video" in t for t in texts)
+        out = model.encode(texts, batch_size=1 if video else 8, show_progress_bar=False, normalize_embeddings=True,
                            prompt_name="SearchQuery" if is_query else "Document")
         return [v.tolist() for v in out]
     else:

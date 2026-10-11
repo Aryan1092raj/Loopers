@@ -56,7 +56,9 @@ def get_transcript(audio_path: Path) -> List[Dict[str, Any]]:
                 WHISPER_URL,
                 files={"file": f},
                 data={"response_format": "verbose_json", "timestamp_granularities[]": "segment"},
-                timeout=300
+                # 16 kHz mono 16-bit wav: 32000 bytes per second. A CPU server can take about real time, so a
+                # fixed 5-minute timeout failed every lecture longer than that.
+                timeout=max(300, 2 * audio_path.stat().st_size / 32000)
             )
         response.raise_for_status()
 
@@ -73,10 +75,13 @@ def _local_transcript(audio_path: Path) -> List[Dict[str, Any]]:
     from faster_whisper import WhisperModel
 
     if torch.cuda.is_available():
-        model, device, compute_type = "large-v3-turbo", "cuda", "float16"
-    else:
-        model, device, compute_type = "base", "cpu", "int8"  # multilingual: PS.md 6d wants Hindi explanations
-    segments, _ = WhisperModel(model, device=device, compute_type=compute_type).transcribe(str(audio_path), vad_filter=True)
+        try:  # CTranslate2 needs CUDA 12 cuBLAS, which a CUDA 13 torch image does not ship
+            segments, _ = WhisperModel("large-v3-turbo", device="cuda", compute_type="float16").transcribe(str(audio_path), vad_filter=True)
+            return [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
+        except (RuntimeError, OSError) as e:
+            logger.warning(f"faster-whisper on CUDA failed ({e}); using CPU")
+    # multilingual base model: PS.md 6d wants Hindi explanations
+    segments, _ = WhisperModel("base", device="cpu", compute_type="int8").transcribe(str(audio_path), vad_filter=True)
     return [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
 
 

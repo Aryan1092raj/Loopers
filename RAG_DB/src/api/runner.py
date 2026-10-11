@@ -35,6 +35,8 @@ MEDIA_STAGES = ["media", "concepts"]  # video and audio sources: transcribe + em
 _busy = threading.Lock()
 # A stuck stage (e.g. endless 429 retries) must not hold `_busy` forever: it is killed on timeout or via cancel().
 STAGE_TIMEOUT = int(os.environ.get("JOB_STAGE_TIMEOUT", "600"))
+# Transcribing and clip-embedding a lecture takes about its own length on CPU, so `media` gets its own ceiling.
+MEDIA_STAGE_TIMEOUT = int(os.environ.get("JOB_MEDIA_TIMEOUT", "10800"))
 _proc: subprocess.Popen | None = None
 _proc_job: str | None = None
 _cancelled: str | None = None
@@ -75,7 +77,8 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
                 update_job_progress(job_id, STAGE_LABEL[stage], i / len(stages))
                 log.write(f"\n=== {stage} ===\n")
                 args = ["media", source_id, "--job-id", job_id] if stage == "media" else STAGE_ARGS[stage]
-                code = _run_stage([sys.executable, str(ROOT / "src" / "pipeline.py"), *args], env, log, job_id)
+                code = _run_stage([sys.executable, str(ROOT / "src" / "pipeline.py"), *args], env, log, job_id,
+                                  MEDIA_STAGE_TIMEOUT if stage == "media" else STAGE_TIMEOUT)
                 if _cancelled == job_id:
                     fail_job(job_id, "cancelled")
                     return
@@ -91,13 +94,13 @@ def _run(job_id: str, stages: list[str], source_id: str | None) -> None:
         _busy.release()
 
 
-def _run_stage(cmd: list[str], env: dict, log, job_id: str) -> int:
+def _run_stage(cmd: list[str], env: dict, log, job_id: str, timeout: int = STAGE_TIMEOUT) -> int:
     """Run one stage in its own process group so timeout and cancel also reach its children (ffmpeg, workers)."""
     global _proc, _proc_job
     proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     _proc, _proc_job = proc, job_id
     try:
-        return proc.wait(timeout=STAGE_TIMEOUT)
+        return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill(proc)
         raise
