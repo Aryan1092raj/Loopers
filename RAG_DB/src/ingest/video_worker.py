@@ -112,7 +112,7 @@ def make_clips(source: Path, wav: Path, units: List[SourceUnit], out_dir: Path) 
         if video:
             entry["video"] = str(out_dir / f"{u.unit_id}.mp4")
             cmds.append(["ffmpeg", "-y", "-loglevel", "error", *span, "-i", str(source), "-an",
-                         "-vf", "fps=2,scale=480:-2,format=yuv420p", entry["video"]])
+                         "-vf", "fps=1,scale=480:-2,format=yuv420p", entry["video"]])
         try:
             for cmd in cmds:
                 subprocess.run(cmd, check=True, capture_output=True)

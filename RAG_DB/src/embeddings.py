@@ -63,11 +63,21 @@ def encode(texts, is_query: bool = False) -> list[list[float]]:
         out = model.encode(texts, batch_size=batch_size, max_length=512)
         return [v.tolist() for v in out["dense_vecs"]]
     elif "embeddinggemma-2" in EMBED_MODEL.lower():
-        # a video clip is up to 120 frames, so eight at once overflow a 6 GB card
-        video = any(isinstance(t, dict) and "video" in t for t in texts)
-        out = model.encode(texts, batch_size=1 if video else 8, show_progress_bar=False, normalize_embeddings=True,
-                           prompt_name="SearchQuery" if is_query else "Document")
-        return [v.tolist() for v in out]
+        kw = dict(show_progress_bar=False, normalize_embeddings=True, prompt_name="SearchQuery" if is_query else "Document")
+        if not any(isinstance(t, dict) and "video" in t for t in texts):
+            return [v.tolist() for v in model.encode(texts, batch_size=8, **kw)]
+        # Video clips one at a time: a clip is up to 60 frames. When other processes hold the GPU (the API's query
+        # models, Whisper) a clip can still run out of memory; that clip is then embedded without its frames.
+        out = []
+        for t in texts:
+            try:
+                out.append(model.encode([t], batch_size=1, **kw)[0].tolist())
+            except torch.cuda.OutOfMemoryError:
+                torch.cuda.empty_cache()
+                print("[embeddings] clip out of GPU memory, embedding its transcript and audio only")
+                t = {k: v for k, v in t.items() if k != "video"} | {"text": t["text"].replace(" <|video|>", "")}
+                out.append(model.encode([t], batch_size=1, **kw)[0].tolist())
+        return out
     else:
         out = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
         return [v.tolist() for v in out]
