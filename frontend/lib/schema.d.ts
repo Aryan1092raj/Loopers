@@ -346,6 +346,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quizzes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Quiz
+         * @description A practice quiz or timed mock exam over the chosen topics/concepts with a mix of item types (TRD §6.5).
+         */
+        post: operations["create_quiz_api_quizzes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quizzes/{quiz_id}/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer Quiz */
+        post: operations["answer_quiz_api_quizzes__quiz_id__answers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quizzes/{quiz_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Quiz Report By Id */
+        get: operations["quiz_report_by_id_api_quizzes__quiz_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quiz/submit": {
         parameters: {
             query?: never;
@@ -455,6 +509,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Answer */
+        Answer: {
+            /** Item Id */
+            item_id: string;
+            /** Response */
+            response: string;
+            /** Latency Ms */
+            latency_ms?: number | null;
+        };
+        /** AnswerSubmit */
+        AnswerSubmit: {
+            /** Answers */
+            answers: components["schemas"]["Answer"][];
+        };
         /** Body_create_source_api_sources_post */
         Body_create_source_api_sources_post: {
             /** File */
@@ -627,6 +695,36 @@ export interface components {
         PipelineRun: {
             /** Stages */
             stages: ("ingest" | "extract" | "label" | "embed" | "concepts" | "eval")[];
+        };
+        /** QuizCreate */
+        QuizCreate: {
+            /** Student Id */
+            student_id: string;
+            /**
+             * Mode
+             * @default practice
+             */
+            mode: string;
+            /**
+             * @default {
+             *       "topic_ids": [],
+             *       "concept_ids": []
+             *     }
+             */
+            scope: components["schemas"]["Scope"];
+            /**
+             * Mix
+             * @default {
+             *       "mcq": 4,
+             *       "short": 2,
+             *       "numeric": 2
+             *     }
+             */
+            mix: {
+                [key: string]: number;
+            };
+            /** Difficulty */
+            difficulty?: number | null;
         };
         /** QuizGenerateReq */
         QuizGenerateReq: {
@@ -1399,6 +1497,105 @@ export interface operations {
                 "application/json": components["schemas"]["QuizGenerateReq"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_quiz_api_quizzes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuizCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_quiz_api_quizzes__quiz_id__answers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quiz_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerSubmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quiz_report_by_id_api_quizzes__quiz_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quiz_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

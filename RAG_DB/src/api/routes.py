@@ -479,9 +479,9 @@ def voice_tts(req: TTSRequest):
 
 # --- 6.5 quizzes (B5) ---
 from pydantic import BaseModel
-from assess.generate import NoMaterial, generate_item
-from assess.dedup import check_duplicate
-from assess.verify import blind_verify, same_answer
+from assess.generate import NoMaterial
+from assess.quiz import build_quiz, make_item, public_item, quiz_student, submit_answers
+from assess.verify import same_answer
 from assess.grade import grade_submission, item_feedback
 from assess.report import generate_report
 from tutor.answer import NoProvider
@@ -492,36 +492,50 @@ class QuizGenerateReq(BaseModel):
     item_type: Literal["mcq", "short", "numeric"] = "mcq"
     stem_override: str | None = None
 
-# fields the student may see; answer_json and rubric_json hold the key and the explanation
-PUBLIC_ITEM_FIELDS = ("item_id", "concept_id", "topic_id", "type", "bloom", "stem", "options_json")
-
 @router.post("/quiz/generate")
 def quiz_generate(req: QuizGenerateReq):
     try:
-        item = generate_item(req.concept_id, req.topic_id, req.item_type, req.stem_override)
+        item, reason = make_item(req.concept_id, req.topic_id, req.item_type, req.stem_override)
     except NoMaterial:
         return {"status": "rejected", "reason": "no_material"}
     except NoProvider:
         raise HTTPException(503, "no LLM provider is configured for quiz generation")
     except (ValueError, KeyError, json.JSONDecodeError):  # generator reply was not a usable item
         return {"status": "rejected", "reason": "bad_generation"}
+    if item is None:
+        return {"status": "rejected", "reason": reason}
+    return {"status": "success", "item": public_item(item)}
 
-    if check_duplicate(req.concept_id, item["stem"]):
-        return {"status": "rejected", "reason": "duplicate"}
 
-    tolerance = json.loads(item["rubric_json"]).get("tolerance")
-    if not blind_verify(item["stem"], item["options_json"], item["answer_json"], item["type"], tolerance):
-        return {"status": "rejected", "reason": "solver_conflict"}
+@router.post("/quizzes")
+def create_quiz(req: QuizCreate):
+    """A practice quiz or timed mock exam over the chosen topics/concepts with a mix of item types (TRD §6.5)."""
+    if req.mode not in ("practice", "mock"):
+        raise HTTPException(422, "mode must be practice or mock")
+    if not 1 <= sum(req.mix.values()) <= 30 or set(req.mix) - {"mcq", "short", "numeric"}:
+        raise HTTPException(422, "mix must use mcq/short/numeric with 1 to 30 items in total")
+    try:
+        return build_quiz(req.student_id, req.mode, req.scope.topic_ids, req.scope.concept_ids, req.mix, req.difficulty)
+    except NoMaterial as e:
+        raise HTTPException(404, str(e))
+    except NoProvider:
+        raise HTTPException(503, "no LLM provider is configured for quiz generation")
 
-    conn = get_connection()
-    conn.execute(
-        "INSERT INTO items (item_id, concept_id, topic_id, type, bloom, stem, options_json, answer_json, rubric_json, unit_ids_json, difficulty_b, discrimination_a, verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))",
-        (item["item_id"], item["concept_id"], item["topic_id"], item["type"], item["bloom"], item["stem"], item["options_json"], item["answer_json"], item["rubric_json"], item["unit_ids_json"], item["difficulty_b"], item["discrimination_a"])
-    )
-    conn.commit()
-    conn.close()
 
-    return {"status": "success", "item": {k: item[k] for k in PUBLIC_ITEM_FIELDS}}
+@router.post("/quizzes/{quiz_id}/answers")
+def answer_quiz(quiz_id: str, body: AnswerSubmit):
+    try:
+        return submit_answers(quiz_id, [a.model_dump() for a in body.answers])
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.get("/quizzes/{quiz_id}/report")
+def quiz_report_by_id(quiz_id: str):
+    student_id = quiz_student(quiz_id)
+    if student_id is None:
+        raise HTTPException(404, "Quiz not found")
+    return generate_report(student_id, quiz_id)
 
 class QuizSubmitReq(BaseModel):
     quiz_id: str

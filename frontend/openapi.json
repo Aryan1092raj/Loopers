@@ -826,6 +826,127 @@
         }
       }
     },
+    "/api/quizzes": {
+      "post": {
+        "summary": "Create Quiz",
+        "description": "A practice quiz or timed mock exam over the chosen topics/concepts with a mix of item types (TRD \u00a76.5).",
+        "operationId": "create_quiz_api_quizzes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuizCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quizzes/{quiz_id}/answers": {
+      "post": {
+        "summary": "Answer Quiz",
+        "operationId": "answer_quiz_api_quizzes__quiz_id__answers_post",
+        "parameters": [
+          {
+            "name": "quiz_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Quiz Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerSubmit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quizzes/{quiz_id}/report": {
+      "get": {
+        "summary": "Quiz Report By Id",
+        "operationId": "quiz_report_by_id_api_quizzes__quiz_id__report_get",
+        "parameters": [
+          {
+            "name": "quiz_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Quiz Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/quiz/submit": {
       "post": {
         "summary": "Quiz Submit",
@@ -1048,6 +1169,51 @@
   },
   "components": {
     "schemas": {
+      "Answer": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "response"
+        ],
+        "title": "Answer"
+      },
+      "AnswerSubmit": {
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/Answer"
+            },
+            "type": "array",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers"
+        ],
+        "title": "AnswerSubmit"
+      },
       "Body_create_source_api_sources_post": {
         "properties": {
           "file": {
@@ -1549,6 +1715,54 @@
           "stages"
         ],
         "title": "PipelineRun"
+      },
+      "QuizCreate": {
+        "properties": {
+          "student_id": {
+            "type": "string",
+            "title": "Student Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "practice"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope",
+            "default": {
+              "topic_ids": [],
+              "concept_ids": []
+            }
+          },
+          "mix": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Mix",
+            "default": {
+              "mcq": 4,
+              "short": 2,
+              "numeric": 2
+            }
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student_id"
+        ],
+        "title": "QuizCreate"
       },
       "QuizGenerateReq": {
         "properties": {

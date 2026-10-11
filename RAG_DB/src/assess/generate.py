@@ -50,8 +50,10 @@ def _parse(reply: str) -> dict:
     return json.loads(m.group(0))
 
 
-def generate_item(concept_id: str, topic_id: str, item_type: str = "mcq", custom_stem: str | None = None) -> dict:
-    """Write one item grounded in the concept's top source units; unit_ids_json records exactly what it was written from."""
+def generate_item(concept_id: str, topic_id: str, item_type: str = "mcq", custom_stem: str | None = None,
+                  difficulty: float | None = None) -> dict:
+    """Write one item grounded in the concept's top source units; unit_ids_json records exactly what it was written from.
+    `difficulty` is a target IRT b; the generator is asked for the Bloom level whose prior b is closest."""
     name, units = concept_units(concept_id)
     excerpts = "\n\n".join(f"[{i}] {text[:UNIT_CHARS]}" for i, (_, text) in enumerate(units, 1))
     conn = get_connection()
@@ -60,7 +62,9 @@ def generate_item(concept_id: str, topic_id: str, item_type: str = "mcq", custom
             "SELECT stem FROM items WHERE concept_id=? ORDER BY rowid DESC LIMIT 15", (concept_id,)).fetchall()]
     finally:
         conn.close()
+    target = min(("remember", "understand", "apply", "analyze"), key=lambda b: abs(BLOOM_B[b] - difficulty)) if difficulty is not None else None
     ask = (f"Concept: {name}\nType: {item_type}\n" + (f"Question must be about: {custom_stem}\n" if custom_stem else "")
+           + (f"Bloom level: {target} (set \"bloom\" to it)\n" if target else "")
            + ("Already asked, write a clearly different question:\n" + "\n".join(f"- {s}" for s in asked) + "\n" if asked else "")
            + f"\nExcerpts:\n{excerpts}")
     d = _parse(complete([{"role": "system", "content": SYSTEM}, {"role": "user", "content": ask}], max_tokens=900))
