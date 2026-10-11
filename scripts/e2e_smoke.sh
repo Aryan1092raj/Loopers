@@ -61,10 +61,11 @@ ok "source has $units units"
 chat="$(post_json /api/chat "{\"session_id\":\"$SESSION\",\"student_id\":\"smoke\",\"message\":\"$QUESTION\"}")" || fail "chat call failed"
 mode="$(echo "$chat" | py "d['mode']")"
 case "$mode" in grounded|partially_grounded) ;; *) fail "expected a grounded answer, got mode $mode" ;; esac
-page="$(echo "$chat" | py "d['citations'][0]['locator']['page_no']")"
-[ "$page" != "None" ] || fail "first citation has no page_no"
-image="$(echo "$chat" | py "d['citations'][0].get('page_image_url') or ''")"
-[ -n "$image" ] || fail "first citation has no page_image_url"
+# A lecture video can rank first for the same question, so check the first page citation.
+page="$(echo "$chat" | py "next((c['locator']['page_no'] for c in d['citations'] if c['locator']['page_no'] is not None), None)")"
+[ "$page" != "None" ] || fail "no citation has a page_no"
+image="$(echo "$chat" | py "next((c.get('page_image_url') or '' for c in d['citations'] if c['locator']['page_no'] is not None), '')")"
+[ -n "$image" ] || fail "page citation has no page_image_url"
 curl -sf -o /dev/null "$BASE$image" || fail "page image $image does not load"
 ok "grounded chat: page $page, image $image"
 
@@ -100,10 +101,14 @@ else
 fi
 
 # 7. Practice quiz round trip on the first concept that has source units
-# The concept build can leave a node with no units under it, so take the first node that has material.
+# The concept build can leave a node with no units under it, and the blind solver rightly rejects some generated
+# items (solver_conflict, duplicate), so try nodes in turn, three attempts each, until one item passes verification.
 for concept in $(curl -sf "$BASE/api/graph" | py "' '.join(n['id'] for n in d['nodes'])"); do
-  gen="$(post_json /api/quiz/generate "{\"concept_id\":\"$concept\",\"topic_id\":\"smoke\",\"item_type\":\"mcq\"}")" || fail "quiz generate call failed"
-  [ "$(echo "$gen" | py "d.get('reason')")" = "no_material" ] || break
+  for attempt in 1 2 3; do
+    gen="$(post_json /api/quiz/generate "{\"concept_id\":\"$concept\",\"topic_id\":\"smoke\",\"item_type\":\"mcq\"}")" || fail "quiz generate call failed"
+    [ "$(echo "$gen" | py "d['status']")" = "success" ] && break 2
+    [ "$(echo "$gen" | py "d.get('reason')")" = "no_material" ] && break
+  done
 done
 [ "$(echo "$gen" | py "d['status']")" = "success" ] || fail "quiz generate for $concept: $(echo "$gen" | py "d.get('reason')") (has the concept build run?)"
 echo "$gen" | py "'answer_json' not in d['item']" | grep -q True || fail "quiz item leaks answer_json"
@@ -143,7 +148,8 @@ if [ -n "${SMOKE_VIDEO:-}" ]; then
   vchat="$(post_json /api/chat "{\"session_id\":\"$SESSION-v\",\"student_id\":\"smoke\",\"message\":\"${SMOKE_VIDEO_QUESTION:?set SMOKE_VIDEO_QUESTION}\"}")" || fail "video chat failed"
   seek="$(echo "$vchat" | py "next((c['seek_url'] for c in d['citations'] if c.get('seek_url')), '')")"
   [ -n "$seek" ] || fail "no citation has a seek_url for the video question"
-  ok "video citation: $seek"
+  curl -sf -o /dev/null -H 'Range: bytes=0-99' -w '%{http_code}' "$BASE${seek%%#*}" | grep -q 206 || fail "video $seek does not serve a byte range"
+  ok "video citation: $seek (range request 206)"
 else
   echo "skip: SMOKE_VIDEO not set, video upload and seek_url checks not run"
 fi

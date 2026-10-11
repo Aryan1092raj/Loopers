@@ -109,3 +109,12 @@ export interface QuizReport {
   next_steps: { concept_id: string; reason: string }[];
   raw_metrics?: { total_items: number; correct_items: number };
 }
+
+// GET /api/eval/runs (untyped on the server): saved evaluation runs, newest first
+export interface EvalRun {
+  run_id: string;
+  kind: "golden" | "simulation";
+  created_at: string;
+  config: Record<string, unknown>;
+  metrics: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- shape differs per kind
+}
