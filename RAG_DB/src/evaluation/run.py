@@ -124,14 +124,14 @@ def main() -> None:
     a = ap.parse_args()
 
     items = golden.load()
-    problems = golden.validate(items)
-    if problems:
-        raise SystemExit("golden set invalid:\n" + "\n".join(problems))
-    if a.indexed_only:
+    if a.indexed_only:  # before validation: items for sources that are not indexed are exactly the ones skipped
         idx = indexed_sources()
         kept = [it for it in items if all(g["source_id"] in idx for g in it["gold_locators"])]
         print(f"[eval] --indexed-only: {len(kept)} of {len(items)} items")
         items = kept
+    problems = golden.validate(items)
+    if problems:
+        raise SystemExit("golden set invalid:\n" + "\n".join(problems))
 
     rows = []
     for it in items:
