@@ -52,4 +52,5 @@ rapidfuzz
 rapidocr-onnxruntime
 scenedetect[opencv]
 faster-whisper
+av<19  # av 19 dropped the metadata_errors argument faster-whisper 1.2 passes to av.open
 piper-tts

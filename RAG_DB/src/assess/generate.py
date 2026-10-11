@@ -30,10 +30,11 @@ def concept_units(concept_id: str) -> tuple[str, list[tuple[str, str]]]:
     try:
         row = conn.execute("SELECT name FROM concepts WHERE concept_id=?", (concept_id,)).fetchone()
         units = conn.execute(
-            # A topic has no units of its own; it draws on the units of its child concepts.
-            "SELECT u.unit_id, MAX(u.text) FROM unit_concepts uc JOIN units u ON u.unit_id=uc.unit_id"
-            " WHERE uc.concept_id=? OR uc.concept_id IN (SELECT concept_id FROM concepts WHERE parent_id=?)"
-            " GROUP BY u.unit_id ORDER BY MAX(uc.score) DESC LIMIT ?", (concept_id, concept_id, MAX_UNITS)
+            # A topic or subtopic has no units of its own; it draws on the units of every concept below it.
+            "WITH RECURSIVE sub(id) AS (SELECT ? UNION SELECT c.concept_id FROM concepts c JOIN sub ON c.parent_id=sub.id)"
+            " SELECT u.unit_id, MAX(u.text) FROM unit_concepts uc JOIN units u ON u.unit_id=uc.unit_id"
+            " WHERE uc.concept_id IN (SELECT id FROM sub)"
+            " GROUP BY u.unit_id ORDER BY MAX(uc.score) DESC LIMIT ?", (concept_id, MAX_UNITS)
         ).fetchall()
     finally:
         conn.close()
@@ -53,7 +54,15 @@ def generate_item(concept_id: str, topic_id: str, item_type: str = "mcq", custom
     """Write one item grounded in the concept's top source units; unit_ids_json records exactly what it was written from."""
     name, units = concept_units(concept_id)
     excerpts = "\n\n".join(f"[{i}] {text[:UNIT_CHARS]}" for i, (_, text) in enumerate(units, 1))
-    ask = f"Concept: {name}\nType: {item_type}\n" + (f"Question must be about: {custom_stem}\n" if custom_stem else "") + f"\nExcerpts:\n{excerpts}"
+    conn = get_connection()
+    try:  # the same excerpts give the same question unless the model sees what was already asked (dedup would reject it)
+        asked = [r[0] for r in conn.execute(
+            "SELECT stem FROM items WHERE concept_id=? ORDER BY rowid DESC LIMIT 15", (concept_id,)).fetchall()]
+    finally:
+        conn.close()
+    ask = (f"Concept: {name}\nType: {item_type}\n" + (f"Question must be about: {custom_stem}\n" if custom_stem else "")
+           + ("Already asked, write a clearly different question:\n" + "\n".join(f"- {s}" for s in asked) + "\n" if asked else "")
+           + f"\nExcerpts:\n{excerpts}")
     d = _parse(complete([{"role": "system", "content": SYSTEM}, {"role": "user", "content": ask}], max_tokens=900))
 
     options = [str(o) for o in d.get("options") or []]
