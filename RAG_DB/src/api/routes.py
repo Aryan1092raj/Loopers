@@ -197,7 +197,7 @@ def _register_source(source_id, kind, title, file_name, media_path, lecture_no, 
         conn.execute(
             "INSERT INTO sources (source_id, kind, title, file_name, media_path, lecture_no, lang, status, created_at)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?)"
-            " ON CONFLICT(source_id) DO UPDATE SET status = 'running', title = excluded.title",
+            " ON CONFLICT(source_id) DO UPDATE SET status = 'running'",  # a re-upload keeps the first title
             (source_id, kind, title, file_name, media_path, lecture_no, lang, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()

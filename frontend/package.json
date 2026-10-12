@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "gen:api": "openapi-typescript http://localhost:8000/openapi.json -o lib/schema.d.ts"
-
   },
   "dependencies": {
     "@xyflow/react": "^12.12.0",
+    "animejs": "^4.3.0",
     "next": "15.5.27",
     "react": "19.1.0",
     "react-dom": "19.1.0"
