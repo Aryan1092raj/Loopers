@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { animate } from "animejs";
 import { post } from "@/lib/api";
+import { reducedMotion } from "@/lib/motion";
 import type { Citation, TutorResponse } from "@/lib/types";
 import { usePersisted } from "@/lib/usePersisted";
 import AnswerView from "./AnswerView";
@@ -23,6 +25,14 @@ export default function ChatPanel({ studentId, sessionId, onCite, name, scope = 
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+
+  const last = useRef<HTMLDivElement>(null);
+  // the newest turn rises in; older turns stay put
+  useEffect(() => {
+    if (!last.current || reducedMotion()) return;
+    const a = animate(Array.from(last.current.children), { opacity: [0, 1], y: [10, 0], delay: (_: unknown, i: number) => i * 90, duration: 360, ease: "out(3)" });
+    return () => { a.revert(); };
+  }, [turns.length]);
 
   // keep the newest turn in view
   useEffect(() => { end.current?.scrollIntoView({ block: "end" }); }, [turns, busy]);
@@ -77,7 +87,7 @@ export default function ChatPanel({ studentId, sessionId, onCite, name, scope = 
             </div>
           )}
           {turns.map((t, i) => (
-            <div key={i} className="space-y-3">
+            <div key={i} ref={i === turns.length - 1 ? last : undefined} className="space-y-3">
               <p className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap rounded-2xl bg-slate-200/70 px-4 py-2 text-slate-900">{t.q}</p>
               {t.r && <AnswerView r={t.r} onCite={onCite} onOutside={() => ask(t.q, true)} />}
               <ErrorNote message={t.error ?? null} />

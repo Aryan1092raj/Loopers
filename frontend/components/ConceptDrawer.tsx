@@ -28,7 +28,7 @@ export default function ConceptDrawer({ id, names, onClose }: { id: string; name
             <ul className="mt-1 space-y-2">
               {data.units.map((u) => (
                 <li key={u.unit_id} className="rounded border p-2">
-                  <Link href={`/study?cite=${encodeURIComponent(u.unit_id)}`} className="font-medium underline">{chipLabel(u)}</Link>
+                  <Link href={`/?cite=${encodeURIComponent(u.unit_id)}`} className="font-medium underline">{chipLabel(u)}</Link>
                   <p className="mt-1 text-neutral-600">{u.excerpt.slice(0, 160)}</p>
                 </li>
               ))}

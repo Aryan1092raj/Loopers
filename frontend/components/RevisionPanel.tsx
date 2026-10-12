@@ -5,6 +5,7 @@ import { post } from "@/lib/api";
 import { chipLabel } from "@/lib/citation";
 import { speak } from "@/lib/speak";
 import type { Brief, Citation, Flashcard } from "@/lib/types";
+import FlashcardDeck from "./FlashcardDeck";
 import { ErrorNote } from "./Note";
 
 const cite = (c: Citation) => (
@@ -12,23 +13,6 @@ const cite = (c: Citation) => (
     {chipLabel(c)}
   </Link>
 );
-
-function Card({ card }: { card: Flashcard }) {
-  const [shown, setShown] = useState(false);
-  return (
-    <li className="rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
-      <button type="button" aria-expanded={shown} onClick={() => setShown((s) => !s)} className="w-full text-left font-medium">
-        {card.front}
-      </button>
-      {shown && (
-        <div className="mt-2 space-y-2">
-          <p className="text-slate-700">{card.back}</p>
-          <div className="flex flex-wrap gap-1">{card.citations.map(cite)}</div>
-        </div>
-      )}
-    </li>
-  );
-}
 
 /** Revision aids for the student's weakest concepts: cited flashcards and a short spoken brief. */
 export default function RevisionPanel({ studentId }: { studentId: string }) {
@@ -68,7 +52,7 @@ export default function RevisionPanel({ studentId }: { studentId: string }) {
       <ErrorNote message={error} />
       {cards && (cards.length === 0
         ? <p className="text-sm text-slate-500">No cards yet: upload material and let the concepts stage finish.</p>
-        : <ul className="grid gap-2 sm:grid-cols-2">{cards.map((c, i) => <Card key={i} card={c} />)}</ul>)}
+        : <FlashcardDeck key={cards.map((c) => c.front).join("|")} cards={cards} />)}
       {brief && (brief.text
         ? (
           <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm">

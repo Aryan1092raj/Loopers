@@ -6,7 +6,6 @@ import { useStudent } from "@/lib/useStudent";
 
 const ITEMS = [
   ["/profile", "Profile"],
-  ["/dashboard", "Dashboard"],
   ["/onboarding", "Onboarding"],
 ] as const;
 

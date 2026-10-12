@@ -19,8 +19,10 @@ function Table({ caption, rows }: { caption: string; rows: [string, string][] })
   );
 }
 
-export function GoldenRun({ run }: { run: EvalRun }) {
+/** `judged` is the newest run made with --answers; retrieval-only runs leave the judge and refusal rows empty. */
+export function GoldenRun({ run, judged }: { run: EvalRun; judged?: EvalRun }) {
   const m = run.metrics;
+  const j = (judged ?? run).metrics;
   const k = (run.config.k as number) ?? 5;
   const types = Object.entries((m.by_type ?? {}) as Record<string, { n: number; mrr: number } & Record<string, number>>);
   return (
@@ -30,11 +32,11 @@ export function GoldenRun({ run }: { run: EvalRun }) {
       </p>
       <div className="grid gap-6 md:grid-cols-2">
         <Table caption="Retrieval" rows={[[`hit@${k}`, pct(m[`hit@${k}`])], ["MRR", num(m.mrr)], ["Locator precision", pct(m.locator_precision)]]} />
-        <Table caption="Judge metrics (needs --answers)" rows={[
-          ["Faithfulness", pct(m.faithfulness)], ["Answer relevancy", pct(m.answer_relevancy)],
-          ["Context precision", pct(m.context_precision)], ["Context recall", pct(m.context_recall)],
-          ["Citation accuracy", pct(m.citation_accuracy)]]} />
-        <Table caption="Refusals" rows={[["Refusal honesty (off-material refused)", pct(m.refusal_honesty)], ["Over-refusal (in-scope refused)", pct(m.over_refusal)]]} />
+        <Table caption={judged && judged !== run ? `Judge metrics (run of ${new Date(judged.created_at).toLocaleString()})` : "Judge metrics"} rows={[
+          ["Faithfulness", pct(j.faithfulness)], ["Answer relevancy", pct(j.answer_relevancy)],
+          ["Context precision", pct(j.context_precision)], ["Context recall", pct(j.context_recall)],
+          ["Citation accuracy", pct(j.citation_accuracy)]]} />
+        <Table caption="Refusals" rows={[["Refusal honesty (off-material refused)", pct(j.refusal_honesty)], ["Over-refusal (in-scope refused)", pct(j.over_refusal)]]} />
         {m.calibration && (
           <Table caption="Gate calibration" rows={[
             ["tau low / high", `${m.calibration.tau_low} / ${m.calibration.tau_high}`],
