@@ -68,8 +68,12 @@ Resources); at about 3.5 GB the `embed` stage is killed with `exited with code -
 docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml --profile asr up -d --build
 ```
 
-On a 6 GB card the overlay leaves Whisper on CPU (int8): the api's models and an ingest job already use most
-of the card. On a card with 8 GB or more set `WHISPER_DEVICE=cuda WHISPER_COMPUTE_TYPE=float16` before `up`.
+On a 6 GB card the overlay leaves Whisper on CPU (int8) by default. `WHISPER_DEVICE=cuda
+WHISPER_COMPUTE_TYPE=int8_float16` before `up` also fits (about 1 GB) and transcribes a 52-minute lecture in
+about a minute; lecture clips are then embedded one at a time, and a clip that still runs out of GPU memory is
+embedded from its transcript and audio only. Do not run `evaluation.run` while the API is answering chats on a
+6 GB card: both load the embedder and reranker, and the run stops rather than score on a fallback. On 8 GB or
+more use `WHISPER_COMPUTE_TYPE=float16`.
 The reranker visits the GPU only while it scores a query, then returns to CPU memory
 (`RERANK_KEEP_ON_GPU=1` keeps it resident). If port 8000 or 3000 is taken, set `API_PORT` and `WEB_PORT`.
 
@@ -193,7 +197,37 @@ None of these files are redistributed here. The pipeline is subject-agnostic; an
 
 ## Status
 
-Base pipeline (text/PDF ingestion, hybrid retrieval, generation, dashboard)
-is in place. In progress: video ingestion with timestamps, calibrated refusal,
-exact-coordinate citations, generator–verifier assessment loop, BKT/IRT
-learner model, RAGAS/DeepEval benchmark, and demo corpus + video..
+Every PS.md requirement except the UI polish has a working backend path, run end to end in the Docker GPU stack
+(`docker-compose.app.yml` + `docker-compose.gpu.yml`) on the demo course above. `scripts/e2e_smoke.sh` passes
+against it: document upload to done, grounded chat with a page citation and its page image, refusal of an
+off-topic question, concept graph, chat-driven mastery update, onboarding and diagnostic, a quiz round trip with
+cited feedback and a mastery change, a study schedule, and a lecture-video upload whose citation seeks to
+`#t=2105.68` with an HTTP 206 range response.
+
+Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, judge Gemini then Groq):
+
+| Metric | Value |
+|---|---|
+| Golden set | 41 in-scope (21 text, 8 video, 6 multi-hop, 6 Hindi) and 40 off-material questions |
+| Retrieval hit@5 / MRR | 0.90 / 0.75 (video 1.00, Hindi 1.00, multi-hop 1.00, text 0.81) |
+| Refusal honesty / over-refusal | 1.00 / 0.073 (gate calibrated on the same set: `tau` = 0.136) |
+| Faithfulness / answer relevancy | 0.74 / 0.96 |
+| Context precision / context recall | 0.77 / 0.72 |
+| Citation accuracy | 0.43 (share of all citations that land on the single gold locator) |
+
+Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph): mean mastery gain is 0.164
+adaptive versus 0.163 control (paired difference 0.001, SE 0.001, adaptive ahead for 60% of students), and the
+question repetition rate is 0.001 versus 0.091.
+
+Read these numbers with their limits. The golden questions are generated from the indexed units and not yet
+spot-checked by a person, and the gate is calibrated and scored on the same questions, so refusal figures are
+optimistic. Citation accuracy is strict: answers usually cite several correct units while each question has one
+gold unit. Under the simulated student model, adaptive selection does not raise mastery gain over random
+practice; it only removes repeats. The BKT estimate also drifts from simulated truth over sessions (mean
+absolute error 0.065 after onboarding, 0.160 after ten sessions) because the fixed BKT parameters do not model
+forgetting; a learn rate of 0.10 or 0.15 and a forgetting-weighted estimate were tried and did not fix it.
+Fitting BKT and forgetting parameters from logged attempts is the next step.
+
+Known gaps: concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed
+concept are orphaned; a mock exam of eight items takes about two minutes because each item is generated and
+solved blind on free-tier providers.
