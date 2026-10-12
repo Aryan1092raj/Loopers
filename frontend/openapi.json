@@ -177,6 +177,44 @@
         }
       }
     },
+    "/api/sources/{source_id}": {
+      "delete": {
+        "summary": "Remove Source",
+        "description": "Soft remove: the source leaves lists, retrieval and the concept graph, but its units stay so old\ncitations and quiz items still resolve. Undo with UPDATE sources SET hidden = 0.",
+        "operationId": "remove_source_api_sources__source_id__delete",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/jobs/{job_id}": {
       "get": {
         "summary": "Get Job",
@@ -693,6 +731,44 @@
               "type": "integer",
               "default": 60,
               "title": "Minutes Per Day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/students/{student_id}/quizzes": {
+      "get": {
+        "summary": "Student Quizzes",
+        "description": "List past quizzes and attempts for a student across all sessions and devices (Issue #18, #21).",
+        "operationId": "student_quizzes_api_students__student_id__quizzes_get",
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Student Id"
             }
           }
         ],

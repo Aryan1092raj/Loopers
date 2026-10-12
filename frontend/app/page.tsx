@@ -86,7 +86,7 @@ function Workspace() {
               <UploadPanel onJob={(j) => { setJob(j); setSourcesTick((n) => n + 1); }} />
               {job && <JobCard key={job.id} jobId={job.id} title={job.title} onFinished={() => { setSourcesTick((n) => n + 1); graph.reload(); }} />}
               <h3 className="pt-1 text-sm font-medium text-slate-700">Uploaded files</h3>
-              <SourcesTable refresh={sourcesTick} />
+              <SourcesTable refresh={sourcesTick} onRemoved={graph.reload} />
             </Section>
 
 
