@@ -236,6 +236,9 @@ worse: refusal honesty 0.90 with the same 0.073 over-refusal, so it was reverted
 math in the lecture transcript ("sine theta over theta"), which the cross-encoder scores low; the lecture's
 trigonometric-limit passage tops out at 0.118 against a threshold of 0.136.
 
+The DeepEval cross-check (`evaluation/deepeval_check.py`) was not rerun on these samples: the Groq free tier it
+judges with had hit its daily token limit, and two samples did not finish in eight minutes.
+
 Known gaps: concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed
 concept are orphaned; a mock exam of eight items takes about two minutes because each item is generated and
 solved blind on free-tier providers.
