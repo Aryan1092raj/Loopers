@@ -25,6 +25,23 @@ from dotenv import dotenv_values
 ENV = {**dotenv_values(Path(__file__).resolve().parents[2] / ".env"), **os.environ}
 KEYS = [k.strip() for k in (ENV.get("GROQ_API_KEY") or "").split(",") if k.strip()]
 MODEL = ENV.get("GROQ_MODEL", "openai/gpt-oss-120b")
+# DEEPEVAL_JUDGE=gemini judges on Gemini instead: Groq's per-minute token limit stalls DeepEval's long prompts.
+GEMINI = ENV.get("DEEPEVAL_JUDGE") == "gemini"
+GEMINI_MODEL = ENV.get("DEEPEVAL_GEMINI_MODEL", "gemini-3.5-flash")
+
+
+def _gemini(prompt: str) -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    for attempt in range(8):
+        r = requests.post(url, timeout=120, params={"key": ENV["GEMINI_API_KEY"]},
+                          json={"contents": [{"parts": [{"text": prompt}]}]})
+        if r.status_code == 200:
+            parts = r.json()["candidates"][0].get("content", {}).get("parts", [])
+            return "".join(p.get("text", "") for p in parts)
+        if r.status_code not in (429, 500, 503):
+            raise RuntimeError(f"Gemini {r.status_code}: {r.text[:120]}")
+        time.sleep(min(60, 5 * (attempt + 1)))
+    return ""
 
 
 class GroqJudge(DeepEvalBaseLLM):
@@ -36,8 +53,8 @@ class GroqJudge(DeepEvalBaseLLM):
 
     def generate(self, prompt: str, schema=None):
         suffix = f"\n\nReply with JSON only, matching this schema: {json.dumps(schema.model_json_schema())}" if schema else ""
-        text = ""
-        for attempt in range(8):
+        text = _gemini(prompt + suffix) if GEMINI else ""
+        for attempt in range(0 if GEMINI else 8):
             key = KEYS[self.n % len(KEYS)]
             self.n += 1
             r = requests.post("https://api.groq.com/openai/v1/chat/completions", timeout=120,
@@ -62,7 +79,7 @@ class GroqJudge(DeepEvalBaseLLM):
         return self.generate(prompt, schema)
 
     def get_model_name(self):
-        return f"groq/{MODEL}"
+        return f"gemini/{GEMINI_MODEL}" if GEMINI else f"groq/{MODEL}"
 
 
 def main(path: str, n: int = 6) -> None:
