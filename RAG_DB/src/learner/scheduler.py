@@ -1,7 +1,7 @@
 import datetime
 import networkx as nx
 from concepts.api import get_graph
-from core.db import get_connection
+from core.db import get_connection, unit_counts
 
 def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
     """
@@ -88,8 +88,9 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
             "topo_bonus": topo_bonus
         })
         
-    # Sort descending by primary score, then topology
-    ranked.sort(key=lambda x: (x["sort_score"], x["topo_bonus"]), reverse=True)
+    # Sort descending by primary score, then amount of course material, then topology
+    size = unit_counts()
+    ranked.sort(key=lambda x: (x["sort_score"], size.get(x["concept_id"], 0), x["topo_bonus"]), reverse=True)
     
     conn.close()
     return ranked[:limit]

@@ -35,7 +35,7 @@ def weakest(student_id: str, n: int, concept_ids: list[str] | None = None) -> li
             "SELECT c.concept_id, c.name FROM concepts c JOIN unit_concepts uc ON uc.concept_id = c.concept_id"
             f" AND uc.unit_id NOT IN ({HIDDEN_UNITS})"
             " LEFT JOIN learner_state ls ON ls.concept_id = c.concept_id AND ls.student_id = ?"
-            f" {where} GROUP BY c.concept_id ORDER BY COALESCE(MAX(ls.p_mastery), 0.1), c.name LIMIT ?",
+            f" {where} GROUP BY c.concept_id ORDER BY COALESCE(MAX(ls.p_mastery), 0.1), COUNT(uc.unit_id) DESC, c.name LIMIT ?",
             [*args, n],
         ).fetchall()
     finally:

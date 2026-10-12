@@ -4,6 +4,7 @@ retrieve -> gate (Tier 1, Tier 2) -> generate with [E1] markers -> validate mark
 drop what still fails -> resolve markers to stored citations. The model writes markers only; page
 numbers and timestamps come from `tutor.cite`.
 """
+import json
 import re
 
 import config
@@ -26,6 +27,11 @@ SYSTEM = (
     "Never write page numbers, slide numbers or timestamps, and never invent a marker. "
     "If the evidence only partly answers the question, say so plainly. Evidence marked background is "
     "prerequisite material: use it to explain, not to answer. Reply in the language with code {lang}."
+)
+TRANSLATE_SYSTEM = (
+    "Detect the language of the student's question; Hindi written in Latin letters (Hinglish) counts as hi. "
+    "Reply with a single JSON object {\"lang\": \"<ISO 639-1 code>\", \"english\": \"<the question in English>\"} "
+    "and nothing else."
 )
 
 
@@ -197,16 +203,42 @@ def _observe(student_id: str, message: str, evidence: list[Evidence]) -> list:
         return []
 
 
-def respond(message: str, student_id: str, session_id: str, scope: dict | None = None,
-            lang: str = "en", allow_outside: bool = False) -> TutorResponse:
-    history = session.history(session_id)
-    evidence, _ = retrieve_evidence(message, scope)
+def _to_english(message: str) -> tuple[str, str] | None:
+    """(English question, language code) for a non-English question, else None. The reranker that scores
+    evidence reads English only, so a Hindi or Hinglish question would otherwise be refused."""
+    try:
+        reply = complete([{"role": "system", "content": TRANSLATE_SYSTEM}, {"role": "user", "content": message}],
+                         role="gate", max_tokens=300)
+        found = json.loads(re.search(r"\{.*\}", reply, re.S).group(0))
+    except (NoProvider, json.JSONDecodeError, AttributeError):
+        return None
+    lang, english = str(found.get("lang", "en")).lower(), str(found.get("english", "")).strip()
+    return (english, lang) if lang != "en" and english else None
+
+
+def _gate(query: str, evidence: list[Evidence]):
     gate = decide(top_score(evidence))
     if gate.band == "borderline":
         try:
-            gate = tier2(gate, message, evidence, complete)
+            gate = tier2(gate, query, evidence, complete)
         except NoProvider:
             pass  # entailment cannot be checked without an LLM; keep the score-band decision
+    return gate
+
+
+def respond(message: str, student_id: str, session_id: str, scope: dict | None = None,
+            lang: str = "en", allow_outside: bool = False) -> TutorResponse:
+    history = session.history(session_id)
+    query = message
+    evidence, _ = retrieve_evidence(query, scope)
+    gate = _gate(query, evidence)
+    # Only a refused question pays for the translation call; an English one comes back as None.
+    if gate.decision == "refuse" and (translated := _to_english(message)):
+        query, asked_in = translated
+        evidence, _ = retrieve_evidence(query, scope)
+        gate = _gate(query, evidence)
+        if lang == "en":  # answer in the language the student asked in
+            lang = asked_in
     if gate.decision == "refuse":
         resp = _outside(message, history, lang, gate) if allow_outside else _refused(gate, "not_entailed" if gate.nli else "out_of_material")
     else:
@@ -217,7 +249,7 @@ def respond(message: str, student_id: str, session_id: str, scope: dict | None =
             note = ""
         resp = _grounded(message, evidence, history, lang, gate, note)
     if gate.decision == "answer":
-        resp.mastery_updates = _observe(student_id, message, evidence)
+        resp.mastery_updates = _observe(student_id, query, evidence)
     session.add_turn(session_id, student_id, "user", message)
     session.add_turn(session_id, student_id, "assistant", resp.answer or resp.refusal.message, resp.mode,
                      [c.model_dump() for c in resp.citations], gate.model_dump())

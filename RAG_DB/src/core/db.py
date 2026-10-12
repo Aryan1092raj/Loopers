@@ -255,6 +255,16 @@ REMOVED_CONCEPTS = (
 )
 
 
+def unit_counts() -> dict[str, int]:
+    """concept_id -> number of tagged units in listed sources. Breaks mastery ties toward core concepts,
+    so a whole-course quiz or schedule opens with the main ideas, not a side example that sorts first."""
+    conn = get_connection()
+    try:
+        return dict(conn.execute(f"SELECT concept_id, COUNT(*) FROM unit_concepts WHERE unit_id NOT IN ({HIDDEN_UNITS}) GROUP BY concept_id"))
+    finally:
+        conn.close()
+
+
 def hidden_sources() -> set[str]:
     """source_ids marked hidden: kept for old citations and quiz items, but never listed or retrieved."""
     conn = get_connection()
