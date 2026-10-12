@@ -361,16 +361,16 @@ DeepSeek (`deepseek-flash`). The smoke-test copies of the course are hidden, so 
 
 ### Retrieval and generation
 
-Run `ev_f3120893c9` on 2026-10-12 (generator DeepSeek, judge Gemini then Groq):
+Run `ev_4eabb66c67` on 2026-10-12 (generator DeepSeek, judge Gemini then Groq):
 
 | Metric | Value |
 |---|---|
-| Golden set | 41 in-scope (21 text, 8 video, 6 multi-hop, 6 Hindi) and 40 off-material questions |
-| Retrieval hit@5 / MRR | 0.90 / 0.75 (video 1.00, Hindi 1.00, multi-hop 1.00, text 0.81) |
-| Refusal honesty / over-refusal | 1.00 / 0.073 (gate calibrated on the same set: `tau` = 0.136) |
-| Faithfulness / answer relevancy | 0.74 / 0.96 |
-| Context precision / context recall | 0.77 / 0.72 |
-| Citation accuracy | 0.43 (share of all citations that land on the single gold locator) |
+| Golden set | 58 in-scope (34 text, 10 video, 7 multi-hop, 7 Hindi) and 20 off-material questions |
+| Retrieval hit@5 / MRR | 0.97 / 0.79 (video 1.00, Hindi 1.00, multi-hop 1.00, text 0.94) |
+| Refusal honesty / over-refusal | 1.00 / 0.00 (gate calibrated on current unhidden corpus: `tau` = 0.09) |
+| Faithfulness / answer relevancy | 0.82 / 0.96 |
+| Context precision / context recall | 0.81 / 0.78 |
+| Citation accuracy | 0.48 (share of all citations that land on the single gold locator) |
 
 DeepEval cross-check on 10 saved samples (Groq `gpt-oss-120b`, four keys in parallel, 15 minutes): faithfulness
 1.00 (8 answers scored), answer relevancy 0.97 (7), context precision 0.86 (6), context recall 1.00 (7). The
@@ -393,7 +393,9 @@ ordering.
 
 ### Limits of these numbers
 
-- The golden questions are generated from the indexed units and not yet spot-checked by a person.
+- The golden set (58 in-scope questions across text, slides, lecture video and Hindi, plus 20 off-material
+  questions) was spot-checked and regenerated for the clean, unhidden demo course. It is still generated from the
+  indexed units.
 - The gate is calibrated and scored on the same questions, so refusal figures are optimistic.
 - Citation accuracy is strict: answers usually cite several correct units while each question has one gold unit.
 - The adaptive gain is small in absolute terms and depends on an assumed student model.
@@ -401,22 +403,20 @@ ordering.
   after ten sessions) because fixed BKT parameters do not model forgetting. A learn rate of 0.10 or 0.15 and a
   forgetting-weighted estimate did not fix it; fitting BKT and forgetting parameters from logged attempts is
   next.
-- Fourteen golden questions (8 text, 4 Hindi, 2 multi-hop) have gold locators in a now-hidden smoke-test copy of
-  the textbook, so the next `--indexed-only` run scores 27 in-scope questions instead of 41. The results above
-  predate that.
 
 **Why one gate threshold.** A two-tier band (refuse below a low threshold, answer above a high one, entailment
-check in between) was tried in run `ev_9197101682`. It did worse, with refusal honesty 0.90 at the same 0.073
-over-refusal, so it was reverted. Most over-refusals are spoken math in the lecture transcript ("sine theta
-over theta"), which the cross-encoder scores low: the lecture's trigonometric-limit passage tops out at 0.118
-against a threshold of 0.136.
+check in between) was tried on the earlier corpus in run `ev_9197101682`. It did worse, with refusal honesty 0.90
+at the same 0.073 over-refusal, so it was reverted. Most over-refusals then were spoken math in the lecture
+transcript ("sine theta over theta"), which the cross-encoder scores low: the lecture's trigonometric-limit
+passage topped out at 0.118 against the old threshold of 0.136. Recalibrated on the current corpus, the single
+threshold is 0.09 with no over-refusals.
 
-### Known gaps
+### Recently fixed
 
-- Concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed concept are
-  orphaned.
-- A mock exam of eight items takes about two minutes, because each item is generated and solved blind on
-  free-tier providers.
+- Concept ids are derived from SHA-256 hashes (`c_*`, `t_*`), so items and mastery rows keep their concept across
+  rebuilds (issues #9, #20).
+- Practice quizzes and mock exams draw from a pre-generated verified item bank (`items`), which cuts serving time
+  from about two minutes per mock exam to under 20 ms per item (issues #10, #19).
 
 ## Repo layout
 
