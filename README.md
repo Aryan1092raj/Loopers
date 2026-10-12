@@ -199,10 +199,10 @@ None of these files are redistributed here. The pipeline is subject-agnostic; an
 
 Every PS.md requirement except the UI polish has a working backend path, run end to end in the Docker GPU stack
 (`docker-compose.app.yml` + `docker-compose.gpu.yml`) on the demo course above. `scripts/e2e_smoke.sh` passes
-against it: document upload to done, grounded chat with a page citation and its page image, refusal of an
+against it on the final image: document upload to done, grounded chat with a page citation and its page image, refusal of an
 off-topic question, concept graph, chat-driven mastery update, onboarding and diagnostic, a quiz round trip with
 cited feedback and a mastery change, a study schedule, and a lecture-video upload whose citation seeks to
-`#t=2105.68` with an HTTP 206 range response.
+`#t=2272.12` with an HTTP 206 range response.
 
 Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, judge Gemini then Groq):
 
@@ -215,9 +215,9 @@ Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, j
 | Context precision / context recall | 0.77 / 0.72 |
 | Citation accuracy | 0.43 (share of all citations that land on the single gold locator) |
 
-Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph with 16 prerequisite edges):
-mean mastery gain is 0.145 adaptive versus 0.139 control (paired difference 0.006, SE 0.001, adaptive ahead for
-80% of students; slow learners 0.014 versus 0.007), and the question repetition rate is 0.002 versus 0.087. On an
+Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph with 18 prerequisite edges):
+mean mastery gain is 0.143 adaptive versus 0.137 control (paired difference 0.007, SE 0.001, adaptive ahead for
+78% of students; slow learners 0.014 versus 0.006), and the question repetition rate is 0.002 versus 0.087. On an
 earlier build of the same course with 40 concepts and 10 edges the difference was 0.001 (SE 0.001), which fits the
 gain coming mostly from prerequisite ordering.
 
@@ -226,9 +226,15 @@ spot-checked by a person, and the gate is calibrated and scored on the same ques
 optimistic. Citation accuracy is strict: answers usually cite several correct units while each question has one
 gold unit. The adaptive gain is small in absolute terms and depends on an assumed
 student model. The BKT estimate also drifts from simulated truth over sessions (mean absolute error 0.064 after
-onboarding, 0.152 after ten sessions) because the fixed BKT parameters do not model
+onboarding, 0.147 after ten sessions) because the fixed BKT parameters do not model
 forgetting; a learn rate of 0.10 or 0.15 and a forgetting-weighted estimate were tried and did not fix it.
 Fitting BKT and forgetting parameters from logged attempts is the next step.
+
+The gate is one calibrated threshold because no single score met both targets. A two-tier band (refuse below
+a low threshold, answer above a high one, entailment check in between) was tried in run `ev_9197101682` and did
+worse: refusal honesty 0.90 with the same 0.073 over-refusal, so it was reverted. Most over-refusals are spoken
+math in the lecture transcript ("sine theta over theta"), which the cross-encoder scores low; the lecture's
+trigonometric-limit passage tops out at 0.118 against a threshold of 0.136.
 
 Known gaps: concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed
 concept are orphaned; a mock exam of eight items takes about two minutes because each item is generated and
