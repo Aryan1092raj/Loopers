@@ -1,0 +1,17 @@
+# Pings the Render API every 10 minutes so the free instance does not sleep (it spins down after 15 idle minutes).
+# Set the repo variable RENDER_API_URL, e.g. https://loopers-api.onrender.com
+# GitHub may delay scheduled runs by several minutes under load, and disables them after 60 days without repo activity.
+name: Keep Render awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    if: vars.RENDER_API_URL != ''
+    steps:
+      # A cold start takes up to a minute, so allow retries before failing.
+      - run: curl -fsS --retry 5 --retry-delay 15 --retry-all-errors -m 90 "${{ vars.RENDER_API_URL }}/api/health"
