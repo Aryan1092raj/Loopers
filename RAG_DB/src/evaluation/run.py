@@ -25,24 +25,33 @@ from tutor.retrieve import retrieve_evidence
 _LIST = re.compile(r"\[[\s\d.,]*\]")
 
 
+_judge_down: dict[str, float] = {}  # provider -> time until which it is skipped after a failure
+
+
 def _judge(prompt: str) -> str:
     """Judge call on Gemini, else Groq; never the DeepSeek generator (CLAUDE.md rule 7). Both are free tiers with
-    per-minute limits, so when both are rate limited the call waits and tries again instead of failing the run."""
+    per-minute limits: a provider that just failed is skipped for two minutes, and when both are down the call
+    waits and tries again instead of failing the run."""
     import time
 
     import llm
 
     msgs = [{"role": "user", "content": prompt}]
-    calls = ([lambda: llm.call_gemini(msgs, max_tokens=300)] if config.GEMINI_KEYS else []) + [
-        lambda: llm.call_groq(msgs, max_tokens=1500)]  # gpt-oss spends part of the budget on reasoning tokens
-    for attempt in range(4):
-        for call in calls:
+    calls = ([("gemini", lambda: llm.call_gemini(msgs, max_tokens=300))] if config.GEMINI_KEYS else []) + [
+        ("groq", lambda: llm.call_groq(msgs, max_tokens=1500))]  # gpt-oss spends part of the budget on reasoning tokens
+    err = None
+    for attempt in range(6):
+        for name, call in calls:
+            if _judge_down.get(name, 0) > time.time():
+                continue
             try:
                 return call()
-            except Exception as e:  # rate limit or empty reply: try the other judge
+            except Exception as e:  # rate limit or empty reply: rest this judge, try the other
                 err = e
-        print(f"[eval] both judges failed ({err}); waiting {30 * (attempt + 1)} s")
-        time.sleep(30 * (attempt + 1))
+                _judge_down[name] = time.time() + 120
+        wait = max(30, min(_judge_down.get(n, 0) for n, _ in calls) - time.time())
+        print(f"[eval] no judge available ({err}); waiting {wait:.0f} s")
+        time.sleep(wait)
     raise err
 
 
