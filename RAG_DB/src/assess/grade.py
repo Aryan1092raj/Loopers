@@ -18,6 +18,8 @@ def item_feedback(item_id: str) -> dict:
         row = conn.execute("SELECT answer_json, rubric_json, unit_ids_json FROM items WHERE item_id=?", (item_id,)).fetchone()
     finally:
         conn.close()
+    if row is None:
+        raise ValueError(f"Item {item_id} not found in database.")
     answer, rubric, unit_ids = (json.loads(c or "{}") for c in row)
     return {"correct_answer": answer, "explanation": rubric.get("explanation", ""),
             "citations": [c.model_dump() for c in resolve(unit_ids)]}

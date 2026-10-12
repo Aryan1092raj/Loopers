@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from .config import OUTPUT
+from config import OUTPUT
 from generate import retrieve, build_context, call_llm_with_fallback, _parse_json, _slug
 
 QUESTIONS_SYSTEM_PROMPT = """You are a senior university professor creating exam-ready assignments from retrieved academic content. Your questions test deep understanding, not surface recall.

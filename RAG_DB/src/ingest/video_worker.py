@@ -28,6 +28,9 @@ def download_youtube_audio(url: str, output_path: Path) -> None:
         'outtmpl': str(output_path),
         'quiet': True,
         'no_warnings': True,
+        'max_filesize': 500 * 1024 * 1024,  # audio of a multi-hour lecture fits; caps disk use per job
+        'socket_timeout': 30,
+        'match_filter': yt_dlp.utils.match_filter_func("!is_live"),
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

@@ -9,6 +9,7 @@ import concept from "../mocks/ui_concept.json";
 import diagnostic from "../mocks/ui_diagnostic.json";
 import graph from "../mocks/ui_graph.json";
 import quizItem from "../mocks/ui_quiz_item.json";
+import quiz from "../mocks/quiz_q1.json";
 import sources from "../mocks/ui_sources.json";
 
 type Route = [method: string, pattern: RegExp, reply: (body: Record<string, unknown>) => unknown];
@@ -60,6 +61,16 @@ const routes: Route[] = [
   })],
   ["GET", /^\/api\/quiz\/report\/[^/]+$/, () => ({ ...report, raw_metrics: { total_items: 8, correct_items: 5 } })],
   ["POST", /^\/api\/voice\/stt$/, () => ({ text: "what is an eigenvalue" })],
+  ["POST", /^\/api\/voice\/tts$/, () => null],
+  ["GET", /^\/api\/eval\/runs$/, () => []],
+  ["POST", /^\/api\/pipeline$/, () => ({ job_id: "j1" })],
+  ["POST", /^\/api\/quizzes$/, () => quiz],
+  ["POST", /^\/api\/quizzes\/[^/]+\/answers$/, (b) => ({
+    status: "success",
+    correct: (b.student_answer as string[])[0] === "det(A - λI) = 0",
+    feedback: { correct_answer: ["det(A - λI) = 0"], explanation: "Eigenvalues are the roots of the characteristic polynomial.", citations: chatGrounded.citations.slice(0, 1) },
+  })],
+  ["GET", /^\/api\/quizzes\/[^/]+\/report$/, () => ({ ...report, raw_metrics: { total_items: 8, correct_items: 5 } })],
 ];
 
 export async function mock<T>(method: string, path: string, body?: unknown): Promise<T> {

@@ -128,6 +128,7 @@ class SimulateRequest(BaseModel):
 DOC_EXTS = {".pdf", ".pptx", ".docx", ".md", ".txt"}
 MEDIA_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".mp3", ".wav", ".m4a"}  # video and audio lectures
 MAX_UPLOAD = 200 * 1024 * 1024
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 
 
 @router.post("/sources", status_code=202)
@@ -206,9 +207,10 @@ def _register_source(source_id, kind, title, file_name, media_path, lecture_no, 
 
 
 def _start_url_source(url: str, title: str | None, lecture_no: int | None, lang: str) -> dict:
-    """YouTube or other yt-dlp URL: audio is downloaded, transcribed and embedded; media_path holds the URL itself."""
-    if not re.match(r"https?://\S+$", url):
-        raise HTTPException(422, "url must start with http:// or https://")
+    """YouTube URL: audio is downloaded, transcribed and embedded; media_path holds the URL itself."""
+    from urllib.parse import urlparse
+    if not re.match(r"https?://\S+$", url) or (urlparse(url).hostname or "").lower() not in YOUTUBE_HOSTS:
+        raise HTTPException(422, "url must be an http(s) YouTube link (youtube.com or youtu.be)")
     if runner._busy.locked():
         raise HTTPException(409, "A pipeline job is already running")
     source_id = hashlib.sha256(url.encode()).hexdigest()[:16]
@@ -461,11 +463,20 @@ from voice.services import transcribe_audio, synthesize_speech
 
 @router.post("/voice/stt")
 def voice_stt(audio: UploadFile = File(...)):
-    # Write to temp file
-    fd, path = tempfile.mkstemp(suffix=".wav")
+    ext = Path(audio.filename or "").suffix.lower()
+    if not (audio.content_type or "").startswith(("audio/", "video/")) and ext not in MEDIA_EXTS:
+        raise HTTPException(415, "Send an audio or video file")
+    fd, path = tempfile.mkstemp(suffix=ext or ".wav")
+    size = 0
     with os.fdopen(fd, 'wb') as f:
-        f.write(audio.file.read())
-        
+        while chunk := audio.file.read(1 << 20):  # stream: a whole-file read can OOM the API
+            size += len(chunk)
+            if size > MAX_UPLOAD:
+                f.close()
+                os.remove(path)
+                raise HTTPException(413, "File larger than 200 MB")
+            f.write(chunk)
+
     try:
         return transcribe_audio(path)
     except Exception as e:  # server down and local model failed
