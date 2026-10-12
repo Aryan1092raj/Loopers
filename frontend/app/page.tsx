@@ -2,10 +2,9 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ChatPanel from "@/components/ChatPanel";
-import ConceptDrawer from "@/components/ConceptDrawer";
-import ConceptGraph from "@/components/ConceptGraph";
+import CourseMap from "@/components/CourseMap";
 import JobCard from "@/components/JobCard";
-import { Empty, ErrorNote } from "@/components/Note";
+import { ErrorNote } from "@/components/Note";
 import SourcePanel from "@/components/SourcePanel";
 import SourcesTable from "@/components/SourcesTable";
 import TopicPicker from "@/components/TopicPicker";
@@ -43,7 +42,6 @@ function Workspace() {
   const [job, setJob] = usePersisted<{ id: string; title: string } | null>("loopers.upload.job", null);
   const [sourcesTick, setSourcesTick] = useState(0);
   const [active, setActive] = useState<{ c: Citation; n: number } | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const open = (c: Citation) => setActive((a) => ({ c, n: (a?.n ?? 0) + 1 }));
   const names = useMemo(() => new Map((graph.data?.nodes ?? []).map((n) => [n.id, n.name])), [graph.data]);
@@ -69,10 +67,9 @@ function Workspace() {
   }, [active]);
 
   if (!ids) return <p className="text-sm text-slate-500">Loading…</p>;
-  const hasGraph = !!graph.data && graph.data.nodes.length > 0;
   return (
     <div className="space-y-3">
-      <ErrorNote message={note} />
+      <ErrorNote message={note ?? graph.error} />
       <div className="grid gap-6 lg:h-[calc(100vh-5.5rem)] lg:grid-cols-[minmax(0,1fr)_26rem]">
         <ChatPanel
           studentId={ids.studentId}
@@ -80,7 +77,7 @@ function Workspace() {
           onCite={open}
           name={name}
           scope={scope}
-          toolbar={<TopicPicker topics={topics} value={topic?.node.id ?? null} onChange={setTopicId} />}
+          toolbar={<div className="flex items-center gap-2"><TopicPicker topics={topics} value={topic?.node.id ?? null} onChange={setTopicId} /><CourseMap graph={graph.data} names={names} /></div>}
         />
 
         <aside aria-label="Course" className="min-h-0 min-w-0 overflow-x-hidden lg:overflow-y-auto">
@@ -92,17 +89,6 @@ function Workspace() {
               <SourcesTable refresh={sourcesTick} />
             </Section>
 
-            <Section id="map" title="Course map" hint="Arrows run from a prerequisite to the concept that needs it. Colour is your mastery.">
-              <ErrorNote message={graph.error} />
-              {graph.loading && !graph.data && <p className="text-sm text-slate-500">Loading…</p>}
-              {graph.data && !hasGraph && <Empty>No concepts yet. Add material and let the concepts stage finish.</Empty>}
-              {hasGraph && graph.data && (
-                <>
-                  <ConceptGraph graph={graph.data} onSelect={setSelected} className="h-80" />
-                  {selected && <ConceptDrawer key={selected} id={selected} names={names} onClose={() => setSelected(null)} />}
-                </>
-              )}
-            </Section>
 
           </div>
         </aside>

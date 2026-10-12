@@ -78,6 +78,14 @@ describe("layoutGraph", () => {
     const placed = layoutGraph([node("a"), node("b"), node("c")], [edge("a", "c")]);
     expect(placed.map((p) => [p.id, p.x, p.y])).toEqual([["a", 0, 0], ["b", 0, 84], ["c", 280, 0]]);
   });
+  it("wraps a tall column so the map stays wide, and the next layer starts after the wrap", () => {
+    const solo = Array.from({ length: 9 }, (_, i) => node(`s${i}`));
+    const placed = new Map(layoutGraph([node("a"), node("b"), ...solo], [edge("a", "b")]).map((p) => [p.id, p]));
+    expect(placed.get("a")).toMatchObject({ x: 0, y: 0 });           // linked concepts sit at the top
+    expect(Math.max(...[...placed.values()].map((p) => p.y))).toBe(6 * 84);
+    expect(placed.get("s8")).toMatchObject({ x: 280, y: 2 * 84 });  // 10 nodes in layer 0 → two columns
+    expect(placed.get("b")).toMatchObject({ x: 560, y: 0 });
+  });
   it("ignores edges that point at nodes that are not in the list", () => {
     expect(layoutGraph([node("a")], [edge("ghost", "a")])).toEqual([{ id: "a", x: 0, y: 0 }]);
   });

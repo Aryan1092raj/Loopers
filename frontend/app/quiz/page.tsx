@@ -1,10 +1,11 @@
 "use client";
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { ErrorNote } from "@/components/Note";
 import QuizRunner from "@/components/QuizRunner";
 import { useIds } from "@/lib/session";
 import { topicsOf } from "@/lib/topics";
+import { useStaggerIn } from "@/lib/motion";
 import { useGet } from "@/lib/useGet";
 import type { Graph } from "@/lib/types";
 
@@ -14,8 +15,10 @@ function Quiz() {
   const { data, error, loading } = useGet<Graph>(ids ? `/api/graph?student_id=${encodeURIComponent(ids.studentId)}` : null);
   const concepts = (data?.nodes ?? []).filter((n) => n.level !== "topic");
   const picked = data && topic ? (topicsOf(data).find((t) => t.node.id === topic)?.concepts ?? []).map((c) => c.id) : [];
+  const root = useRef<HTMLDivElement>(null);
+  useStaggerIn(root, !!data);
   return (
-    <div className="max-w-4xl space-y-4">
+    <div ref={root} className="max-w-4xl space-y-4">
       <h1 className="text-xl font-semibold">Quiz</h1>
       <ErrorNote message={error} />
       {(loading || !ids) && !data && <p className="text-sm text-neutral-500">Loading…</p>}

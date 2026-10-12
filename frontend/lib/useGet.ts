@@ -13,7 +13,9 @@ export function useGet<T>(path: string | null) {
     if (path === null) return;
     let stale = false;
     setLoading(true);
-    get<T>(path).then(
+    // A network error (not an HTTP error) usually means the API is restarting: try once more after 3 s.
+    const once = () => get<T>(path);
+    once().catch((e) => (e instanceof TypeError ? new Promise<T>((ok, no) => setTimeout(() => once().then(ok, no), 3000)) : Promise.reject(e))).then(
       (d) => { if (!stale) { setData(d); setError(null); setLoading(false); } },
       (e) => { if (!stale) { setError(e instanceof Error ? e.message : String(e)); setLoading(false); } },
     );

@@ -5,6 +5,8 @@ import MasteryHeatmap from "@/components/MasteryHeatmap";
 import RevisionPanel from "@/components/RevisionPanel";
 import ScheduleView from "@/components/ScheduleView";
 import { useIds } from "@/lib/session";
+import { useRef } from "react";
+import { useStaggerIn } from "@/lib/motion";
 import { useGet } from "@/lib/useGet";
 import { useStudent } from "@/lib/useStudent";
 import type { Graph, Mastery } from "@/lib/types";
@@ -19,9 +21,11 @@ export default function DashboardPage() {
   const concepts = (graph.data?.nodes ?? []).filter((n) => n.level !== "topic");
   const weak = [...concepts].sort((a, b) => a.p_know - b.p_know).filter((c) => c.p_know < 0.5).slice(0, 5);
   const touched = (mastery.data ?? []).length;
+  const root = useRef<HTMLDivElement>(null);
+  useStaggerIn(root, !!graph.data);
 
   return (
-    <div className="space-y-6">
+    <div ref={root} className="space-y-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-xs text-neutral-500">{name ?? "Student"} · <span className="font-mono">{ids?.studentId ?? "…"}</span></p>
