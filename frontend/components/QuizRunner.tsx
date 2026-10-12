@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
-import { post } from "@/lib/api";
+import { get, post } from "@/lib/api";
 import { reducedMotion } from "@/lib/motion";
 import { parseOptions } from "@/lib/quiz";
 import { newQuizId, readQuizSets, recordAnswer, type QuizSet } from "@/lib/session";
@@ -115,7 +115,24 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
   const [total, setTotal] = useState(4);
   const [done, setDone] = useState<{ answered: number; total: number; note: string | null } | null>(null);
   const [sets, setSets] = useState<QuizSet[]>([]);
-  useEffect(() => setSets(readQuizSets()), []);
+  useEffect(() => {
+    const local = readQuizSets();
+    if (local.length > 0) {
+      setSets(local);
+    } else if (studentId) {
+      get<Array<{ quiz_id: string; created_at: string }>>(`/api/students/${encodeURIComponent(studentId)}/quizzes`)
+        .then((serverQuizzes) => {
+          if (serverQuizzes && serverQuizzes.length > 0) {
+            setSets(serverQuizzes.map((sq, i) => ({
+              n: i + 1,
+              items: [],
+              attempts: [{ id: sq.quiz_id, at: sq.created_at }]
+            })));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [studentId]);
   const card = useRef<HTMLElement>(null);
   const verdict = useRef<HTMLDivElement>(null);
   // each new question slides in; the verdict pops in, and a wrong answer gives a small shake

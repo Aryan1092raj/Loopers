@@ -460,6 +460,42 @@ def get_schedule(student_id: str, minutes_per_day: int = 60):
 
     return plan_days(student_id, minutes_per_day)
 
+
+@router.get("/students/{student_id}/quizzes")
+def student_quizzes(student_id: str):
+    """List past quizzes and attempts for a student across all sessions and devices (Issue #18, #21)."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT q.quiz_id, q.created_at,
+                   COUNT(a.attempt_id) as total_items,
+                   SUM(CASE WHEN a.correct = 1.0 THEN 1 ELSE 0 END) as correct_items
+            FROM (
+                SELECT quiz_id, student_id, created_at FROM quizzes WHERE student_id = ?
+                UNION
+                SELECT quiz_id, student_id, MIN(ts) as created_at FROM attempts WHERE student_id = ? GROUP BY quiz_id
+            ) q
+            LEFT JOIN attempts a ON q.quiz_id = a.quiz_id AND a.student_id = q.student_id
+            WHERE q.student_id = ?
+            GROUP BY q.quiz_id
+            ORDER BY q.created_at DESC
+            """,
+            (student_id, student_id, student_id),
+        ).fetchall()
+        return [
+            {
+                "quiz_id": r[0],
+                "created_at": r[1],
+                "total_items": r[2] or 0,
+                "correct_items": r[3] or 0,
+                "score": round((r[3] or 0) / r[2], 3) if r[2] else 0.0,
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
 # --- 6.6 voice (B6) ---
 from fastapi import UploadFile, File, Form
 from fastapi.responses import FileResponse
