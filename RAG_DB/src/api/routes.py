@@ -541,7 +541,7 @@ def voice_tts(req: TTSRequest):
 # --- 6.5 quizzes (B5) ---
 from pydantic import BaseModel
 from assess.generate import NoMaterial
-from assess.quiz import build_quiz, make_item, public_item, quiz_student, submit_answers
+from assess.quiz import build_quiz, make_item, public_item, quiz_student, submit_answers, _bank_item
 from assess.verify import same_answer
 from assess.grade import grade_submission, item_feedback
 from assess.report import generate_report
@@ -555,6 +555,14 @@ class QuizGenerateReq(BaseModel):
 
 @router.post("/quiz/generate")
 def quiz_generate(req: QuizGenerateReq):
+    if not req.stem_override:
+        conn = get_connection()
+        try:
+            banked = _bank_item(conn, "", req.concept_id, req.item_type, None, set())
+        finally:
+            conn.close()
+        if banked:
+            return {"status": "success", "item": public_item(banked)}
     try:
         item, reason = make_item(req.concept_id, req.topic_id, req.item_type, req.stem_override)
     except NoMaterial:
