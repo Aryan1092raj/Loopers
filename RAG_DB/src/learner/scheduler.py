@@ -1,5 +1,6 @@
 import datetime
 import networkx as nx
+from concepts.api import get_graph
 from core.db import get_connection
 
 def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
@@ -10,15 +11,13 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
     """
     conn = get_connection()
     
-    # 1. Fetch all concepts and edges
-    concepts = conn.execute("SELECT concept_id FROM concepts").fetchall()
-    edges = conn.execute("SELECT src, dst FROM concept_edges").fetchall()
-    
+    # 1. Fetch all concepts and edges (the graph seam leaves out concepts of removed sources)
+    graph = get_graph(fixture=False)
     G = nx.DiGraph()
-    for (cid,) in concepts:
-        G.add_node(cid)
-    for src, tgt in edges:
-        G.add_edge(src, tgt)
+    for n in graph["nodes"]:
+        G.add_node(n["id"])
+    for e in graph["edges"]:
+        G.add_edge(e["src"], e["dst"])
         
     # 2. Fetch learner state
     rows = conn.execute("SELECT concept_id, p_mastery, next_review FROM learner_state WHERE student_id=?", (student_id,)).fetchall()

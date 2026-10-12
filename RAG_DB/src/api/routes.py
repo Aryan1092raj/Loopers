@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from api import runner
 from concepts import api as concepts
-from core.db import get_connection
+from core.db import REMOVED_CONCEPTS, get_connection
 from core.models import Citation, TutorResponse
 from tutor.cite import resolve
 
@@ -437,10 +437,10 @@ def respond_diagnostic(student_id: str, req: RespondReq):
 @router.get("/students/{student_id}/mastery")
 def get_mastery(student_id: str):
     conn = get_connection()
-    rows = conn.execute('''
+    rows = conn.execute(f'''
         SELECT ls.concept_id, ls.p_mastery, ls.stability, ls.last_reviewed,
                (SELECT COUNT(*) FROM attempts a JOIN items i ON a.item_id=i.item_id WHERE a.student_id=ls.student_id AND i.concept_id=ls.concept_id) as n_obs
-        FROM learner_state ls WHERE ls.student_id=?
+        FROM learner_state ls WHERE ls.student_id=? AND ls.concept_id NOT IN ({REMOVED_CONCEPTS})
     ''', (student_id,)).fetchall()
     conn.close()
     

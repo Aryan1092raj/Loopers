@@ -5,7 +5,7 @@ The model writes [E1] markers only; `tutor.cite` turns them into page, slide or 
 import json
 import math
 
-from core.db import get_connection
+from core.db import HIDDEN_UNITS, get_connection
 from core.models import Evidence
 from tutor.answer import NoProvider, complete
 from tutor.cite import MARKER, body, citations_for
@@ -33,6 +33,7 @@ def weakest(student_id: str, n: int, concept_ids: list[str] | None = None) -> li
     try:
         return conn.execute(
             "SELECT c.concept_id, c.name FROM concepts c JOIN unit_concepts uc ON uc.concept_id = c.concept_id"
+            f" AND uc.unit_id NOT IN ({HIDDEN_UNITS})"
             " LEFT JOIN learner_state ls ON ls.concept_id = c.concept_id AND ls.student_id = ?"
             f" {where} GROUP BY c.concept_id ORDER BY COALESCE(MAX(ls.p_mastery), 0.1), c.name LIMIT ?",
             [*args, n],
@@ -50,7 +51,7 @@ def evidence_for(concept_id: str, start: int = 1, limit: int = UNITS_PER_CONCEPT
             "SELECT u.unit_id, u.source_id, u.kind, u.heading, u.text, u.page_no, u.slide_no, u.t_start, u.t_end,"
             " u.matched_slide_page, u.bbox_json AS bbox, s.title, s.kind AS source_type"
             " FROM unit_concepts uc JOIN units u ON u.unit_id = uc.unit_id LEFT JOIN sources s ON s.source_id = u.source_id"
-            " WHERE uc.concept_id = ? AND u.kind != 'figure' ORDER BY uc.score DESC LIMIT ?",
+            " WHERE uc.concept_id = ? AND u.kind != 'figure' AND COALESCE(s.hidden, 0) = 0 ORDER BY uc.score DESC LIMIT ?",
             (concept_id, limit),
         ).fetchall()
     finally:

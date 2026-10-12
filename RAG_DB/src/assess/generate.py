@@ -2,7 +2,7 @@ import json
 import re
 import uuid
 
-from core.db import get_connection
+from core.db import HIDDEN_UNITS, get_connection
 from tutor.answer import complete
 
 BLOOM_B = {"remember": -1.0, "understand": -0.5, "apply": 0.0, "analyze": 0.5, "evaluate": 1.0}
@@ -33,7 +33,7 @@ def concept_units(concept_id: str) -> tuple[str, list[tuple[str, str]]]:
             # A topic or subtopic has no units of its own; it draws on the units of every concept below it.
             "WITH RECURSIVE sub(id) AS (SELECT ? UNION SELECT c.concept_id FROM concepts c JOIN sub ON c.parent_id=sub.id)"
             " SELECT u.unit_id, MAX(u.text) FROM unit_concepts uc JOIN units u ON u.unit_id=uc.unit_id"
-            " WHERE uc.concept_id IN (SELECT id FROM sub)"
+            f" WHERE uc.concept_id IN (SELECT id FROM sub) AND u.unit_id NOT IN ({HIDDEN_UNITS})"
             " GROUP BY u.unit_id ORDER BY MAX(uc.score) DESC LIMIT ?", (concept_id, MAX_UNITS)
         ).fetchall()
     finally:

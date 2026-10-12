@@ -2,7 +2,7 @@ import json
 import uuid
 import datetime
 from typing import Tuple, Dict, Any
-from core.db import get_connection
+from core.db import REMOVED_CONCEPTS, get_connection
 from learner.irt import update_ability
 from learner.evidence import log_evidence
 from learner.state import get_learner_state, update_learner_state
@@ -60,11 +60,12 @@ def get_next_diagnostic_item(student_id: str) -> Dict[str, Any] | None:
     theta = intake.get("theta", 0.0)
     
     # Adaptive Selection: absolute difference between item difficulty (b) and student ability (theta)
-    query = """
-        SELECT item_id, concept_id, difficulty_b, stem, options_json 
-        FROM items 
+    query = f"""
+        SELECT item_id, concept_id, difficulty_b, stem, options_json
+        FROM items
         WHERE type='mcq' AND verified=1  -- the diagnostic UI renders options only; skips mock-era unverified items
           AND item_id NOT IN (SELECT item_id FROM attempts WHERE student_id=?)
+          AND concept_id NOT IN ({REMOVED_CONCEPTS})
         ORDER BY abs(difficulty_b - ?) ASC LIMIT 1
     """
     item = conn.execute(query, (student_id, theta)).fetchone()

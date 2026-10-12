@@ -246,6 +246,15 @@ def init_db(db_path: Path | None = None):
 
 
 
+# SQL subqueries for removed (hidden) sources, shared by every query that reads concept tags.
+HIDDEN_UNITS = "SELECT hu.unit_id FROM units hu JOIN sources hs ON hs.source_id = hu.source_id WHERE hs.hidden = 1"
+# Concepts whose every tagged unit is in a removed source; untagged concepts are not included.
+REMOVED_CONCEPTS = (
+    "SELECT ruc.concept_id FROM unit_concepts ruc JOIN units ru ON ru.unit_id = ruc.unit_id"
+    " JOIN sources rs ON rs.source_id = ru.source_id GROUP BY ruc.concept_id HAVING MAX(rs.hidden = 0) = 0"
+)
+
+
 def hidden_sources() -> set[str]:
     """source_ids marked hidden: kept for old citations and quiz items, but never listed or retrieved."""
     conn = get_connection()

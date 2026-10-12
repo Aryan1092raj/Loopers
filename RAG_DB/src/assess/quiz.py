@@ -14,7 +14,7 @@ from assess.dedup import check_duplicate
 from assess.generate import NoMaterial, generate_item
 from assess.grade import grade_submission, item_feedback
 from assess.verify import blind_verify
-from core.db import get_connection
+from core.db import HIDDEN_UNITS, REMOVED_CONCEPTS, get_connection
 from tutor.cite import resolve
 
 DEFAULT_P_KNOW = 0.15
@@ -86,9 +86,10 @@ def scope_concepts(student_id: str, topic_ids: list[str], concept_ids: list[str]
             ids = [r[0] for r in conn.execute(
                 f"WITH RECURSIVE sub(id) AS (SELECT concept_id FROM concepts WHERE concept_id IN ({marks})"
                 " UNION SELECT c.concept_id FROM concepts c JOIN sub ON c.parent_id=sub.id)"
-                " SELECT DISTINCT uc.concept_id FROM unit_concepts uc WHERE uc.concept_id IN (SELECT id FROM sub)", roots)]
+                " SELECT DISTINCT uc.concept_id FROM unit_concepts uc WHERE uc.concept_id IN (SELECT id FROM sub)"
+                f" AND uc.unit_id NOT IN ({HIDDEN_UNITS})", roots)]
         else:
-            ids = [r[0] for r in conn.execute("SELECT DISTINCT concept_id FROM unit_concepts")]
+            ids = [r[0] for r in conn.execute(f"SELECT DISTINCT concept_id FROM unit_concepts WHERE unit_id NOT IN ({HIDDEN_UNITS})")]
         mastery = dict(conn.execute("SELECT concept_id, p_mastery FROM learner_state WHERE student_id=?", (student_id,)).fetchall())
         pairs = [(c, _topic_of(conn, c)) for c in ids]
     finally:
@@ -100,6 +101,7 @@ def _bank_item(conn, student_id: str, concept_id: str, item_type: str, difficult
     conn.row_factory = lambda cur, row: {d[0]: v for d, v in zip(cur.description, row)}
     rows = conn.execute(
         "SELECT * FROM items WHERE concept_id=? AND type=? AND verified=1"
+        f" AND concept_id NOT IN ({REMOVED_CONCEPTS})"
         " AND item_id NOT IN (SELECT item_id FROM served_items WHERE student_id=?) ORDER BY created_at",
         (concept_id, item_type, student_id)).fetchall()
     conn.row_factory = None
