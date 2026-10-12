@@ -23,12 +23,15 @@ every unit linked to page / slide / video timestamp)
 
 ```
 RAG_DB/                  # ingestion → retrieval → generation pipeline
-  src/                   # ingest, extract, parsers/, label, embed, store,
-                         # generate, chat, assignment, eval, knowledge_graph, …
-  templates/             # slide spec schema, eval question set example
+  src/                   # flat pipeline modules (ingest, extract, label, embed, store, generate, llm, …)
+                         # plus packages: core/ api/ ingest/ concepts/ tutor/ assess/ learner/ revision/ evaluation/
+  tests/                 # one small test file per package
   raw/ processed/ metadata/ qdrant_db/   # local-only (gitignored scaffolds)
+frontend/                # Next.js web app (chat, quiz, report, dashboard, evaluation)
 whisper-server/          # local transcription service
-docker-compose.rag.yml   # opt-in overlay to run the RAG service
+scripts/e2e_smoke.sh     # end-to-end check against a running API
+docker-compose.app.yml   # full stack: qdrant, api, web, optional whisper
+docker-compose.gpu.yml   # GPU overlay for the native Docker engine
 ```
 
 > Only `README.md` is tracked on GitHub. All other markdown
@@ -107,6 +110,10 @@ topics, scores prerequisite edges, removes cycles and stores the result in `conc
 `unit_concepts`. It needs an LLM key in `.env`; without one the stage is skipped and the API serves the
 fixture graph. `GET /api/graph` and `GET /api/concepts/{id}` read the stored graph.
 
+A source can be hidden (`sources.hidden = 1`): it drops out of `GET /api/sources`, tutor retrieval and
+`evaluation.run --indexed-only`, while its units, quiz items and old citations still resolve. Re-uploading the
+same file reuses the stored copy and keeps the first title.
+
 `POST /api/chat` answers from the material only:
 
 1. Retrieval returns evidence `E1..En`, plus background evidence for the prerequisites of the concepts in
@@ -153,6 +160,28 @@ mastery) and a diagnostic of up to five verified multiple-choice items, scored w
 model. `GET /api/students/{id}/schedule` plans study days up to the exam date: weak or overdue concepts come
 first, a concept unlocks once its prerequisites reach 0.70, and each day is capped at `minutes_per_day`.
 
+## Web app
+
+The Next.js app in `frontend/` proxies `/api` and `/media` to the API. Its pages:
+
+- **Chat** (`/`): the grounded tutor with a topic picker. Citation chips open the page image with its box, the
+  slide, or the lecture video at the cited second; if autoplay is blocked a "Play from mm:ss" button appears,
+  and a browser that cannot decode H.264 gets a link to the file. "Course map" opens the prerequisite graph full
+  screen; clicking a concept shows its description, prerequisites and source excerpts. The side panel uploads
+  PDFs, slide decks, videos or a YouTube link and shows each job's progress.
+- **Quiz** (`/quiz`): topics as cards (pick a whole topic or single concepts), question count, practice or timed
+  mock exam, and multiple choice or mixed types. Feedback after each answer cites its sources.
+- **Report** (`/report`): an overview of every attempt in this browser (answers pie, score per attempt, mastery
+  by topic) and the latest attempt in full; `/report?quiz=<id>` shows one attempt with its mastery change, weak
+  topics, likely misconceptions and what to study next.
+- **Dashboard** (`/dashboard`): summary tiles and a menu that switches between the mastery heatmap, weak spots,
+  revision (a flip-card flashcard deck and a spoken 30-second brief) and the study schedule.
+- **Evaluation** (`/eval`): the latest golden-set and simulation runs, plus the DeepEval cross-check.
+
+Motion uses anime.js (`frontend/lib/motion.ts`, `components/Charts.tsx`) and is switched off when the
+operating system asks for reduced motion. Student and chat-session ids live in the browser's localStorage;
+there is no login.
+
 ## Evaluation
 
 All of it lives in `RAG_DB/src/evaluation/` and is saved to the `eval_runs` table, which the web app shows at
@@ -166,7 +195,9 @@ All of it lives in `RAG_DB/src/evaluation/` and is saved to the `eval_runs` tabl
   honesty, over-refusal and four judge metrics (faithfulness, answer relevancy, context precision, context
   recall). The judge is a different model from the generator. `--dump file.json` saves the samples, and
   `python -m evaluation.deepeval_check file.json` scores the same samples with DeepEval in a separate
-  virtualenv as a cross-check (its dependencies conflict with the main environment).
+  virtualenv as a cross-check (its dependencies conflict with the main environment). The judge is Groq
+  `gpt-oss-120b`, with one parallel worker per key in `GROQ_API_KEY` (comma-separated; keys from separate
+  accounts, since the per-minute limit is per account). `DEEPEVAL_JUDGE=gemini` judges on Gemini instead.
 - `python -m evaluation.gen_golden` writes golden questions for whatever is indexed, copying gold locators
   from stored fields; `python -m evaluation.golden --spotcheck` prints 20 random items to open by hand.
 - `python -m evaluation.simulate` runs simulated students (fast, average and slow learners) through ten
@@ -197,12 +228,13 @@ None of these files are redistributed here. The pipeline is subject-agnostic; an
 
 ## Status
 
-Every PS.md requirement except the UI polish has a working backend path, run end to end in the Docker GPU stack
+Every PS.md requirement has a working path through the API and the web app, run end to end in the Docker GPU stack
 (`docker-compose.app.yml` + `docker-compose.gpu.yml`) on the demo course above. `scripts/e2e_smoke.sh` passes
-against it on the final image: document upload to done, grounded chat with a page citation and its page image, refusal of an
+against it: document upload to done, grounded chat with a page citation and its page image, refusal of an
 off-topic question, concept graph, chat-driven mastery update, onboarding and diagnostic, a quiz round trip with
-cited feedback and a mastery change, a study schedule, and a lecture-video upload whose citation seeks to
-`#t=2272.12` with an HTTP 206 range response.
+cited feedback and a mastery change, a study schedule, and a lecture-video citation that seeks to
+`#t=1873.6` with an HTTP 206 range response (last run 2026-10-12). Generation runs on DeepSeek
+(`deepseek-flash`). The smoke-test copies of the course are hidden, so answers cite only the demo course.
 
 Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, judge Gemini then Groq):
 
@@ -236,8 +268,14 @@ worse: refusal honesty 0.90 with the same 0.073 over-refusal, so it was reverted
 math in the lecture transcript ("sine theta over theta"), which the cross-encoder scores low; the lecture's
 trigonometric-limit passage tops out at 0.118 against a threshold of 0.136.
 
-The DeepEval cross-check (`evaluation/deepeval_check.py`) was not rerun on these samples: the Groq free tier it
-judges with had hit its daily token limit, and two samples did not finish in eight minutes.
+DeepEval cross-check on 10 of the saved samples (Groq `gpt-oss-120b` judge, four keys in parallel, 15 minutes):
+faithfulness 1.00 (8 answers scored), answer relevancy 0.97 (7), context precision 0.86 (6), context recall 1.00
+(7). The remaining metric calls returned no usable verdict. DeepEval scores higher than our own judge on every
+metric; with so few samples, both are reported and neither replaces the other.
+
+Fourteen golden questions (8 text, 4 Hindi, 2 multi-hop) have their gold locators in a smoke-test copy of the
+textbook that is now hidden, so the next `--indexed-only` run skips them and scores 27 in-scope questions
+instead of 41; the results above predate that.
 
 Known gaps: concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed
 concept are orphaned; a mock exam of eight items takes about two minutes because each item is generated and
