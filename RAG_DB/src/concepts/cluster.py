@@ -1,4 +1,5 @@
 """Merge concept mentions with similar names into concepts (TRD §7.2)."""
+import hashlib
 import re
 from collections import Counter
 
@@ -7,8 +8,19 @@ import numpy as np
 DISTANCE_THRESHOLD = 0.25
 
 
-def slug(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "concept"
+def deterministic_concept_id(name: str, prefix: str = "c_") -> str:
+    """Derive deterministic ID from normalized name (TRD §5.2 / Issue #20).
+    Trimmed to 12 hex characters for stable collision-free concept tracking.
+    """
+    norm = re.sub(r"\s+", " ", name.strip().lower())
+    digest = hashlib.sha256(norm.encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}{digest}"
+
+
+def slug(name: str, prefix: str = "c_") -> str:
+    """Backwards-compatible slug function returning deterministic ID."""
+    return deterministic_concept_id(name, prefix=prefix)
+
 
 
 def unit_vectors(vectors) -> np.ndarray:
@@ -44,7 +56,8 @@ def cluster_mentions(mentions: list[dict], encode) -> tuple[list[dict], list[int
             if n.lower() not in seen:
                 seen.add(n.lower())
                 aliases.append(n)
-        base, cid, k = slug(name), slug(name), 2
+        base = deterministic_concept_id(name, prefix="c_")
+        cid, k = base, 2
         while cid in taken:
             cid, k = f"{base}_{k}", k + 1
         taken.add(cid)

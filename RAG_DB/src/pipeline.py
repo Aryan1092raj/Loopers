@@ -45,6 +45,7 @@ def main() -> None:
     med.add_argument("--job-id", default="cli")
 
     sub.add_parser("concepts", help="Phase 4b — concept graph + tag every unit (needs an LLM key in .env)")
+    sub.add_parser("seed-items", help="Phase 4c — pre-generate item bank to eliminate quiz latency (TRD §6.5 / Issue #19)")
 
     g = sub.add_parser("generate", help="Phase 5 — RAG topic -> .pdf via OpenRouter and LaTeX")
     g.add_argument("query", nargs="+", help="topic query")
@@ -130,6 +131,9 @@ def main() -> None:
             build.run()
         except NoProvider as e:  # not a failure of the upload: units are searchable, only concept tags are missing
             print(f"[concepts] skipped, no LLM provider answered: {e}")
+    elif args.cmd == "seed-items":
+        from assess.seed import seed_item_bank
+        seed_item_bank()
     elif args.cmd == "generate":
         query_str = " ".join(args.query)
         # generate.run() now produces student notes + assignment only (no teacher pptx).

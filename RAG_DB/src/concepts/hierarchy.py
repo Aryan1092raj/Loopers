@@ -8,7 +8,7 @@ import re
 
 import numpy as np
 
-from concepts.cluster import slug, unit_vectors
+from concepts.cluster import deterministic_concept_id, slug, unit_vectors
 
 MAX_NAMES = 300  # concept names shown to the LLM, sampled evenly in teaching order
 
@@ -37,9 +37,10 @@ def build_hierarchy(concepts: list[dict], encode, llm, course: str = "Course") -
     taken = {c["id"] for c in concepts}
     topics = []
     for name, emb in zip(names, vecs):
-        tid = slug(name)
+        base = deterministic_concept_id(name, prefix="t_")
+        tid, k = base, 2
         while tid in taken:
-            tid += "_topic"
+            tid, k = f"{base}_{k}", k + 1
         taken.add(tid)
         topics.append({"id": tid, "name": name, "aliases": [], "definition": "", "level": "topic", "parent_id": None, "emb": emb})
     topic_matrix = np.array([t["emb"] for t in topics])
