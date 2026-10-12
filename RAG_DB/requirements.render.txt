@@ -1,0 +1,28 @@
+# Dependency set for Dockerfile.render (Render free tier, 512 MB): requirements.app.txt minus every model,
+# ASR, OCR and video-ingest package. Retrieval, ingest and voice return errors there; quizzes, mastery,
+# the concept graph and media serving work. Index locally and publish vectors with src/push_qdrant.py.
+pymupdf==1.24.10
+pillow==10.4.0
+numpy==1.26.4
+
+qdrant-client==1.12.1
+httpx==0.27.2
+
+python-pptx==1.0.2
+jsonschema==4.23.0
+python-dotenv==1.0.1
+matplotlib
+
+langchain>=0.3.0,<2.0.0
+langchain-openai>=0.2.0,<1.0.0
+langchain-google-genai>=2.0.0,<3.0.0
+openai>=1.0.0,<2.0.0
+fastapi
+uvicorn[standard]
+pydantic>=2
+python-multipart
+
+networkx
+requests
+rapidfuzz
+yt-dlp  # imported at module level by ingest/video_worker via api/routes

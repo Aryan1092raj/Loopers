@@ -40,6 +40,12 @@ app.mount("/media/pages", StaticFiles(directory=PAGES_DIR, check_dir=False), nam
 def get_status():
     return {"ok": True}
 
+# Keepalive target for the cron that stops Render's free tier sleeping. HEAD too: uptime pingers send it.
+# ponytail: no DB or Qdrant check, so a ping stays cheap; add one if this becomes a readiness probe.
+@app.api_route("/api/health", methods=["GET", "HEAD"])
+def health():
+    return {"ok": True}
+
 @app.get("/media/video/{file_path:path}")
 def stream_video(file_path: str, request: Request):
     """Serves video files with HTTP Range support."""

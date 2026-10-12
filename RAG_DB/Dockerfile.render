@@ -1,0 +1,24 @@
+# Loopers API for Render's free tier: no models, demo course baked in, vectors in Qdrant Cloud.
+# Built locally (the course data is not in git) and pushed to a private registry; Render deploys the image.
+#   ./export_deploy_data.sh && docker build -f Dockerfile.render -t ghcr.io/<user>/loopers-api:latest . && docker push ...
+# Retrieval needs the query embedding model, so /api/chat fails here until one is hosted.
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+COPY requirements.render.txt ./
+RUN pip install --no-cache-dir -r requirements.render.txt
+
+COPY src ./src
+COPY templates ./templates
+# ponytail: SQLite and media live in the image, so learner progress resets on every deploy or restart.
+# Move course.db to a hosted database when progress has to persist.
+COPY deploy_data/ ./
+
+ENV LOOPERS_NO_REEXEC=1 \
+    MEDIA_DIR=/app/processed/media \
+    MPLBACKEND=Agg \
+    PYTHONUNBUFFERED=1
+
+# Render sets PORT.
+CMD ["sh", "-c", "uvicorn api.main:app --app-dir src --host 0.0.0.0 --port ${PORT:-8000}"]
