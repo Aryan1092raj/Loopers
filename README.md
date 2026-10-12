@@ -2,40 +2,51 @@
 
 Track D · Personalized Tutoring & Adaptive Learning · Multimodal AI Hackathon 2026
 
-An AI study companion that unifies **lecture videos, textbooks, and slide decks**
-into one source-cited knowledge base, then uses it for **grounded tutoring** and
-**adaptive assessment** with per-topic mastery tracking.
+Loopers turns **lecture videos, textbooks and slide decks** into one source-cited knowledge base. A tutor answers
+from that material only and cites the exact page, slide or video second. Adaptive quizzes are verified before
+they are served, and a learner model tracks mastery per concept.
+
+## Contents
+
+- [How it works](#how-it-works)
+- [Quickstart](#quickstart)
+- [Run with Docker](#run-with-docker)
+- [Ingestion and the knowledge base](#ingestion-and-the-knowledge-base)
+- [Retrieval](#retrieval)
+- [Grounded tutor chat](#grounded-tutor-chat)
+- [Assessment and the learner model](#assessment-and-the-learner-model)
+- [Web app](#web-app)
+- [Evaluation](#evaluation)
+- [Testing](#testing)
+- [Corpus](#corpus)
+- [Status and results](#status-and-results)
+- [Repo layout](#repo-layout)
 
 ## How it works
 
-```
-videos / textbooks / slides
-        │  ingest (no manual preprocessing)
-        ▼
-multimodal knowledge base (topics → concepts → prerequisites,
-every unit linked to page / slide / video timestamp)
-        ├─► source-grounded tutor chat (cited excerpts, refuses off-material queries)
-        └─► adaptive quizzes (MCQ / short / numerical, verified, no repeats)
-                └─► learner model (per-topic mastery, cold-start diagnostic)
-```
-
-## Repo layout
-
-```
-RAG_DB/                  # ingestion → retrieval → generation pipeline
-  src/                   # flat pipeline modules (ingest, extract, label, embed, store, generate, llm, …)
-                         # plus packages: core/ api/ ingest/ concepts/ tutor/ assess/ learner/ revision/ evaluation/
-  tests/                 # one small test file per package
-  raw/ processed/ metadata/ qdrant_db/   # local-only (gitignored scaffolds)
-frontend/                # Next.js web app (chat, quiz, report, dashboard, evaluation)
-whisper-server/          # local transcription service
-scripts/e2e_smoke.sh     # end-to-end check against a running API
-docker-compose.app.yml   # full stack: qdrant, api, web, optional whisper
-docker-compose.gpu.yml   # GPU overlay for the native Docker engine
+```mermaid
+flowchart LR
+    subgraph Sources
+        V[Lecture video]
+        T[Textbook PDF]
+        S[Slide deck]
+    end
+    Sources -->|upload, no manual preprocessing| I[Ingest and extract]
+    I --> KB[(Knowledge base<br/>units with page / slide / timestamp)]
+    I --> CG[(Concept graph<br/>topics, concepts, prerequisites)]
+    KB --> R[Retrieval]
+    CG --> R
+    R --> Chat[Grounded tutor chat]
+    R --> Quiz[Adaptive quizzes]
+    Chat --> LM[(Learner model<br/>BKT mastery per concept)]
+    Quiz --> LM
+    LM -->|adapts depth and question order| Chat
+    LM --> Quiz
+    LM --> Plan[Revision and study schedule]
 ```
 
-> Only `README.md` is tracked on GitHub. All other markdown
-> (specs, gap analysis, cleaning notes) stays local by `.gitignore` policy.
+Every piece of content is a *unit* with a stored locator. The language model never writes a page number or
+timestamp; it writes evidence markers like `[E1]`, and the server resolves them from stored fields.
 
 ## Quickstart
 
@@ -46,42 +57,46 @@ python src/pipeline.py extract
 python src/pipeline.py label     # needs GEMINI_API_KEY
 python src/pipeline.py embed
 python src/pipeline.py eval --k 5
-cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app   # API only (no --reload: a reload orphans a running ingest job) at http://localhost:8000 (UI: frontend on :3000)
+cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app   # API at http://localhost:8000
+cd frontend && npm run dev                           # UI at http://localhost:3000
 ```
+
+Run uvicorn without `--reload`: a reload orphans a running ingest job.
 
 ## Run with Docker
 
-Full stack on CPU (qdrant, api, web, optional whisper). Copy the env file first and add the LLM keys:
+Copy the env file and add the LLM keys first:
 
 ```bash
 cp RAG_DB/.env.example RAG_DB/.env
-docker compose -f docker-compose.app.yml up -d --build              # UI :3000, API :8000
-docker compose -f docker-compose.app.yml --profile asr up -d        # adds the whisper server
-docker compose -f docker-compose.app.yml logs -f api                # tail the api
-docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py embed
-docker compose -f docker-compose.app.yml down                       # stop; volumes keep the data
 ```
 
-Docker Desktop runs containers in a VM with no GPU. Give that VM at least 8 GB of memory (Settings →
-Resources); at about 3.5 GB the `embed` stage is killed with `exited with code -9` and the UI shows
-"Failed to fetch" while the api restarts. On the native Docker Engine with the NVIDIA Container Toolkit
-(`docker context use default`), add the GPU overlay so the api runs on the GPU:
+```mermaid
+flowchart TD
+    Q{Which Docker?}
+    Q -->|Native Docker Engine + NVIDIA Container Toolkit| G[GPU stack<br/>app.yml + gpu.yml]
+    Q -->|Docker Desktop, no GPU| C[CPU stack<br/>app.yml only, VM memory >= 8 GB]
+    Q -->|No Docker GPU support| H[Qdrant in Docker,<br/>api + whisper + web on the host]
+```
+
+**GPU stack** (recommended, used for the demo):
 
 ```bash
 docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml --profile asr up -d --build
 ```
 
-On a 6 GB card the overlay leaves Whisper on CPU (int8) by default. `WHISPER_DEVICE=cuda
-WHISPER_COMPUTE_TYPE=int8_float16` before `up` also fits (about 1 GB) and transcribes a 52-minute lecture in
-about a minute; lecture clips are then embedded one at a time, and a clip that still runs out of GPU memory is
-embedded from its transcript and audio only. Do not run `evaluation.run` while the API is answering chats on a
-6 GB card: both load the embedder and reranker, and the run stops rather than score on a fallback. On 8 GB or
-more use `WHISPER_COMPUTE_TYPE=float16`.
-The reranker visits the GPU only while it scores a query, then returns to CPU memory
-(`RERANK_KEEP_ON_GPU=1` keeps it resident). If port 8000 or 3000 is taken, set `API_PORT` and `WEB_PORT`.
+**CPU stack:**
 
-Without Docker GPU support, run only qdrant in Docker and the rest on the host (the host GPU is used
-through the `.venv` CUDA build of torch):
+```bash
+docker compose -f docker-compose.app.yml up -d --build              # UI :3000, API :8000
+docker compose -f docker-compose.app.yml --profile asr up -d        # adds the whisper server
+```
+
+Docker Desktop runs containers in a VM with no GPU. Give that VM at least 8 GB of memory (Settings → Resources).
+At about 3.5 GB the `embed` stage is killed with `exited with code -9`, and the UI shows "Failed to fetch" while
+the api restarts.
+
+**Host mode** (qdrant in Docker, everything else on the host GPU through the `.venv` CUDA build of torch):
 
 ```bash
 docker compose -f docker-compose.app.yml up -d qdrant
@@ -90,153 +105,263 @@ python whisper-server/server.py --port 8300      # large-v3-turbo, float16 on th
 cd frontend && npm run dev                       # UI :3000, proxies /api to localhost:8000
 ```
 
-## Documents, concepts and the tutor
+**Everyday commands:**
 
-Every chunk of a slide deck or textbook becomes a *unit* with a stored locator: a page number for PDFs and
-a slide number for decks. `extract` writes a `<!-- page N -->` marker before each page, `embed` turns the
-markers into `page_no` or `slide_no`, and ingestion fails if a PDF chunk ends up without one. Units live in
-the SQLite `units` table and in the Qdrant payload, keyed by `source_id` (the first 16 hex characters of the
-file's sha256, the same id `POST /api/sources` returns). Page images are rendered to
-`processed/media/pages/<source_id>/<n>.webp` and served at `/media/pages/...`.
+```bash
+docker compose -f docker-compose.app.yml logs -f api                               # tail the api
+docker compose -f docker-compose.app.yml run --rm api python src/pipeline.py embed # re-embed
+docker compose -f docker-compose.app.yml down                                      # stop; volumes keep the data
+```
 
-Figures are cropped during `extract`. Photos come from the PDF's images; graphs and diagrams are usually drawn
-as vector paths, so they are found through their "Figure N.M" caption. The page and bounding box of each
-crop (in page-image pixels) are written to `metadata/figures/<stem>.json`, and `label` copies them into the
-figure's unit so a citation can draw the box on the page image.
+### GPU memory on a 6 GB card
 
-`python src/pipeline.py concepts` builds the concept graph from the units and tags every unit with its
-concepts. It extracts concepts with an LLM, merges near-duplicates by embedding distance, groups them under
-topics, scores prerequisite edges, removes cycles and stores the result in `concepts`, `concept_edges` and
-`unit_concepts`. It needs an LLM key in `.env`; without one the stage is skipped and the API serves the
-fixture graph. `GET /api/graph` and `GET /api/concepts/{id}` read the stored graph.
+| Model | Where it runs |
+|---|---|
+| EmbeddingGemma 2 (text, image, video and audio embeddings) | GPU, resident in the api |
+| Cross-encoder reranker (`bge-reranker-v2-m3`) | CPU memory; moves to the GPU only while it scores (`RERANK_KEEP_ON_GPU=1` keeps it there) |
+| ColSmol-500M (page-image retrieval) | CPU memory; moves to the GPU only while it encodes |
+| Whisper large-v3-turbo | CPU int8 by default |
 
-A source can be hidden (`sources.hidden = 1`): it drops out of `GET /api/sources`, tutor retrieval and
-`evaluation.run --indexed-only`, while its units, quiz items and old citations still resolve. Re-uploading the
-same file reuses the stored copy and keeps the first title.
+`WHISPER_DEVICE=cuda WHISPER_COMPUTE_TYPE=int8_float16` also fits (about 1 GB) and transcribes a 52-minute
+lecture in about a minute. On 8 GB or more use `WHISPER_COMPUTE_TYPE=float16`. Lecture clips are embedded one
+at a time; a clip that still runs out of GPU memory is embedded from its transcript and audio only.
 
-`POST /api/chat` answers from the material only:
+Do not run `evaluation.run` while the api is answering chats on a 6 GB card. Both load the embedder and the
+reranker, and the run stops rather than score on a fallback. If port 8000 or 3000 is taken, set `API_PORT` and
+`WEB_PORT`.
 
-1. Retrieval returns evidence `E1..En`, plus background evidence for the prerequisites of the concepts in
-   the question.
-2. The gate refuses when the best reranker score is below `tau_low`. Between `tau_low` and `tau_high` an
-   entailment check must pass. Thresholds come from `metadata/gate_thresholds.json`, else placeholders.
-3. The model writes `[E1]` markers and never a page or timestamp. Every factual sentence needs a valid
-   marker; failing sentences are rewritten once and dropped if they still fail, which makes the answer
-   `partially_grounded`. Citations are resolved from the stored units, with page-image and video-seek URLs.
-4. Sessions and turns are stored in SQLite, so two sessions never share history. With `allow_outside` a
-   refused question is answered from general knowledge and marked `outside_syllabus`.
+## Ingestion and the knowledge base
 
-The answer adapts to the student. Before generating, the tutor reads the student's BKT mastery of the concepts
-tagged on the answering units: below 0.40 it explains step by step, defines terms first, leans on the
-prerequisite evidence and ends with a check question; at 0.75 or above it answers concisely and points out the
-subtle detail; in between it gives one worked example. Every grounded turn then nudges that mastery up.
+```mermaid
+flowchart TD
+    U[POST /api/sources] --> K{File type}
+    K -->|PDF| P[extract: text per page<br/>+ page-N markers]
+    K -->|PPTX| SL[extract: text per slide]
+    K -->|Video / YouTube| VW[video worker: Whisper transcript,<br/>scene cuts, slide matching]
+    P --> PI[render page images<br/>processed/media/pages/source_id/n.webp]
+    SL --> PI
+    P --> FIG[crop figures + bbox<br/>metadata/figures/stem.json]
+    FIG --> LB[label: Gemini caption + keywords]
+    P --> CH[embed: chunk, set page_no / slide_no]
+    SL --> CH
+    LB --> CH
+    VW --> CL[clips with t_start / t_end]
+    CH --> Q[(Qdrant text index<br/>EmbeddingGemma 2)]
+    CL --> Q
+    PI --> PG[(Qdrant pages index<br/>ColSmol + EmbeddingGemma image)]
+    CH --> DB[(SQLite units table)]
+    DB --> CB[concepts: LLM extraction, merge,<br/>topics, prerequisite edges]
+    CB --> CG[(concepts, concept_edges,<br/>unit_concepts)]
+```
 
-Without an LLM key the chat endpoint quotes the best evidence with its markers instead of generating text.
+**Locators.** `extract` writes a `<!-- page N -->` marker before each page, and `embed` turns the markers into
+`page_no` or `slide_no`. Ingestion fails if a PDF chunk ends up without one. Units live in the SQLite `units`
+table and in the Qdrant payload, keyed by `source_id`: the first 16 hex characters of the file's sha256, the
+same id `POST /api/sources` returns. Page images are served at `/media/pages/...`.
+
+**Figures.** Photos come from the PDF's embedded images. Graphs and diagrams are usually drawn as vector paths,
+so they are found through their "Figure N.M" caption. The page and bounding box of each crop (in page-image
+pixels) go into `metadata/figures/<stem>.json`, and `label` copies them into the figure's unit so a citation
+can draw the box on the page image. EmbeddingGemma 2 embeds each figure's picture together with its caption.
+
+**Concept graph.** `python src/pipeline.py concepts` extracts concepts with an LLM, merges near-duplicates by
+embedding distance, groups them under topics, scores prerequisite edges and removes cycles. Every unit is
+tagged with its concepts. Without an LLM key the stage is skipped and the API serves the fixture graph.
+`GET /api/graph` and `GET /api/concepts/{id}` read the stored graph.
+
+**Hidden sources.** A source with `sources.hidden = 1` drops out of `GET /api/sources`, tutor retrieval and
+`evaluation.run --indexed-only`. Its units, quiz items and old citations still resolve. Re-uploading the same
+file reuses the stored copy and keeps the first title.
+
+## Retrieval
+
+```mermaid
+flowchart TD
+    Q[Question] --> E[EmbeddingGemma 2<br/>query vector]
+    E --> T[Text index search<br/>Qdrant]
+    Q --> CS[ColSmol-500M<br/>query token vectors]
+    CS --> PG[Pages index<br/>MaxSim]
+    E --> PGG[Pages index<br/>EmbeddingGemma image vectors]
+    PG --> F[RRF fusion → top pages]
+    PGG --> F
+    F --> M[units stored on those pages<br/>same source_id + page_no / slide_no]
+    T --> POOL[Candidate pool]
+    M --> POOL
+    POOL --> RR[Cross-encoder rerank]
+    RR --> EV[Evidence E1..En<br/>+ prerequisite evidence]
+```
+
+The text leg finds chunks, figure captions and video clips. The **page-image leg** finds whole pages by how
+they look, which catches plots, tables and equations that text extraction misses. It is ColPali-style late
+interaction: ColSmol-500M (`vidore/colSmol-500M`) keeps one vector per image patch and scores a page by
+MaxSim against the query's token vectors. The same page images are also embedded by EmbeddingGemma 2, which
+is multimodal, so its image vectors share a space with the text query vector. Qdrant fuses the two page
+rankings with RRF.
+
+A page hit only names a page. The leg then pulls the units already stored for that page and adds them to the
+reranker's pool, so citations still come from stored locators.
+
+The page leg is off by default. Turn it on with `LOOPERS_VISUAL_RETRIEVAL=1`, then index the rendered pages:
+
+```bash
+LOOPERS_VISUAL_RETRIEVAL=1 docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml up -d --build api
+docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml exec api sh -c "cd src && python -m ingest.page_embed"
+```
+
+With the flag on, `pipeline.py embed` indexes new pages at the end of every run. `COLPALI_MODEL` swaps the
+model (for example `vidore/colqwen2-v1.0` on a card with 8 GB or more).
+
+## Grounded tutor chat
+
+```mermaid
+flowchart TD
+    A[POST /api/chat] --> R[Retrieve evidence]
+    R --> G{Best reranker score<br/>vs calibrated tau}
+    G -->|below tau| RF{allow_outside?}
+    RF -->|no| X[Refuse: not in the material]
+    RF -->|yes| O[Answer from general knowledge<br/>marked outside_syllabus]
+    G -->|at or above tau| M[Read student's BKT mastery<br/>of the tagged concepts]
+    M --> D{Mastery}
+    D -->|below 0.40| D1[Step by step, define terms,<br/>use prerequisites, end with a check question]
+    D -->|0.40 to 0.75| D2[One worked example]
+    D -->|0.75 and above| D3[Concise, point out the subtle detail]
+    D1 --> W[LLM writes the answer with E markers]
+    D2 --> W
+    D3 --> W
+    W --> C{Every factual sentence<br/>has a valid marker?}
+    C -->|no| RW[Rewrite once, then drop the sentence<br/>→ partially_grounded]
+    C -->|yes| CI[Resolve citations from stored units<br/>page image + bbox, slide, video seek]
+    RW --> CI
+    CI --> U[Nudge mastery up, store the turn in SQLite]
+```
+
+Sessions and turns are stored in SQLite, so two sessions never share history. Thresholds come from
+`metadata/gate_thresholds.json` (written by calibration), or placeholders before the first run. Without an
+LLM key the chat endpoint quotes the best evidence with its markers instead of generating text.
 
 ## Assessment and the learner model
 
-`POST /api/quiz/generate` writes one item (multiple choice, short answer or numeric) from the source units
-tagged to a concept or topic, and records which units it came from, so feedback cites stored locators. Three
-checks run before the item is served: the stem must not be a near-duplicate of an earlier item for that
-concept, a different model solves it blind and must reach the same key (`solver_conflict` otherwise), and
-the generator is told which questions were already asked. The answer key never leaves the server until the
-student submits. Grading is by type (exact option, numeric tolerance, fuzzy match for short answers), and the
-post-quiz report lists weak concepts, recorded misconceptions and the mastery change per concept.
+```mermaid
+flowchart TD
+    S[Student picks topics / concepts,<br/>mix and difficulty] --> SL[Slots rotate over concepts,<br/>weakest mastery first]
+    SL --> B{Unseen verified item<br/>in the bank?}
+    B -->|yes| SV[Serve it]
+    B -->|no| GEN[Generate from units tagged to the concept]
+    GEN --> C1{Near-duplicate of<br/>an earlier stem?}
+    C1 -->|yes| GEN
+    C1 -->|no| C2{Different model solves it blind:<br/>same key?}
+    C2 -->|no: solver_conflict| GEN
+    C2 -->|yes| BANK[Save to bank] --> SV
+    SV --> ANS[Student answers]
+    ANS --> GR[Grade: exact option, numeric tolerance,<br/>fuzzy match for short answers]
+    GR --> FB[Cited feedback + misconception<br/>behind a wrong option]
+    GR --> BKT[BKT mastery update<br/>+ FSRS-style stability]
+    BKT --> REP[Post-quiz report: weak concepts,<br/>misconceptions, mastery change]
+    BKT --> SCH[Study schedule up to the exam date]
+```
 
-`POST /api/quizzes` builds a practice quiz or a timed mock exam (`mode: "mock"`, 90 s per item) over the
-topics and concepts the student picks, with a mix such as `{"mcq": 4, "short": 2, "numeric": 2}` and an
-optional target difficulty (IRT b). Slots rotate over the in-scope concepts, weakest mastery first. Each slot is
-filled from the verified bank if the student has never been served that item, otherwise by generating a new
-item through the same three checks, so questions do not repeat across assessments. Every served item carries
-its topic, concept, Bloom level, difficulty label and source locations (page, slide or timestamp).
-`POST /api/quizzes/{id}/answers` grades a batch and returns per-item correctness, the cited explanation, the
-misconception behind a wrong option and the mastery updates; `GET /api/quizzes/{id}/report` gives the
-post-assessment report.
+**Endpoints.**
 
-Mastery is a Bayesian knowledge tracing estimate per concept (slip 0.10, guess 0.20, learn 0.05 per answered
-item, 0.02 per grounded chat turn). Each answer also updates a simple FSRS-style stability, which sets the next
-review date. A new student answers an intake question (background sets the prior ability and starting
-mastery) and a diagnostic of up to five verified multiple-choice items, scored with a one-parameter IRT
-model. `GET /api/students/{id}/schedule` plans study days up to the exam date: weak or overdue concepts come
-first, a concept unlocks once its prerequisites reach 0.70, and each day is capped at `minutes_per_day`.
+- `POST /api/quiz/generate` writes one item (multiple choice, short answer or numeric).
+- `POST /api/quizzes` builds a practice quiz or a timed mock exam (`mode: "mock"`, 90 s per item). It takes a
+  mix such as `{"mcq": 4, "short": 2, "numeric": 2}` and an optional target difficulty (IRT b).
+- `POST /api/quizzes/{id}/answers` grades a batch and returns correctness, the cited explanation, the
+  misconception behind a wrong option and the mastery updates.
+- `GET /api/quizzes/{id}/report` returns the post-assessment report.
+- `GET /api/students/{id}/schedule` plans study days up to the exam date.
+
+Every served item carries its topic, concept, Bloom level, difficulty label and source locations. The
+generator is told which questions were already asked, and the answer key never leaves the server until the
+student submits.
+
+**Learner model.** Mastery is a Bayesian knowledge tracing estimate per concept: slip 0.10, guess 0.20, learn
+0.05 per answered item and 0.02 per grounded chat turn. Each answer also updates an FSRS-style stability that
+sets the next review date. The schedule puts weak or overdue concepts first, unlocks a concept once its
+prerequisites reach 0.70, and caps each day at `minutes_per_day`.
+
+**New students.** An intake question (the student's background sets the prior ability and starting mastery) is
+followed by a diagnostic of up to five verified multiple-choice items, scored with a one-parameter IRT model.
 
 ## Web app
 
-The Next.js app in `frontend/` proxies `/api` and `/media` to the API. Its pages:
+The Next.js app in `frontend/` proxies `/api` and `/media` to the API.
 
-- **Chat** (`/`): the grounded tutor with a topic picker. Citation chips open the page image with its box, the
-  slide, or the lecture video at the cited second; if autoplay is blocked a "Play from mm:ss" button appears,
-  and a browser that cannot decode H.264 gets a link to the file. "Course map" opens the prerequisite graph full
-  screen; clicking a concept shows its description, prerequisites and source excerpts. The side panel uploads
-  PDFs, slide decks, videos or a YouTube link and shows each job's progress.
-- **Quiz** (`/quiz`): topics as cards (pick a whole topic or single concepts), question count, practice or timed
-  mock exam, and multiple choice or mixed types. Feedback after each answer cites its sources.
-- **Report** (`/report`): an overview of every attempt in this browser (answers pie, score per attempt, mastery
-  by topic) and the latest attempt in full; `/report?quiz=<id>` shows one attempt with its mastery change, weak
-  topics, likely misconceptions and what to study next.
-- **Dashboard** (`/dashboard`): summary tiles and a menu that switches between the mastery heatmap, weak spots,
-  revision (a flip-card flashcard deck and a spoken 30-second brief) and the study schedule.
-- **Evaluation** (`/eval`): the latest golden-set and simulation runs, plus the DeepEval cross-check.
+| Page | What it does |
+|---|---|
+| **Chat** (`/`) | Grounded tutor with a topic picker. Citation chips open the page image with its box, the slide, or the lecture video at the cited second. "Course map" opens the prerequisite graph; the side panel uploads PDFs, decks, videos or a YouTube link and shows job progress. |
+| **Quiz** (`/quiz`) | Topic cards, question count, practice or timed mock, multiple choice or mixed. Feedback after each answer cites its sources. |
+| **Report** (`/report`) | Every attempt in this browser (answers pie, score per attempt, mastery by topic). `/report?quiz=<id>` shows one attempt with weak topics, misconceptions and what to study next. |
+| **Dashboard** (`/dashboard`) | Mastery heatmap, weak spots, revision (flashcards and a spoken 30-second brief) and the study schedule. |
+| **Evaluation** (`/eval`) | Latest golden-set and simulation runs, plus the DeepEval cross-check. |
 
-Motion uses anime.js (`frontend/lib/motion.ts`, `components/Charts.tsx`) and is switched off when the
-operating system asks for reduced motion. Student and chat-session ids live in the browser's localStorage;
-there is no login.
+If autoplay is blocked a "Play from mm:ss" button appears, and a browser that cannot decode H.264 gets a link
+to the file. Motion uses anime.js and switches off when the operating system asks for reduced motion. Student
+and session ids live in the browser's localStorage; there is no login.
 
 ## Evaluation
 
-All of it lives in `RAG_DB/src/evaluation/` and is saved to the `eval_runs` table, which the web app shows at
-`/eval`.
+```mermaid
+flowchart LR
+    GG[evaluation.gen_golden<br/>questions + gold locators<br/>from stored fields] --> RUN[evaluation.run]
+    RUN --> RM[Retrieval: hit@k, MRR,<br/>locator precision]
+    RUN --> CAL[Gate calibration<br/>→ gate_thresholds.json]
+    RUN -->|--answers| AM[Citation accuracy, refusal honesty,<br/>faithfulness, relevancy,<br/>context precision / recall]
+    AM -->|--dump| DE[evaluation.deepeval_check<br/>DeepEval cross-check]
+    SIM[evaluation.simulate<br/>fast / average / slow students] --> PM[Mastery gain,<br/>repetition rate]
+    RM --> DB[(eval_runs → /eval page)]
+    AM --> DB
+    PM --> DB
+```
 
-- `python -m evaluation.run --k 5 --indexed-only` measures hit@k, MRR and locator precision against the golden
-  set, per question type, and calibrates the refusal gate (`--write-thresholds` writes
-  `metadata/gate_thresholds.json`). It stops if the cross-encoder fails instead of calibrating on the wrong
-  score scale.
-- `--answers --limit N` also answers questions through the tutor and reports citation accuracy, refusal
-  honesty, over-refusal and four judge metrics (faithfulness, answer relevancy, context precision, context
-  recall). The judge is a different model from the generator. `--dump file.json` saves the samples, and
-  `python -m evaluation.deepeval_check file.json` scores the same samples with DeepEval in a separate
-  virtualenv as a cross-check (its dependencies conflict with the main environment). The judge is Groq
-  `gpt-oss-120b`, with one parallel worker per key in `GROQ_API_KEY` (comma-separated; keys from separate
-  accounts, since the per-minute limit is per account). `DEEPEVAL_JUDGE=gemini` judges on Gemini instead.
-- `python -m evaluation.gen_golden` writes golden questions for whatever is indexed, copying gold locators
-  from stored fields; `python -m evaluation.golden --spotcheck` prints 20 random items to open by hand.
-- `python -m evaluation.simulate` runs simulated students (fast, average and slow learners) through ten
-  sessions, adaptive versus a random-question control, and reports mastery gain and question repetition.
+All of it lives in `RAG_DB/src/evaluation/` and is saved to the `eval_runs` table.
 
-The golden set and simulated students are generated, so treat the numbers as a check on the pipeline, not as
-a benchmark. Results are in the Status section.
+- `python -m evaluation.run --k 5 --indexed-only` scores retrieval per question type and calibrates the refusal
+  gate (`--write-thresholds` writes the file). It stops if the cross-encoder fails rather than calibrate on the
+  wrong score scale.
+- `--answers --limit N` also answers questions through the tutor and scores them with a judge model that differs
+  from the generator. `--dump file.json` saves the samples for the DeepEval cross-check, which runs in its own
+  virtualenv because its dependencies conflict with the main environment.
+- The DeepEval judge is Groq `gpt-oss-120b`, one parallel worker per key in `GROQ_API_KEY` (comma-separated, keys
+  from separate accounts since the rate limit is per account). `DEEPEVAL_JUDGE=gemini` judges on Gemini instead.
+- `python -m evaluation.golden --spotcheck` prints 20 random golden items to check by hand.
+- `python -m evaluation.simulate` runs simulated students through ten sessions, adaptive versus a
+  random-question control.
+
+The golden set and the simulated students are generated, so treat the numbers as a check on the pipeline, not
+as a benchmark.
 
 ## Testing
 
-`docs/TESTING.md` walks through every service by hand with copy-paste commands, and
-`scripts/e2e_smoke.sh` runs the main path end to end against a running API (`SMOKE_VIDEO` adds a lecture
-video). Backend unit tests: `cd RAG_DB && python -m pytest tests -q`.
+- `docs/TESTING.md` walks through every service by hand with copy-paste commands.
+- `scripts/e2e_smoke.sh` runs the main path end to end against a running API (`SMOKE_VIDEO` adds a lecture
+  video).
+- Backend unit tests: `cd RAG_DB && python -m pytest tests -q`.
 
 ## Corpus
 
-The demo course is *Limits and Continuity*, in all three modalities, uploaded through `POST /api/sources`
-with no manual preprocessing:
+The demo course is *Limits and Continuity* in all three modalities, uploaded through `POST /api/sources` with no
+manual preprocessing:
 
-- Textbook: OpenStax *Calculus Volume 1*, Chapter 2 through section 2.4 (book pages 113–176, 64 pages),
-  CC BY-NC-SA 4.0. Cut from the full PDF fetched with `python src/pipeline.py download --source openstax
-  --subjects calculus-vol1`.
-- Lecture video: MIT OpenCourseWare 18.01 Single Variable Calculus, Fall 2007, Lecture 2 "Limits,
-  Continuity; Trigonometric Limits" (52:46), CC BY-NC-SA 4.0, https://www.youtube.com/watch?v=ryLdyDrBfvI.
-- Slides: a 12-slide deck on limits and continuity written for this project, with four plotted figures.
+| Modality | Source | Licence |
+|---|---|---|
+| Textbook | OpenStax *Calculus Volume 1*, Chapter 2 through section 2.4 (book pages 113–176, 64 pages). Fetched with `python src/pipeline.py download --source openstax --subjects calculus-vol1`, then cut. | CC BY-NC-SA 4.0 |
+| Lecture video | MIT OCW 18.01 Single Variable Calculus, Fall 2007, Lecture 2 "Limits, Continuity; Trigonometric Limits" (52:46), https://www.youtube.com/watch?v=ryLdyDrBfvI | CC BY-NC-SA 4.0 |
+| Slides | A 12-slide deck on limits and continuity written for this project, with four plotted figures | — |
 
 None of these files are redistributed here. The pipeline is subject-agnostic; any course material works.
 
-## Status
+## Status and results
 
-Every PS.md requirement has a working path through the API and the web app, run end to end in the Docker GPU stack
-(`docker-compose.app.yml` + `docker-compose.gpu.yml`) on the demo course above. `scripts/e2e_smoke.sh` passes
-against it: document upload to done, grounded chat with a page citation and its page image, refusal of an
-off-topic question, concept graph, chat-driven mastery update, onboarding and diagnostic, a quiz round trip with
-cited feedback and a mastery change, a study schedule, and a lecture-video citation that seeks to
-`#t=1873.6` with an HTTP 206 range response (last run 2026-10-12). Generation runs on DeepSeek
-(`deepseek-flash`). The smoke-test copies of the course are hidden, so answers cite only the demo course.
+Every PS.md requirement has a working path through the API and the web app, run end to end in the Docker GPU
+stack on the demo course. `scripts/e2e_smoke.sh` passes against it (last run 2026-10-12). It covers document
+upload, grounded chat with a page citation and its image, refusal of an off-topic question, the concept graph, a
+chat-driven mastery update, onboarding and diagnostic, a quiz round trip with cited feedback, a study schedule,
+and a lecture-video citation that seeks to `#t=1873.6` with an HTTP 206 range response. Generation runs on
+DeepSeek (`deepseek-flash`). The smoke-test copies of the course are hidden, so answers cite only the demo course.
 
-Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, judge Gemini then Groq):
+### Retrieval and generation
+
+Run `ev_f3120893c9` on 2026-10-12 (generator DeepSeek, judge Gemini then Groq):
 
 | Metric | Value |
 |---|---|
@@ -247,36 +372,66 @@ Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, j
 | Context precision / context recall | 0.77 / 0.72 |
 | Citation accuracy | 0.43 (share of all citations that land on the single gold locator) |
 
+DeepEval cross-check on 10 saved samples (Groq `gpt-oss-120b`, four keys in parallel, 15 minutes): faithfulness
+1.00 (8 answers scored), answer relevancy 0.97 (7), context precision 0.86 (6), context recall 1.00 (7). The
+remaining metric calls returned no usable verdict. DeepEval scores higher than our own judge on every metric;
+with so few samples, both are reported and neither replaces the other.
+
+### Personalization
+
 Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph with 18 prerequisite edges):
-mean mastery gain is 0.143 adaptive versus 0.137 control (paired difference 0.007, SE 0.001, adaptive ahead for
-78% of students; slow learners 0.014 versus 0.006), and the question repetition rate is 0.002 versus 0.087. On an
-earlier build of the same course with 40 concepts and 10 edges the difference was 0.001 (SE 0.001), which fits the
-gain coming mostly from prerequisite ordering.
 
-Read these numbers with their limits. The golden questions are generated from the indexed units and not yet
-spot-checked by a person, and the gate is calibrated and scored on the same questions, so refusal figures are
-optimistic. Citation accuracy is strict: answers usually cite several correct units while each question has one
-gold unit. The adaptive gain is small in absolute terms and depends on an assumed
-student model. The BKT estimate also drifts from simulated truth over sessions (mean absolute error 0.064 after
-onboarding, 0.147 after ten sessions) because the fixed BKT parameters do not model
-forgetting; a learn rate of 0.10 or 0.15 and a forgetting-weighted estimate were tried and did not fix it.
-Fitting BKT and forgetting parameters from logged attempts is the next step.
+| Metric | Adaptive | Control |
+|---|---|---|
+| Mean mastery gain | 0.143 | 0.137 |
+| Slow learners' gain | 0.014 | 0.006 |
+| Question repetition rate | 0.002 | 0.087 |
 
-The gate is one calibrated threshold because no single score met both targets. A two-tier band (refuse below
-a low threshold, answer above a high one, entailment check in between) was tried in run `ev_9197101682` and did
-worse: refusal honesty 0.90 with the same 0.073 over-refusal, so it was reverted. Most over-refusals are spoken
-math in the lecture transcript ("sine theta over theta"), which the cross-encoder scores low; the lecture's
-trigonometric-limit passage tops out at 0.118 against a threshold of 0.136.
+The paired difference is 0.007 (SE 0.001), with adaptive ahead for 78% of students. On an earlier build with 40
+concepts and 10 edges the difference was 0.001 (SE 0.001), which fits the gain coming mostly from prerequisite
+ordering.
 
-DeepEval cross-check on 10 of the saved samples (Groq `gpt-oss-120b` judge, four keys in parallel, 15 minutes):
-faithfulness 1.00 (8 answers scored), answer relevancy 0.97 (7), context precision 0.86 (6), context recall 1.00
-(7). The remaining metric calls returned no usable verdict. DeepEval scores higher than our own judge on every
-metric; with so few samples, both are reported and neither replaces the other.
+### Limits of these numbers
 
-Fourteen golden questions (8 text, 4 Hindi, 2 multi-hop) have their gold locators in a smoke-test copy of the
-textbook that is now hidden, so the next `--indexed-only` run skips them and scores 27 in-scope questions
-instead of 41; the results above predate that.
+- The golden questions are generated from the indexed units and not yet spot-checked by a person.
+- The gate is calibrated and scored on the same questions, so refusal figures are optimistic.
+- Citation accuracy is strict: answers usually cite several correct units while each question has one gold unit.
+- The adaptive gain is small in absolute terms and depends on an assumed student model.
+- The BKT estimate drifts from simulated truth over sessions (mean absolute error 0.064 after onboarding, 0.147
+  after ten sessions) because fixed BKT parameters do not model forgetting. A learn rate of 0.10 or 0.15 and a
+  forgetting-weighted estimate did not fix it; fitting BKT and forgetting parameters from logged attempts is
+  next.
+- Fourteen golden questions (8 text, 4 Hindi, 2 multi-hop) have gold locators in a now-hidden smoke-test copy of
+  the textbook, so the next `--indexed-only` run scores 27 in-scope questions instead of 41. The results above
+  predate that.
 
-Known gaps: concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed
-concept are orphaned; a mock exam of eight items takes about two minutes because each item is generated and
-solved blind on free-tier providers.
+**Why one gate threshold.** A two-tier band (refuse below a low threshold, answer above a high one, entailment
+check in between) was tried in run `ev_9197101682`. It did worse, with refusal honesty 0.90 at the same 0.073
+over-refusal, so it was reverted. Most over-refusals are spoken math in the lecture transcript ("sine theta
+over theta"), which the cross-encoder scores low: the lecture's trigonometric-limit passage tops out at 0.118
+against a threshold of 0.136.
+
+### Known gaps
+
+- Concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed concept are
+  orphaned.
+- A mock exam of eight items takes about two minutes, because each item is generated and solved blind on
+  free-tier providers.
+
+## Repo layout
+
+```
+RAG_DB/                  # ingestion → retrieval → generation pipeline
+  src/                   # flat pipeline modules (ingest, extract, label, embed, store, generate, llm, …)
+                         # plus packages: core/ api/ ingest/ concepts/ tutor/ assess/ learner/ revision/ evaluation/
+  tests/                 # one small test file per package
+  raw/ processed/ metadata/ qdrant_db/   # local-only (gitignored)
+frontend/                # Next.js web app (chat, quiz, report, dashboard, evaluation)
+whisper-server/          # local transcription service
+scripts/e2e_smoke.sh     # end-to-end check against a running API
+docker-compose.app.yml   # full stack: qdrant, api, web, optional whisper
+docker-compose.gpu.yml   # GPU overlay for the native Docker engine
+```
+
+Only `README.md` is tracked on GitHub. All other markdown (specs, gap analysis, notes) stays local by
+`.gitignore` policy.
