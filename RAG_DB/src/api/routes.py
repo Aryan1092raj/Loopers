@@ -254,7 +254,7 @@ def get_job_log(job_id: str, tail: int = 200):
 def list_sources():
     return _rows(
         "SELECT s.*, (SELECT COUNT(*) FROM units u WHERE u.source_id = s.source_id) AS unit_count"
-        " FROM sources s ORDER BY s.lecture_no, s.created_at"
+        " FROM sources s WHERE s.hidden = 0 ORDER BY s.lecture_no, s.created_at"
     )
 
 

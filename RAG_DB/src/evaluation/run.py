@@ -17,7 +17,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 import config
-from core.db import get_connection
+from core.db import get_connection, hidden_sources
 from evaluation import golden, metrics
 from tutor import gate as gate_mod
 from tutor.retrieve import retrieve_evidence
@@ -144,7 +144,7 @@ def main() -> None:
 
     items = golden.load()
     if a.indexed_only:  # before validation: items for sources that are not indexed are exactly the ones skipped
-        idx = indexed_sources()
+        idx = indexed_sources() - hidden_sources()  # a hidden source is never retrieved, so its items cannot be hit
         kept = [it for it in items if all(g["source_id"] in idx for g in it["gold_locators"])]
         print(f"[eval] --indexed-only: {len(kept)} of {len(items)} items")
         items = kept

@@ -38,7 +38,8 @@ def init_db(db_path: Path | None = None):
       lecture_no  INTEGER,
       lang        TEXT NOT NULL DEFAULT 'en',
       status      TEXT NOT NULL CHECK (status IN ('queued','running','done','failed')),
-      created_at  TEXT NOT NULL
+      created_at  TEXT NOT NULL,
+      hidden      INTEGER NOT NULL DEFAULT 0  -- 1 keeps the source for history but out of lists and retrieval
     );
 
     CREATE TABLE IF NOT EXISTS jobs (
@@ -233,6 +234,8 @@ def init_db(db_path: Path | None = None):
 
     try:
         cursor.executescript(ddl)
+        if "hidden" not in {r[1] for r in cursor.execute("PRAGMA table_info(sources)")}:  # databases made before the column
+            cursor.execute("ALTER TABLE sources ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
         conn.commit()
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
@@ -241,3 +244,12 @@ def init_db(db_path: Path | None = None):
     finally:
         conn.close()
 
+
+
+def hidden_sources() -> set[str]:
+    """source_ids marked hidden: kept for old citations and quiz items, but never listed or retrieved."""
+    conn = get_connection()
+    try:
+        return {r[0] for r in conn.execute("SELECT source_id FROM sources WHERE hidden = 1")}
+    finally:
+        conn.close()

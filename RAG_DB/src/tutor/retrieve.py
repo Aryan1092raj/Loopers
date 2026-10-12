@@ -4,7 +4,7 @@ Differences from the notes and deck path: RRF order is kept (no has_math re-sort
 evidence comes from the concepts tagged on the question, not from the last word of the query.
 """
 from concepts import api as concepts
-from core.db import get_connection
+from core.db import get_connection, hidden_sources
 from core.models import Evidence, Locator, SourceUnit
 
 MAX_PREREQ_CONCEPTS = 2   # tagged concepts whose prerequisites are fetched
@@ -86,13 +86,16 @@ def retrieve_evidence(query: str, scope: dict | None = None) -> tuple[list[Evide
     from generate import retrieve  # heavy: loads BGE-M3, reranker and Qdrant on first call
 
     chunks, reranked = retrieve(query, tutor=True)
+    hidden = hidden_sources()
+    if hidden:  # ponytail: filtered after retrieval, so hidden chunks still use top-k slots; a Qdrant filter if many are hidden
+        chunks = [c for c in chunks if c.get("source_id") not in hidden]
     # an untagged corpus would filter every chunk out, so the scope applies only once the concept build has run
     if scope and (scope.get("topic_ids") or scope.get("concept_ids")) and _units_tagged():
         keep = _in_scope([str(c.get("unit_id") or "") for c in chunks], scope)
         chunks = [c for c in chunks if str(c.get("unit_id") or "") in keep]
     if chunks:  # background for the question; nothing to add when the question matched nothing
         try:
-            chunks = chunks + _prerequisite_chunks(query)
+            chunks = chunks + [c for c in _prerequisite_chunks(query) if c.get("source_id") not in hidden]
         except Exception as e:  # prerequisites are optional context, never a reason to fail the answer
             print(f"[tutor] prerequisite lookup failed: {e}")
     # a paged source whose chunks carry no locator (stale extraction) cannot be cited, so it is never evidence
