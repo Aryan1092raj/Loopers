@@ -116,7 +116,7 @@ def run(k: int = 5, judge: bool = False, figures: bool = False) -> dict:
     print("-" * 70)
     for i, item in enumerate(questions, 1):
         q = item["q"]
-        chunks, _ = retrieve(q, k, subject=item.get("subject", "mathematics"))
+        chunks, _ = retrieve(q, k, subject=item.get("subject"))  # no subject = unfiltered
         joined = "\n".join(c.get("text", "") for c in chunks)
         hit = _hit(joined, item.get("must_contain", []))
         if item.get("figure_page"):

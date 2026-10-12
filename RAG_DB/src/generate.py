@@ -356,8 +356,10 @@ def retrieve(
         from knowledge_graph import build_graph, get_prerequisites
         G = build_graph()
         if G.number_of_nodes() > 0 and not tutor:
-            top_concept = query.strip().split()[-1]
-            prereqs = get_prerequisites(G, top_concept, depth=2)
+            # Longest graph concept named in the query (was the query's last word, which rarely is a concept).
+            q = f" {re.sub(r'[^a-z0-9]+', ' ', query.lower())} "
+            top_concept = max((n for n in G if f" {n} " in q), key=len, default=None)
+            prereqs = get_prerequisites(G, top_concept, depth=2) if top_concept else []
             if prereqs:
                 c = store.client()
                 for prereq in prereqs[:3]:

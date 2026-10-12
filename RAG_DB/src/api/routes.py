@@ -435,9 +435,9 @@ def get_mastery(student_id: str):
                     lr_dt = lr_dt.replace(tzinfo=datetime.timezone.utc)
                 t = max((now - lr_dt).total_seconds() / 86400, 0)
                 r_val = (9 * s) / (9 * s + t) if s > 0 else 0.0
-            except:
+            except ValueError:  # malformed last_review timestamp
                 pass
-                
+
         result.append({
             "concept_id": cid,
             "p_know": p,
