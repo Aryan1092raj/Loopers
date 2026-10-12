@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
@@ -45,8 +46,9 @@ def _gemini(prompt: str) -> str:
 
 
 class GroqJudge(DeepEvalBaseLLM):
-    def __init__(self):
+    def __init__(self, keys=None):
         self.n = 0
+        self.keys = keys or KEYS
 
     def load_model(self):
         return MODEL
@@ -55,7 +57,7 @@ class GroqJudge(DeepEvalBaseLLM):
         suffix = f"\n\nReply with JSON only, matching this schema: {json.dumps(schema.model_json_schema())}" if schema else ""
         text = _gemini(prompt + suffix) if GEMINI else ""
         for attempt in range(0 if GEMINI else 8):
-            key = KEYS[self.n % len(KEYS)]
+            key = self.keys[self.n % len(self.keys)]
             self.n += 1
             r = requests.post("https://api.groq.com/openai/v1/chat/completions", timeout=120,
                               headers={"Authorization": f"Bearer {key}"},
@@ -84,11 +86,13 @@ class GroqJudge(DeepEvalBaseLLM):
 
 def main(path: str, n: int = 6) -> None:
     samples = json.loads(Path(path).read_text())[:n]
-    judge = GroqJudge()
     names = {"faithfulness": FaithfulnessMetric, "answer_relevancy": AnswerRelevancyMetric,
              "context_precision": ContextualPrecisionMetric, "context_recall": ContextualRecallMetric}
     scores = {k: [] for k in names}
-    for s in samples:
+
+    def score(i: int, s: dict) -> None:
+        # One worker per Groq key: each key has its own per-minute limit, so workers judge in parallel.
+        judge = GroqJudge([KEYS[i % len(KEYS)]] if KEYS else None)
         case = LLMTestCase(input=s["question"], actual_output=s["answer"], expected_output=s["reference"],
                            retrieval_context=s["contexts"])
         for name, cls in names.items():
@@ -96,8 +100,12 @@ def main(path: str, n: int = 6) -> None:
                 m = cls(model=judge, async_mode=False, verbose_mode=False)
                 m.measure(case)
                 scores[name].append(m.score)
+                print(f"[deepeval] {s['id']} {name} {m.score:.2f}", flush=True)
             except Exception as e:  # one malformed judge reply should not sink the run
-                print(f"[deepeval] {s['id']} {name} failed: {str(e)[:100]}")
+                print(f"[deepeval] {s['id']} {name} failed: {str(e)[:100]}", flush=True)
+
+    with ThreadPoolExecutor(max(1, len(KEYS))) as pool:
+        list(pool.map(score, range(len(samples)), samples))
     out = {k: {"mean": sum(v) / len(v) if v else None, "n": len(v)} for k, v in scores.items()}
     print(json.dumps(out, indent=2))
 
