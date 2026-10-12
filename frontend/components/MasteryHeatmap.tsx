@@ -20,7 +20,7 @@ export default function MasteryHeatmap({ graph, mastery }: { graph: Graph; maste
               const d = detail.get(c.id);
               const tip = `${Math.round(c.p_know * 100)}% known · ${d?.n_obs ?? 0} observations${d?.retrievability != null ? ` · recall ${Math.round(d.retrievability * 100)}%` : ""}`;
               return (
-                <div key={c.id} title={tip} style={{ background: masteryColor(c.p_know) }} className="rounded border p-2 text-sm">
+                <div key={c.id} title={tip} style={{ background: masteryColor(c.p_know) }} className="rounded-xl border border-black/5 p-3 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow">
                   <div className="font-medium">{c.name}</div>
                   <div className="text-xs text-neutral-700">{Math.round(c.p_know * 100)}%</div>
                 </div>
