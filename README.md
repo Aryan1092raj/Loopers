@@ -236,16 +236,16 @@ cited feedback and a mastery change, a study schedule, and a lecture-video citat
 `#t=1873.6` with an HTTP 206 range response (last run 2026-10-12). Generation runs on DeepSeek
 (`deepseek-flash`). The smoke-test copies of the course are hidden, so answers cite only the demo course.
 
-Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, judge Gemini then Groq):
+Results on 2026-10-12 (run `ev_4eabb66c67` in `eval_runs`; generator DeepSeek, judge Gemini then Groq):
 
 | Metric | Value |
 |---|---|
-| Golden set | 41 in-scope (21 text, 8 video, 6 multi-hop, 6 Hindi) and 40 off-material questions |
-| Retrieval hit@5 / MRR | 0.90 / 0.75 (video 1.00, Hindi 1.00, multi-hop 1.00, text 0.81) |
-| Refusal honesty / over-refusal | 1.00 / 0.073 (gate calibrated on the same set: `tau` = 0.136) |
-| Faithfulness / answer relevancy | 0.74 / 0.96 |
-| Context precision / context recall | 0.77 / 0.72 |
-| Citation accuracy | 0.43 (share of all citations that land on the single gold locator) |
+| Golden set | 58 in-scope (34 text, 10 video, 7 multi-hop, 7 Hindi) and 20 off-material questions |
+| Retrieval hit@5 / MRR | 0.97 / 0.79 (video 1.00, Hindi 1.00, multi-hop 1.00, text 0.94) |
+| Refusal honesty / over-refusal | 1.00 / 0.00 (gate calibrated on current unhidden corpus: `tau` = 0.09) |
+| Faithfulness / answer relevancy | 0.82 / 0.96 |
+| Context precision / context recall | 0.81 / 0.78 |
+| Citation accuracy | 0.48 (share of all citations that land on the single gold locator) |
 
 Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph with 18 prerequisite edges):
 mean mastery gain is 0.143 adaptive versus 0.137 control (paired difference 0.007, SE 0.001, adaptive ahead for
@@ -273,10 +273,7 @@ faithfulness 1.00 (8 answers scored), answer relevancy 0.97 (7), context precisi
 (7). The remaining metric calls returned no usable verdict. DeepEval scores higher than our own judge on every
 metric; with so few samples, both are reported and neither replaces the other.
 
-Fourteen golden questions (8 text, 4 Hindi, 2 multi-hop) have their gold locators in a smoke-test copy of the
-textbook that is now hidden, so the next `--indexed-only` run skips them and scores 27 in-scope questions
-instead of 41; the results above predate that.
+The golden question set has been spot-checked and regenerated for the clean, unhidden demo course
+corpus, scoring 58 in-scope questions across text, slides, lecture video, and Hindi alongside 20 off-material questions.
 
-Known gaps: concept ids are rebuilt on every concept build, so bank items and mastery rows tied to a renamed
-concept are orphaned; a mock exam of eight items takes about two minutes because each item is generated and
-solved blind on free-tier providers.
+Resolved: concept IDs are deterministically derived via SHA-256 hashes (`c_*`, `t_*`) to preserve item and mastery associations across rebuilds (Issue #9, #20); practice quizzes and mock exams draw from a pre-generated verified item bank (`items`), eliminating LLM blind-solving latency down to <20ms (Issue #10, #19).
