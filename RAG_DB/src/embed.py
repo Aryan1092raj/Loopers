@@ -521,6 +521,9 @@ def run(force_full: bool = False) -> None:
     faulthandler.dump_traceback_later(60, repeat=True)
     try:
         _run(force_full)
+        from ingest import page_embed
+        if page_embed.ENABLED:
+            page_embed.run()
     finally:
         faulthandler.cancel_dump_traceback_later()
 

@@ -296,6 +296,15 @@ def retrieve(
             subject=None, sparse_vector=qsparse, math_boost=not tutor,
         )
 
+    # Stage 1.5: page-image leg (ColSmol + EmbeddingGemma image vectors) adds the units on the best-matching pages
+    from ingest import page_embed
+    if page_embed.ENABLED:
+        try:
+            seen = {c.get("unit_id") for c in broad}
+            broad += [c for c in page_embed.page_chunks(query, qvec) if c.get("unit_id") not in seen]
+        except Exception as e:
+            print(f"[generate] Warning: page retrieval failed ({e}).")
+
     # Stage 2: CLAF rerank if learner profile provided
     if learner_profile:
         from claf import rerank
