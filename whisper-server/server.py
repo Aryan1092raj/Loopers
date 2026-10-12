@@ -35,8 +35,9 @@ current_ld = os.environ.get("LD_LIBRARY_PATH", "")
 missing_dirs = [d for d in nvidia_lib_dirs if d not in current_ld and os.path.exists(d)]
 if missing_dirs:
     os.environ["LD_LIBRARY_PATH"] = ":".join(missing_dirs + ([current_ld] if current_ld else []))
-    print("[whisper-server] Auto-injected PyPI CUDA libraries into LD_LIBRARY_PATH. Re-executing...")
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    if not os.environ.get("WHISPER_NO_REEXEC"):
+        print("[whisper-server] Auto-injected PyPI CUDA libraries into LD_LIBRARY_PATH. Re-executing...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 # ────────────────────────────────────────────────────────────────────────
 
 import uvicorn
