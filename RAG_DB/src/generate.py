@@ -372,8 +372,8 @@ def retrieve(
                         chunk["_is_prerequisite"] = True
                         chunk["_prereq_concept"] = prereq
                     top = prereq_chunks + top
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[generate] Warning: prerequisite lookup failed ({e}).")
 
     return top[:k], reranked
 

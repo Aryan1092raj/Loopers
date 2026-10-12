@@ -66,7 +66,7 @@ def get_next_schedule(student_id: str, limit: int = 5) -> list[dict]:
                     nxt_dt = nxt_dt.replace(tzinfo=datetime.timezone.utc)
                 if now > nxt_dt:
                     is_overdue = True
-            except:
+            except ValueError:
                 pass
                 
         # Priority mapping

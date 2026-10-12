@@ -70,7 +70,7 @@ def build_graph(db_path: Path | None = None) -> "networkx.DiGraph":
                     ev_data = json.loads(evidence)
                     if isinstance(ev_data, dict) and "relation" in ev_data:
                         rel = ev_data["relation"]
-                except:
+                except json.JSONDecodeError:
                     pass
             G.add_edge(src.lower(), dst.lower(), relation=rel, weight=float(weight or 1.0))
     except sqlite3.OperationalError:

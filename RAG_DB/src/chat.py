@@ -150,7 +150,8 @@ def _call_llm_chat(messages: list) -> str:
         except Exception as e:
             print(f"[chat] DeepSeek failed ({e}). Trying Anthropic...")
 
-    # 2. Anthropic direct (if key present)    if config.ANTHROPIC_API_KEY:
+    # 2. Anthropic direct (if key present)
+    if config.ANTHROPIC_API_KEY:
         try:
             print("[chat] Anthropic for intent parsing...")
             return call_anthropic(messages, max_tokens=2048, role="chat")
