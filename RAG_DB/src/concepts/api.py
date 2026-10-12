@@ -27,11 +27,28 @@ def _from_db() -> dict | None:
                 for r in conn.execute("SELECT concept_id, name, level, parent_id, aliases_json, description FROM concepts")
             ]
             edges = [{"src": s, "dst": d, "weight": w} for s, d, w in conn.execute("SELECT src, dst, weight FROM concept_edges")]
+            # concept_id -> 1 if any of its units is in a listed source, 0 if all are in removed (hidden) ones
+            seen = dict(conn.execute(
+                "SELECT uc.concept_id, MAX(s.hidden = 0) FROM unit_concepts uc JOIN units u ON uc.unit_id = u.unit_id"
+                " JOIN sources s ON u.source_id = s.source_id GROUP BY uc.concept_id"
+            ))
         finally:
             conn.close()
     except sqlite3.OperationalError:  # tables not created yet
         return None
-    return {"nodes": nodes, "edges": edges} if nodes else None
+    if not nodes:
+        return None
+    keep = {n["id"] for n in nodes if seen.get(n["id"], 1)}
+    if len(keep) < len(nodes):
+        # A parent with no units of its own goes once all its children are gone, level by level.
+        children: dict[str, set] = {}
+        for n in nodes:
+            children.setdefault(n["parent_id"], set()).add(n["id"])
+        while empty := {p for p in keep if p in children and p not in seen and not children[p] & keep}:
+            keep -= empty
+        nodes = [n for n in nodes if n["id"] in keep]
+        edges = [e for e in edges if e["src"] in keep and e["dst"] in keep]
+    return {"nodes": nodes, "edges": edges}  # empty once every source is removed, never the fixture
 
 
 def get_graph(fixture: bool = True) -> dict:

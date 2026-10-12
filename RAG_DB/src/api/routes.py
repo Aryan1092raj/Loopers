@@ -260,6 +260,21 @@ def list_sources():
     )
 
 
+@router.delete("/sources/{source_id}")
+def remove_source(source_id: str):
+    """Soft remove: the source leaves lists, retrieval and the concept graph, but its units stay so old
+    citations and quiz items still resolve. Undo with UPDATE sources SET hidden = 0."""
+    conn = get_connection()
+    try:
+        removed = conn.execute("UPDATE sources SET hidden = 1 WHERE source_id = ? AND hidden = 0", (source_id,)).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if not removed:
+        raise HTTPException(404, "Source not found")
+    return {"source_id": source_id, "removed": True}
+
+
 @router.get("/jobs/{job_id}")
 def get_job(job_id: str):
     rows = _rows("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
