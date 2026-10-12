@@ -92,7 +92,24 @@ function Report() {
   const ids = useIds();
   const quiz = useSearchParams().get("quiz");
   const [sets, setSets] = useState<QuizSet[]>([]);
-  useEffect(() => setSets(readQuizSets()), []);
+  useEffect(() => {
+    const local = readQuizSets();
+    if (local.length > 0) {
+      setSets(local);
+    } else if (ids?.studentId) {
+      get<Array<{ quiz_id: string; created_at: string }>>(`/api/students/${encodeURIComponent(ids.studentId)}/quizzes`)
+        .then((serverQuizzes) => {
+          if (serverQuizzes && serverQuizzes.length > 0) {
+            setSets(serverQuizzes.map((sq, i) => ({
+              n: i + 1,
+              items: [],
+              attempts: [{ id: sq.quiz_id, at: sq.created_at }]
+            })));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [ids?.studentId]);
   const report = useGet<QuizReport>(ids && quiz ? reportPath(quiz, ids.studentId) : null);
   const graph = useGet<Graph>(ids ? `/api/graph?student_id=${encodeURIComponent(ids.studentId)}` : null);
   const names = new Map((graph.data?.nodes ?? []).map((n) => [n.id, n.name]));
