@@ -215,16 +215,18 @@ Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, j
 | Context precision / context recall | 0.77 / 0.72 |
 | Citation accuracy | 0.43 (share of all citations that land on the single gold locator) |
 
-Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph): mean mastery gain is 0.164
-adaptive versus 0.163 control (paired difference 0.001, SE 0.001, adaptive ahead for 60% of students), and the
-question repetition rate is 0.001 versus 0.091.
+Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph with 16 prerequisite edges):
+mean mastery gain is 0.145 adaptive versus 0.139 control (paired difference 0.006, SE 0.001, adaptive ahead for
+80% of students; slow learners 0.014 versus 0.007), and the question repetition rate is 0.002 versus 0.087. On an
+earlier build of the same course with 40 concepts and 10 edges the difference was 0.001 (SE 0.001), so the gain
+comes from prerequisite ordering and grows with the graph's structure.
 
 Read these numbers with their limits. The golden questions are generated from the indexed units and not yet
 spot-checked by a person, and the gate is calibrated and scored on the same questions, so refusal figures are
 optimistic. Citation accuracy is strict: answers usually cite several correct units while each question has one
-gold unit. Under the simulated student model, adaptive selection does not raise mastery gain over random
-practice; it only removes repeats. The BKT estimate also drifts from simulated truth over sessions (mean
-absolute error 0.065 after onboarding, 0.160 after ten sessions) because the fixed BKT parameters do not model
+gold unit. The adaptive gain is small in absolute terms and depends on an assumed
+student model. The BKT estimate also drifts from simulated truth over sessions (mean absolute error 0.064 after
+onboarding, 0.152 after ten sessions) because the fixed BKT parameters do not model
 forgetting; a learn rate of 0.10 or 0.15 and a forgetting-weighted estimate were tried and did not fix it.
 Fitting BKT and forgetting parameters from logged attempts is the next step.
 
