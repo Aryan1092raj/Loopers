@@ -9,6 +9,7 @@ torchvision==0.29.1
 # --- embeddings (EmbeddingGemma 2: text, image, audio, video; also hosts the bge reranker) ---
 transformers>=5
 sentence-transformers>=6
+peft  # vidore/colSmol-500M ships as a LoRA adapter (ingest/page_embed.py)
 librosa
 soundfile
 torchcodec

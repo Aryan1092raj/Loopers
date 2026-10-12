@@ -39,6 +39,7 @@ services:
     environment:
       QDRANT_URL: http://qdrant:6333
       WHISPER_SERVER_URL: http://whisper:8300/v1/audio/transcriptions
+      LOOPERS_VISUAL_RETRIEVAL: ${LOOPERS_VISUAL_RETRIEVAL:-0}  # 1 = page-image retrieval (ColSmol + EmbeddingGemma)
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
