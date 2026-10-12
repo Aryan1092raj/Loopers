@@ -22,6 +22,7 @@ const routes: Route[] = [
   ["GET", /^\/api\/status$/, () => ({ ok: true })],
   ["GET", /^\/api\/sources$/, () => sources],
   ["POST", /^\/api\/sources$/, () => { jobPolls = 0; return { source_id: "a1b2", job_id: "j1" }; }],
+  ["DELETE", /^\/api\/sources\/[^/]+$/, () => ({ removed: true })],
   ["GET", /^\/api\/jobs\/[^/]+\/log$/, () => ({ lines: ["[mock] extract started", "[mock] extract failed"] })],
   ["POST", /^\/api\/jobs\/[^/]+\/cancel$/, () => ({ job_id: "j1", status: "cancelling" })],
   ["GET", /^\/api\/jobs\/[^/]+$/, () => {
