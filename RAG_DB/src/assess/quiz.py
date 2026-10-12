@@ -14,7 +14,7 @@ from assess.dedup import check_duplicate
 from assess.generate import NoMaterial, generate_item
 from assess.grade import grade_submission, item_feedback
 from assess.verify import blind_verify
-from core.db import HIDDEN_UNITS, REMOVED_CONCEPTS, get_connection
+from core.db import HIDDEN_UNITS, REMOVED_CONCEPTS, get_connection, unit_counts
 from tutor.cite import resolve
 
 DEFAULT_P_KNOW = 0.15
@@ -94,7 +94,8 @@ def scope_concepts(student_id: str, topic_ids: list[str], concept_ids: list[str]
         pairs = [(c, _topic_of(conn, c)) for c in ids]
     finally:
         conn.close()
-    return sorted(pairs, key=lambda p: (mastery.get(p[0], DEFAULT_P_KNOW), p[0]))
+    size = unit_counts()
+    return sorted(pairs, key=lambda p: (mastery.get(p[0], DEFAULT_P_KNOW), -size.get(p[0], 0), p[0]))
 
 
 def _bank_item(conn, student_id: str, concept_id: str, item_type: str, difficulty: float | None, taken: set) -> dict | None:

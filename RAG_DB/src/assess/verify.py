@@ -12,7 +12,34 @@ SOLVER_SYSTEM = (
     "Answer the exam question yourself. Reply with a single JSON object {\"answer\": \"...\"} and nothing else. "
     "For multiple choice, give the exact text of the one option you pick. For numeric, give only the number."
 )
-SHORT_MATCH = 60  # ponytail: fuzzy match for short answers; swap in an LLM judge if it rejects good items
+SHORT_MATCH = 60  # fuzzy match: key vs blind solver, and the grader's fallback when no LLM answers
+GRADER_SYSTEM = (
+    "You grade a student's short answer against the answer key. Mark it correct if it states the same idea, "
+    "even in other words. Mark it wrong if it contradicts the key, misses its main point, or reuses the key's "
+    "words with a different meaning. Reply with a single JSON object {\"correct\": true} or {\"correct\": false}."
+)
+
+
+def grade_short(stem: str, expected: str, given: str, grader=None) -> bool:
+    """A judge model, not the generator (CLAUDE.md rule 7), decides if a short answer means the same as the key.
+    Word overlap alone accepts answers that reuse the key's terms with the wrong meaning."""
+    if not given.strip():
+        return False
+    try:
+        reply = (grader or (lambda q: complete([{"role": "system", "content": GRADER_SYSTEM}, {"role": "user", "content": q}],
+                                               role="solver", max_tokens=300)))(
+            f"Question: {stem}\nAnswer key: {expected}\nStudent answer: {given}")
+        return json.loads(re.search(r"\{.*\}", reply, re.S).group(0))["correct"] is True
+    except (json.JSONDecodeError, KeyError, AttributeError, TypeError, NoProvider) as e:
+        logger.warning(f"Short-answer grader unavailable, falling back to fuzzy match: {e!r}")
+        return same_answer("short", expected, given)
+
+
+def check_answer(item_type: str, stem: str, expected: str, given: str, tolerance: float | None = None) -> bool:
+    """Grade a student's answer: the judge model for short answers, exact or numeric match otherwise."""
+    if item_type == "short":
+        return grade_short(stem, expected, given)
+    return same_answer(item_type, expected, given, tolerance)
 
 
 def same_answer(item_type: str, expected: str, given: str, tolerance: float | None = None) -> bool:

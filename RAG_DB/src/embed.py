@@ -444,19 +444,21 @@ def build_image_chunks(
 ) -> tuple[list[str], list[dict], list[str]]:
     """Build image chunks from labels.json.
 
-    If changed_docs contains the sentinel '__images__', rebuild all image chunks.
+    If changed_docs contains the sentinel '__images__', rebuild all image chunks. Otherwise rebuild the
+    figures of each changed doc: delete_by_doc removes them along with its text, since they share `doc`.
     """
     docs_out, metas, ids = [], [], []
-    if changed_docs is not None and "__images__" not in changed_docs:
-        return docs_out, metas, ids
+    rebuild_all = changed_docs is None or "__images__" in changed_docs
 
     for name, lab in load_labels().items():
-        kws = ", ".join(lab.get("keywords", []))
-        text = f"{lab.get('caption', '')} [{lab.get('type', '')}] {kws}"
         if "/" in name:  # <stem>/<file>, as written by extract and label
             parent_stem = name.split("/")[0]
         else:
             parent_stem = name.split("_p")[0] if "_p" in name else Path(name).stem
+        if not rebuild_all and parent_stem not in changed_docs:
+            continue
+        kws = ", ".join(lab.get("keywords", []))
+        text = f"{lab.get('caption', '')} [{lab.get('type', '')}] {kws}"
         docs_out.append(text)
         metas.append({
             "kind": "image",

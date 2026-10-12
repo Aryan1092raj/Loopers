@@ -4,7 +4,7 @@ import datetime
 from core.db import get_connection
 from learner.bkt import update_p_know
 from learner.fsrs import next_interval
-from assess.verify import same_answer
+from assess.verify import check_answer
 from tutor.cite import resolve
 import logging
 
@@ -31,19 +31,18 @@ def grade_submission(student_id: str, quiz_id: str, item_id: str, student_answer
     """
     conn = get_connection()
     try:
-        conn.execute("BEGIN IMMEDIATE")
-        
-        # 1. Fetch Item
-        item = conn.execute("SELECT concept_id, answer_json, type, rubric_json FROM items WHERE item_id=?", (item_id,)).fetchone()
+        # 1. Fetch and grade the item before the write lock: a short answer waits on the judge model
+        item = conn.execute("SELECT concept_id, answer_json, type, rubric_json, stem FROM items WHERE item_id=?", (item_id,)).fetchone()
         if not item:
             raise ValueError(f"Item {item_id} not found in database.")
 
-        concept_id, ans_str, item_type, rubric_str = item
+        concept_id, ans_str, item_type, rubric_str, stem = item
         correct_ans = json.loads(ans_str)
         rubric = json.loads(rubric_str or "{}")
 
         given = student_answer[0] if student_answer else ""
-        is_correct = same_answer(item_type, correct_ans[0], given, rubric.get("tolerance"))
+        is_correct = check_answer(item_type, stem, correct_ans[0], given, rubric.get("tolerance"))
+        conn.execute("BEGIN IMMEDIATE")
         score = 1.0 if is_correct else 0.0
         now = datetime.datetime.now(datetime.timezone.utc)
         misconception = None if is_correct else (rubric.get("distractor_notes") or {}).get(given)
