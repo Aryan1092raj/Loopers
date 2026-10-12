@@ -305,7 +305,14 @@ def get_concept(concept_id: str):
         raise HTTPException(404, "Concept not found")
     unit_ids = [
         r["unit_id"] for r in
-        _rows("SELECT unit_id FROM unit_concepts WHERE concept_id = ? ORDER BY score DESC LIMIT 20", (concept_id,))
+        _rows(
+            "SELECT uc.unit_id FROM unit_concepts uc "
+            "JOIN units u ON uc.unit_id = u.unit_id "
+            "JOIN sources s ON u.source_id = s.source_id "
+            "WHERE uc.concept_id = ? AND (s.hidden IS NULL OR s.hidden = 0) "
+            "ORDER BY uc.score DESC LIMIT 20",
+            (concept_id,),
+        )
     ]
     return {
         "concept": concept,

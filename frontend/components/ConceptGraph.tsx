@@ -15,11 +15,11 @@ function ConceptNode({ data, selected }: NodeProps<Node<ConceptData>>) {
   const pct = Math.round(data.p * 100);
   return (
     <div
-      className={`concept-node w-[220px] cursor-pointer rounded-xl border bg-white px-3 py-2 text-left shadow-sm transition-shadow hover:shadow-md ${selected ? "border-indigo-500 ring-2 ring-indigo-200" : "border-slate-200"}`}
+      className={`concept-node min-w-[240px] cursor-pointer rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-sm transition-shadow hover:shadow-md ${selected ? "border-indigo-500 ring-2 ring-indigo-200" : "border-slate-200"}`}
       title={`${data.name}: mastery ${pct}%`}
     >
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-slate-300" />
-      <p className="truncate text-xs font-medium text-slate-800">{data.name}</p>
+      <p className="truncate text-xs md:text-sm font-semibold text-slate-900 leading-snug">{data.name}</p>
       <div className="mt-1.5 flex items-center gap-2">
         <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
           <span className="block h-full rounded-full" style={{ width: `${Math.max(4, pct)}%`, background: masteryColor(data.p).replace("85%", "55%") }} />
