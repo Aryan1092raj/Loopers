@@ -146,20 +146,22 @@ python -m evaluation.simulate                          # simulated students
 The judge is a different model from the generator, and a DeepEval cross-check runs on dumped samples. Tests:
 `cd RAG_DB && python -m pytest tests -q`. End to end: `scripts/e2e_smoke.sh`.
 
-## Results (2026-10-12)
+## Results (2026-10-13)
 
 Demo course *Limits and Continuity*: OpenStax *Calculus Volume 1* ch. 2 (64 pages), MIT OCW 18.01 Lecture 2
-(52 min) and a 12-slide deck. Run `ev_4eabb66c67`, with 58 in-scope and 20 off-material questions:
+(52 min) and a 12-slide deck. Run `ev_c7dd7ca45d` (`--answers --indexed-only`), with 27 in-scope questions
+(13 textbook, 8 video, 4 multi-hop, 2 Hindi) and 40 off-material questions, judged by Gemini Flash; simulation
+run `sim_3db7c2479d`, 20 students per profile over 10 sessions of 10 items:
 
 | Metric | Value |
 |---|---|
-| Retrieval hit@5 / MRR | 0.97 / 0.79 |
-| Refusal honesty / over-refusal | 1.00 / 0.00 (`tau` = 0.09) |
-| Faithfulness / answer relevancy | 0.82 / 0.96 |
-| Context precision / recall | 0.81 / 0.78 |
-| Citation accuracy | 0.48 |
-| Mastery gain, adaptive vs control | 0.143 vs 0.137 |
-| Question repetition, adaptive vs control | 0.002 vs 0.087 |
+| Retrieval hit@5 / MRR | 0.93 / 0.89 |
+| Refusal honesty / over-refusal | 1.00 / 0.07 |
+| Faithfulness / answer relevancy | 0.75 / 0.99 |
+| Context precision / recall | 0.87 / 0.81 |
+| Citation accuracy | 0.57 |
+| Mastery gain, adaptive vs control | 0.126 vs 0.115 (paired +0.011, SE 0.0008; adaptive better for 98% of students) |
+| Question repetition, adaptive vs control | 0.001 vs 0.075 |
 
 **Limits.**
 

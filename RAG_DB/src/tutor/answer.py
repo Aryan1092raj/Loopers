@@ -30,8 +30,8 @@ SYSTEM = (
 )
 TRANSLATE_SYSTEM = (
     "Detect the language of the student's question; Hindi written in Latin letters (Hinglish) counts as hi. "
-    "Reply with a single JSON object {\"lang\": \"<ISO 639-1 code>\", \"english\": \"<the question in English>\"} "
-    "and nothing else."
+    "Reply with a single JSON object {\"lang\": \"<ISO 639-1 code>\", \"search\": \"<the subject question in English, "
+    "without any request about the reply's language or format such as 'explain in Hindi'>\"} and nothing else."
 )
 
 
@@ -212,7 +212,7 @@ def _to_english(message: str) -> tuple[str, str] | None:
         found = json.loads(re.search(r"\{.*\}", reply, re.S).group(0))
     except (NoProvider, json.JSONDecodeError, AttributeError):
         return None
-    lang, english = str(found.get("lang", "en")).lower(), str(found.get("english", "")).strip()
+    lang, english = str(found.get("lang", "en")).lower(), str(found.get("search", "")).strip()
     return (english, lang) if lang != "en" and english else None
 
 
