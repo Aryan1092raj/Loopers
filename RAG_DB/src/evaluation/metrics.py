@@ -55,9 +55,8 @@ def refusal_rates(in_scope_refused: list[bool], off_refused: list[bool]) -> dict
 def calibrate_gate(in_scores: list[float], off_scores: list[float], honesty_min: float = 0.95, over_max: float = 0.05) -> dict:
     """Pick gate thresholds from top reranker scores (TRD §7.3).
 
-    tau_low: smallest value with honesty >= honesty_min and over-refusal <= over_max; tau_high: 5th percentile of
-    in-scope scores, so 95% of in-scope questions skip Tier 2. When no value meets both targets, the two thresholds
-    bracket the overlap instead (see below). Reported honesty and over-refusal are for the score alone, before Tier 2.
+    tau_low: smallest value with honesty >= honesty_min and over-refusal <= over_max, else the Youden's J maximiser
+    (honesty - over_refusal). tau_high: 5th percentile of in-scope scores, so 95% of in-scope questions skip Tier 2.
     """
     if not in_scores or not off_scores:
         raise ValueError("calibration needs both in-scope and off-material scores")
@@ -67,18 +66,9 @@ def calibrate_gate(in_scores: list[float], off_scores: list[float], honesty_min:
 
     candidates = sorted({0.0, *in_scores, *off_scores, max(in_scores + off_scores) + 1e-6})
     ok = [t for t in candidates if rates(t)[0] >= honesty_min and rates(t)[1] <= over_max]
-    if ok:
-        tau_low = ok[0]
-        ranked = sorted(in_scores)
-        tau_high = max(tau_low, ranked[int(0.05 * len(ranked))])
-    else:
-        # No single score separates the classes, so use both tiers: refuse outright only below a tau_low that keeps
-        # over-refusal within target, answer outright only above a tau_high that keeps honesty within target, and
-        # let the Tier 2 entailment check decide in between. One threshold would leave Tier 2 unused.
-        tau_low = max(t for t in candidates if rates(t)[1] <= over_max)
-        tau_high = max(tau_low, min(t for t in candidates if rates(t)[0] >= honesty_min))
+    tau_low = ok[0] if ok else max(candidates, key=lambda t: rates(t)[0] - rates(t)[1])
     honesty, over = rates(tau_low)
-    band = lambda xs: sum(tau_low <= s < tau_high for s in xs) / len(xs)
+    ranked = sorted(in_scores)
+    tau_high = max(tau_low, ranked[int(0.05 * len(ranked))])
     return {"tau_low": round(tau_low, 4), "tau_high": round(tau_high, 4), "refusal_honesty": honesty,
-            "over_refusal": over, "targets_met": bool(ok),
-            "tier2_share_in_scope": band(in_scores), "tier2_share_off_material": band(off_scores)}
+            "over_refusal": over, "targets_met": bool(ok)}
