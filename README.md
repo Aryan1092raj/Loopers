@@ -218,8 +218,8 @@ Results on 2026-10-12 (run `ev_f3120893c9` in `eval_runs`; generator DeepSeek, j
 Simulated students (60 per arm, 10 sessions of 10 items over the 43-concept graph with 16 prerequisite edges):
 mean mastery gain is 0.145 adaptive versus 0.139 control (paired difference 0.006, SE 0.001, adaptive ahead for
 80% of students; slow learners 0.014 versus 0.007), and the question repetition rate is 0.002 versus 0.087. On an
-earlier build of the same course with 40 concepts and 10 edges the difference was 0.001 (SE 0.001), so the gain
-comes from prerequisite ordering and grows with the graph's structure.
+earlier build of the same course with 40 concepts and 10 edges the difference was 0.001 (SE 0.001), which fits the
+gain coming mostly from prerequisite ordering.
 
 Read these numbers with their limits. The golden questions are generated from the indexed units and not yet
 spot-checked by a person, and the gate is calibrated and scored on the same questions, so refusal figures are
