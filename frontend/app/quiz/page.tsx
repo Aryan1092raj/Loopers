@@ -18,12 +18,12 @@ function Quiz() {
   const root = useRef<HTMLDivElement>(null);
   useStaggerIn(root, !!data);
   return (
-    <div ref={root} className="max-w-4xl space-y-4">
+    <div ref={root} className="max-w-6xl space-y-4">
       <h1 className="text-xl font-semibold">Quiz</h1>
       <ErrorNote message={error} />
       {(loading || !ids) && !data && <p className="text-sm text-neutral-500">Loading…</p>}
       {ids && data && (
-        <QuizRunner key={topic ?? ""} studentId={ids.studentId} concepts={concepts} names={new Map(data.nodes.map((n) => [n.id, n.name]))} initialPicked={picked} />
+        <QuizRunner key={topic ?? ""} studentId={ids.studentId} concepts={concepts} topics={data ? topicsOf(data) : []} names={new Map(data.nodes.map((n) => [n.id, n.name]))} initialPicked={picked} />
       )}
     </div>
   );

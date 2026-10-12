@@ -1,6 +1,7 @@
 "use client";
 import { useRef } from "react";
 import { Empty, ErrorNote } from "@/components/Note";
+import { Ring } from "@/components/Charts";
 import { GoldenRun, SimulationRun } from "@/components/EvalTables";
 import { useStaggerIn } from "@/lib/motion";
 import { useGet } from "@/lib/useGet";
@@ -35,17 +36,9 @@ export default function EvalPage() {
           The same four metrics computed by DeepEval (PS 5a) on 10 saved answers, judged by Groq <code>gpt-oss-120b</code> on 12 Oct 2026.
           Some metric calls returned no usable verdict, so each mean covers 6 to 8 answers.
         </p>
-        <table className="w-full max-w-xl text-sm">
-          <thead><tr className="text-left text-slate-600"><th scope="col">Metric</th><th scope="col" className="text-right">DeepEval</th><th scope="col" className="text-right">Answers scored</th></tr></thead>
-          <tbody>
-            {DEEPEVAL.map(([k, v, n]) => (
-              <tr key={k} className="border-t border-slate-200">
-                <th scope="row" className="py-1 text-left font-normal">{k}</th>
-                <td className="text-right tabular-nums">{(v * 100).toFixed(1)}%</td><td className="text-right tabular-nums">{n}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+<div className="flex flex-wrap justify-around gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {DEEPEVAL.map(([k, v, n]) => <Ring key={k} label={`${k} (${n} answers)`} value={v} color="#7c3aed" />)}
+        </div>
       </section>
       <section aria-label="Caveats" className="space-y-1 text-sm text-slate-600">
         <h2 className="font-medium text-slate-900">How to read these numbers</h2>
