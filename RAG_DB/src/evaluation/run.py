@@ -25,11 +25,14 @@ from tutor.retrieve import retrieve_evidence
 _LIST = re.compile(r"\[[\s\d.,]*\]")
 
 
-_judge_down: dict[str, float] = {}  # provider -> time until which it is skipped after a failure
+_judge_down: dict[str, float] = {}  # judge model -> time until which it is skipped after a failure
+judges_used: dict[str, int] = {}     # judge model -> calls answered, saved with the run
+JUDGE_GEMINI = ("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash")
+JUDGE_GROQ = ("openai/gpt-oss-120b", "openai/gpt-oss-20b")
 
 
 def _judge(prompt: str) -> str:
-    """Judge call on Gemini, else Groq; never the DeepSeek generator (CLAUDE.md rule 7). Both are free tiers with
+    """Judge call on Gemini or Groq models; never the DeepSeek generator (CLAUDE.md rule 7). Both are free tiers with
     per-minute limits: a provider that just failed is skipped for two minutes, and when both are down the call
     waits and tries again instead of failing the run."""
     import time
@@ -37,16 +40,19 @@ def _judge(prompt: str) -> str:
     import llm
 
     msgs = [{"role": "user", "content": prompt}]
-    calls = ([("gemini", lambda: llm.call_gemini(msgs, max_tokens=300))] if config.GEMINI_KEYS else []) + [
-        ("groq", lambda: llm.call_groq(msgs, max_tokens=1500))]  # gpt-oss spends part of the budget on reasoning tokens
+    # Free-tier quotas are per model, so the judge walks a list; gpt-oss spends part of its budget on reasoning tokens.
+    calls = [(m, lambda m=m: llm.call_gemini(msgs, max_tokens=1000, model=m)) for m in JUDGE_GEMINI if config.GEMINI_KEYS] + [
+        (m, lambda m=m: llm.call_groq(msgs, max_tokens=1500, model=m)) for m in JUDGE_GROQ]
     err = None
     for attempt in range(6):
         for name, call in calls:
             if _judge_down.get(name, 0) > time.time():
                 continue
             try:
-                return call()
-            except Exception as e:  # rate limit or empty reply: rest this judge, try the other
+                out = call()
+                judges_used[name] = judges_used.get(name, 0) + 1
+                return out
+            except Exception as e:  # rate limit or empty reply: rest this judge, try the next
                 err = e
                 _judge_down[name] = time.time() + 120
         wait = max(30, min(_judge_down.get(n, 0) for n, _ in calls) - time.time())
@@ -207,6 +213,7 @@ def main() -> None:
         result.update(metrics.refusal_rates(in_ref, off_ref))
         for key in ("faithfulness", "answer_relevancy", "context_precision", "context_recall"):
             result[key] = _mean([j[key] for j in judged if j.get(key) is not None])
+        result["judges"] = judges_used
 
     run_id = "ev_" + uuid.uuid4().hex[:10]
     conn = get_connection()
