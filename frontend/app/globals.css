@@ -1,19 +1,132 @@
 @import "tailwindcss";
 
+/* The site has no dark theme: `dark:` classes from copied components only apply under a `.dark` ancestor. */
+@custom-variant dark (&:where(.dark, .dark *));
+/* Used by the cult-ui cards: hover effects only on devices with a real pointer. */
+@custom-variant fine-hover (@media (hover: hover) and (pointer: fine));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #eef0ff;
+  --foreground: #1e2140; /* ink: a deep navy, never pure black */
+  /* Tokens the cult-ui cards expect. */
+  --card: #ffffff;
+  --card-foreground: #1e2140;
+  --muted: #eceffa;
+  --muted-foreground: #6a7096;
+  --border: #d3d7f3;
+  --ring: #8588e3;
+  --accent: #e4e5fb;
+  --accent-foreground: #3d3da0;
+}
+
+/* One palette for the whole site. Components use Tailwind's indigo, slate and neutral names, so remapping them
+   here restyles every page at once: indigo is the single action colour (#5b5bd6), slate and neutral become a
+   cool navy ramp for text and edges instead of flat grey. */
+@theme {
+  --color-indigo-50: #f0f0ff;
+  --color-indigo-100: #e4e5fb;
+  --color-indigo-200: #cfd1f7;
+  --color-indigo-300: #aeb1ee;
+  --color-indigo-400: #8588e3;
+  --color-indigo-500: #6f71dc;
+  --color-indigo-600: #5b5bd6;
+  --color-indigo-700: #4a4ac0;
+  --color-indigo-800: #3d3da0;
+  --color-indigo-900: #333380;
+
+  --color-slate-50: #f4f6ff;
+  --color-slate-100: #eceffa;
+  --color-slate-200: #d3d7f3;
+  --color-slate-300: #cdd3ee;
+  --color-slate-400: #9096b6;
+  --color-slate-500: #6a7096;
+  --color-slate-600: #50567a;
+  --color-slate-700: #3b4066;
+  --color-slate-800: #2a2e52;
+  --color-slate-900: #1e2140;
+
+  --color-neutral-50: #f4f6ff;
+  --color-neutral-100: #eceffa;
+  --color-neutral-200: #d3d7f3;
+  --color-neutral-300: #cdd3ee;
+  --color-neutral-400: #9096b6;
+  --color-neutral-500: #6a7096;
+  --color-neutral-600: #50567a;
+  --color-neutral-700: #3b4066;
+  --color-neutral-800: #2a2e52;
+  --color-neutral-900: #5b5bd6; /* the old black buttons take the action colour */
+
+  /* layered, indigo-tinted depth instead of grey drop shadows */
+  --shadow-sm: 0 1px 2px rgb(60 60 140 / 0.06), 0 8px 20px -12px rgb(60 60 140 / 0.22);
+  --shadow-md: 0 2px 4px rgb(60 60 140 / 0.06), 0 12px 28px -14px rgb(60 60 140 / 0.28);
+  --shadow-lg: 0 4px 8px rgb(60 60 140 / 0.07), 0 18px 40px -16px rgb(60 60 140 / 0.32);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* One fixed gradient behind every page: lavender into sky into lilac. Static on purpose, so it never repaints. */
 body {
-  background: var(--background);
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef0ff 0%, #e6ecfb 42%, #f1e9fa 100%) fixed;
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 38rem at 6% -8%, rgb(129 140 248 / 0.2), transparent 62%),
+    radial-gradient(52rem 36rem at 102% 104%, rgb(196 181 253 / 0.3), transparent 62%);
+}
+::selection { background: #cfd1f7; }
+
+/* Cards: frosted white over the gradient. Overlays, menus and fields stay solid so text behind never shows through. */
+.bg-white { background-color: rgb(255 255 255 / 0.72); }
+.bg-white.shadow-lg, .bg-white.shadow-xl, .bg-white.shadow-2xl,
+.bg-white[role="menu"], input.bg-white, select.bg-white, textarea.bg-white { background-color: #fff; }
+
+/* An outline on every block: a clear indigo edge plus a faint halo ring, so cards read as designed surfaces. */
+[class*="rounded-2xl"][class*="bg-white"],
+[class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea) {
+  border-color: #bfc3f0;
+  box-shadow: 0 0 0 3px rgb(91 91 214 / 0.06), var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+[class*="rounded-2xl"][class*="bg-white"]:hover,
+[class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):hover {
+  border-color: #9fa4e6;
+  box-shadow: 0 0 0 3px rgb(91 91 214 / 0.1), var(--shadow-md);
+}
+
+/* The action colour: a gentle lift on hover, a press on click. */
+.bg-indigo-600 {
+  box-shadow: 0 1px 2px rgb(60 60 140 / 0.18), 0 6px 14px -8px rgb(91 91 214 / 0.7);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+.bg-indigo-600:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgb(60 60 140 / 0.2), 0 10px 20px -8px rgb(91 91 214 / 0.8); }
+.bg-indigo-600:not(:disabled):active { transform: translateY(0) scale(0.98); }
+.bg-indigo-600:disabled { box-shadow: none; }
+
+/* Ripple (see components/Ripple.tsx): a quiet circle from the pointer, clipped to the element. */
+.ripple-layer { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.ripple-dot { position: absolute; border-radius: 9999px; pointer-events: none; transform: scale(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-indigo-600, .bg-indigo-600:not(:disabled):hover, .bg-indigo-600:not(:disabled):active { transform: none; transition: none; }
 }

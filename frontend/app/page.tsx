@@ -17,23 +17,6 @@ import { usePersisted } from "@/lib/usePersisted";
 import { useStudent } from "@/lib/useStudent";
 import type { Citation, Graph } from "@/lib/types";
 
-/** One collapsible block of the right-hand sidebar. Open state survives navigation. */
-function Section({ id, title, hint, defaultOpen = true, children }: { id: string; title: string; hint?: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = usePersisted(`loopers.section.${id}`, defaultOpen);
-  return (
-    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="group px-5 py-4">
-      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 [&::-webkit-details-marker]:hidden">
-        <span>
-          <span className="block font-semibold">{title}</span>
-          {hint && <span className="block text-xs font-normal text-slate-500">{hint}</span>}
-        </span>
-        <span aria-hidden className="text-xl leading-none text-slate-400 transition group-open:rotate-45">+</span>
-      </summary>
-      <div className="mt-3 space-y-3">{children}</div>
-    </details>
-  );
-}
-
 function Workspace() {
   const ids = useIds();
   const { name } = useStudent();
@@ -70,27 +53,35 @@ function Workspace() {
   return (
     <div className="space-y-3">
       <ErrorNote message={note ?? graph.error} />
-      <div className="grid gap-6 lg:h-[calc(100vh-5.5rem)] lg:grid-cols-[minmax(0,1fr)_26rem]">
+      {/* The page scrolls; the chat stays pinned beside the sidebar, so a long file list is never squeezed or hidden. */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="min-h-[32rem] lg:sticky lg:top-[4.75rem] lg:h-[calc(100vh-6.6rem)]">
         <ChatPanel
+          key={topic?.node.id ?? "all"}
+          chatKey={topic?.node.id ?? "all"}
+          topicName={topic?.node.name ?? "All topics"}
           studentId={ids.studentId}
           sessionId={ids.sessionId}
           onCite={open}
           name={name}
           scope={scope}
-          toolbar={<div className="flex items-center gap-2"><TopicPicker topics={topics} value={topic?.node.id ?? null} onChange={setTopicId} /><CourseMap graph={graph.data} names={names} /></div>}
+          toolbar={<div className="flex items-center gap-2"><TopicPicker topics={topics} value={topic?.node.id ?? null} onChange={setTopicId} /><CourseMap graph={graph.data} names={names} onReload={graph.reload} /></div>}
         />
+        </div>
 
-        <aside aria-label="Course" className="min-h-0 min-w-0 overflow-x-hidden lg:overflow-y-auto">
-          <div className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <Section id="material" title="Add course material" hint="PDFs, slides, lecture videos or a YouTube link">
-              <UploadPanel onJob={(j) => { setJob(j); setSourcesTick((n) => n + 1); }} />
-              {job && <JobCard key={job.id} jobId={job.id} title={job.title} onFinished={() => { setSourcesTick((n) => n + 1); graph.reload(); }} />}
-              <h3 className="pt-1 text-sm font-medium text-slate-700">Uploaded files</h3>
-              <SourcesTable refresh={sourcesTick} onRemoved={graph.reload} />
-            </Section>
-
-
-          </div>
+        <aside aria-label="Course" className="flex min-w-0 flex-col gap-4">
+          <section aria-label="Add course material" className="space-y-3 rounded-2xl border border-indigo-200 bg-white/70 p-4 shadow-sm">
+            <div>
+              <h2 className="font-semibold">Add course material</h2>
+              <p className="text-xs text-slate-500">PDFs, slides, lecture videos or a YouTube link</p>
+            </div>
+            <UploadPanel onJob={(j) => { setJob(j); setSourcesTick((n) => n + 1); }} />
+            {job && <JobCard key={job.id} jobId={job.id} title={job.title} onFinished={() => { setSourcesTick((n) => n + 1); graph.reload(); }} />}
+          </section>
+          <section aria-label="Uploaded files" className="space-y-3 rounded-2xl border border-indigo-200 bg-white/70 p-4 shadow-sm">
+            <h2 className="font-semibold">Uploaded files</h2>
+            <SourcesTable refresh={sourcesTick} onRemoved={graph.reload} />
+          </section>
         </aside>
       </div>
 

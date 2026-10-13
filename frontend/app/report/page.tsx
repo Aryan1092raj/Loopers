@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Bars, Pie, Stat, asPct } from "@/components/Charts";
-import { Empty, ErrorNote } from "@/components/Note";
+import { ErrorNote } from "@/components/Note";
 import ReportView from "@/components/ReportView";
 import { readQuizSets, useIds, type QuizSet } from "@/lib/session";
 import { get } from "@/lib/api";
@@ -42,7 +42,16 @@ function Overview({ sets, studentId, graph }: { sets: QuizSet[]; studentId: stri
       .then((rs) => setReports(new Map(rs.filter((r): r is readonly [string, QuizReport] => r !== null))));
   }, [sets.length, studentId]); // eslint-disable-line react-hooks/exhaustive-deps -- attempts derive from sets
 
-  if (attempts.length === 0) return <Empty>No quizzes yet. <Link href="/quiz" className="underline">Take a quiz</Link> and your report appears here.</Empty>;
+  if (attempts.length === 0) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl border border-indigo-200 bg-white/70 px-6 py-12 text-center shadow-sm">
+        <span aria-hidden className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-100 text-xl text-indigo-700">✦</span>
+        <h2 className="text-lg font-semibold">No quizzes yet</h2>
+        <p className="text-sm text-slate-600">Take a quiz and your report appears here: a score for every attempt, how you did by topic, and what to practise next.</p>
+        <Link href="/quiz" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Take a quiz</Link>
+      </div>
+    );
+  }
   if (!reports) return <p className="text-sm text-slate-500">Building your report…</p>;
 
   const done = attempts.filter((a) => reports.get(a.id)?.raw_metrics);
@@ -119,16 +128,16 @@ function Report() {
 
   if (!quiz) {
     return (
-      <div className="max-w-5xl space-y-4">
-        <h1 className="text-xl font-semibold">Your report</h1>
+      <div className="space-y-5">
+        <header className="space-y-0.5"><h1 className="text-2xl font-semibold tracking-tight">Your report</h1><p className="text-sm text-slate-600">Every quiz attempt, how you scored, and where to focus next.</p></header>
         <ErrorNote message={graph.error} />
         {ids && <Overview sets={sets} studentId={ids.studentId} graph={graph.data} />}
       </div>
     );
   }
   return (
-    <div className="max-w-5xl space-y-4">
-      <h1 className="text-xl font-semibold">{set ? `Quiz ${set.n} · attempt ${current}` : "Quiz report"}</h1>
+    <div className="space-y-5">
+      <h1 className="text-2xl font-semibold tracking-tight">{set ? `Quiz ${set.n} · attempt ${current}` : "Quiz report"}</h1>
       <ErrorNote message={report.error} />
       {report.loading && !report.data && <p className="text-sm text-neutral-500">Building your report…</p>}
       {report.data && <ReportView report={report.data} names={names} />}

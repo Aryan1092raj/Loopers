@@ -18,8 +18,11 @@ function Quiz() {
   const root = useRef<HTMLDivElement>(null);
   useStaggerIn(root, !!data);
   return (
-    <div ref={root} className="max-w-6xl space-y-4">
-      <h1 className="text-xl font-semibold">Quiz</h1>
+    <div ref={root} className="space-y-5">
+      <header className="space-y-0.5">
+        <h1 className="text-2xl font-semibold tracking-tight">Quiz</h1>
+        <p className="text-sm text-slate-600">Pick what to practise, choose how many questions, and every answer comes back with its source.</p>
+      </header>
       <ErrorNote message={error} />
       {(loading || !ids) && !data && <p className="text-sm text-neutral-500">Loading…</p>}
       {ids && data && (

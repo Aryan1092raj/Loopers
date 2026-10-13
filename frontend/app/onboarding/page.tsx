@@ -1,126 +1,170 @@
 "use client";
-import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import LevelTest, { DIAGNOSTIC_QUESTIONS } from "@/components/LevelTest";
 import { Empty, ErrorNote } from "@/components/Note";
-import { get, post } from "@/lib/api";
-import { parseOptions } from "@/lib/quiz";
+import OnboardingTimeline from "@/components/OnboardingTimeline";
+import { backgroundOf, buildPlan, startMastery, type Pick, type PlanDay } from "@/lib/plan";
 import { useIds } from "@/lib/session";
+import { topicLevel, topicsOf } from "@/lib/topics";
+import type { Graph, Mastery, ScheduleDay } from "@/lib/types";
+import { useGet } from "@/lib/useGet";
 import { usePersisted } from "@/lib/usePersisted";
-import type { DiagnosticItem, DiagnosticReply } from "@/lib/types";
 
-const LEVELS = [
-  ["beginner", "New to this subject"],
-  ["intermediate", "Some background"],
-  ["advanced", "Comfortable with the basics"],
-] as const;
-const MAX_ITEMS = 5;
-
-type Phase = "intake" | "diagnostic" | "done";
+const PICKS: [Pick, string][] = [["beginner", "Beginner"], ["intermediate", "Intermediate"], ["strong", "Strong"]];
+const MIN_MINUTES = 10;
+const MAX_MINUTES = 480;
 
 export default function OnboardingPage() {
   const ids = useIds();
-  const [phase, setPhase] = usePersisted<Phase>("loopers.onboarding.phase", "intake");
-  const [level, setLevel] = usePersisted<string>("loopers.onboarding.level", "beginner");
-  const [examDate, setExamDate] = usePersisted<string>("loopers.onboarding.exam", "");
-  const [item, setItem] = usePersisted<DiagnosticItem | null>("loopers.onboarding.item", null);
-  const [answered, setAnswered] = usePersisted("loopers.onboarding.answered", 0);
-  const [result, setResult] = usePersisted<boolean | null>("loopers.onboarding.result", null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [examDate, setExamDate] = usePersisted("loopers.onboarding.exam", "");
+  const [minutesText, setMinutesText] = usePersisted("loopers.onboarding.minutes", ""); // empty until the student chooses
+  const [picks, setPicks] = usePersisted<Record<string, Pick>>("loopers.onboarding.picks", {}); // a topic is ticked when it has a pick
+  const [testing, setTesting] = useState(false);
 
-  async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
-    setError(null);
-    setBusy(true);
-    try { return await fn(); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
+  const id = ids ? encodeURIComponent(ids.studentId) : null;
+  const graph = useGet<Graph>(id ? `/api/graph?student_id=${id}` : null);
+  const mastery = useGet<Mastery[]>(id ? `/api/students/${id}/mastery` : null);
 
-  async function loadNext(count: number) {
-    if (!ids) return;
-    if (count >= MAX_ITEMS) { setPhase("done"); return; }
-    const r = await run(() => get<DiagnosticReply>(`/api/students/${encodeURIComponent(ids.studentId)}/diagnostic`));
-    if (!r) return;
-    if ("status" in r) { setPhase("done"); return; }
-    setItem(r);
-    setResult(null);
-  }
+  const topics = useMemo(() => (graph.data ? topicsOf(graph.data).filter((t) => t.concepts.length) : []), [graph.data]);
+  const selected = useMemo(() => topics.filter((t) => picks[t.node.id]), [topics, picks]);
+  const minutes = Number(minutesText);
+  const minutesOk = Number.isInteger(minutes) && minutes >= MIN_MINUTES && minutes <= MAX_MINUTES;
 
-  async function start() {
-    if (!ids) return;
-    const ok = await run(() => post(`/api/students/onboard`, { student_id: ids.studentId, background: level, exam_date: examDate || null }));
-    if (ok === undefined) return;
-    setPhase("diagnostic");
-    await loadNext(0);
-  }
+  // After the 5-question diagnostic the student can switch to the backend's schedule, which plans from the measured mastery.
+  const [diagnosed, setDiagnosed] = usePersisted("loopers.onboarding.diagnosed", false);
+  const [source, setSource] = usePersisted<"mine" | "backend">("loopers.onboarding.source", "mine");
+  const schedule = useGet<ScheduleDay[]>(id && diagnosed && minutesOk ? `/api/students/${id}/schedule?minutes_per_day=${minutes}` : null);
+  const backendDays = useMemo<PlanDay[]>(() => {
+    if (!graph.data || !schedule.data) return [];
+    const byId = new Map(graph.data.nodes.map((n) => [n.id, n]));
+    const wanted = selected.length ? new Set(selected.flatMap((t) => t.concepts.map((c) => c.id))) : null; // no ticks: the whole course
+    return schedule.data
+      .map((d) => ({ date: d.date, tasks: d.tasks.flatMap((t) => (byId.has(t.concept_id) && (!wanted || wanted.has(t.concept_id)) ? [{ concept: byId.get(t.concept_id)!, minutes: t.minutes, reason: t.reason }] : [])) }))
+      .filter((d) => d.tasks.length > 0);
+  }, [graph.data, schedule.data, selected]);
 
-  async function answer(option: string) {
-    if (!ids || !item) return;
-    const r = await run(() =>
-      post<{ correct: boolean }>(`/api/students/${encodeURIComponent(ids.studentId)}/diagnostic/respond`, { item_id: item.item_id, response: [option] }),
-    );
-    if (!r) return;
-    setResult(r.correct);
-    setAnswered((n) => n + 1);
+  const plan = useMemo(() => {
+    if (!graph.data || !minutesOk || !selected.length) return null;
+    const concepts = selected.flatMap((t) => t.concepts);
+    return buildPlan(concepts, graph.data.edges, startMastery(selected, picks, mastery.data ?? []), { examDate, minutes, today: new Date() });
+  }, [graph.data, mastery.data, selected, picks, examDate, minutes, minutesOk]);
+
+  function setPick(topicId: string, pick: Pick | null) {
+    const next = { ...picks };
+    if (pick) next[topicId] = pick; else delete next[topicId];
+    setPicks(next);
   }
 
   if (!ids) return <p className="text-sm text-neutral-500">Loading…</p>;
+  const card = "space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm";
   return (
-    <div className="max-w-3xl space-y-4">
-      <h1 className="text-xl font-semibold">Welcome</h1>
-      <ErrorNote message={error} />
+    <div className="space-y-5">
+      <header className="space-y-0.5">
+        <h1 className="text-2xl font-semibold tracking-tight">Plan your study</h1>
+        <p className="text-sm text-slate-600">Tell us your exam date, how long you can study each day and where you stand. Your timetable builds itself on the right.</p>
+      </header>
+      <ErrorNote message={graph.error ?? mastery.error} />
 
-      {phase === "intake" && (
-        <form onSubmit={(e) => { e.preventDefault(); start(); }} className="space-y-3 rounded border bg-white p-4">
-          <fieldset className="space-y-2">
-            <legend className="font-medium">How familiar are you with this course?</legend>
-            {LEVELS.map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2">
-                <input type="radio" name="level" value={value} checked={level === value} onChange={() => setLevel(value)} />
-                {label}
-              </label>
-            ))}
-          </fieldset>
-          <label className="flex flex-col gap-1 text-sm">
-            Exam date (optional, shapes your study schedule)
-            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} className="w-44 rounded border bg-white px-2 py-1" />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div className="space-y-4">
+      <section aria-label="Exam and study time" className={card}>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <label className="flex flex-col gap-1">
+            Exam date (optional)
+            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} className="w-44 rounded-lg border border-slate-200 bg-white px-2 py-1.5" />
           </label>
-          <button type="submit" disabled={busy} className="rounded bg-neutral-900 px-3 py-1 text-white disabled:opacity-50">Start diagnostic</button>
-        </form>
-      )}
+          <label className="flex flex-col gap-1">
+            Study time per day (minutes)
+            <input
+              type="number" inputMode="numeric" min={MIN_MINUTES} max={MAX_MINUTES} placeholder="for example 90"
+              value={minutesText} onChange={(e) => setMinutesText(e.target.value)}
+              aria-invalid={minutesText !== "" && !minutesOk}
+              className="w-44 rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+            />
+          </label>
+        </div>
+        {minutesText !== "" && !minutesOk && <p className="text-xs text-red-600">Enter a whole number from {MIN_MINUTES} to {MAX_MINUTES}.</p>}
+      </section>
 
-      {phase === "diagnostic" && item && (
-        <section aria-label="Diagnostic question" className="space-y-3 rounded border bg-white p-4">
-          <p className="text-xs text-neutral-500">Question {answered + (result === null ? 1 : 0)} of {MAX_ITEMS}</p>
-          <p className="font-medium">{item.stem}</p>
-          <div className="grid gap-2">
-            {parseOptions(item.options_json).map((o) => (
-              <button key={o} type="button" disabled={busy || result !== null} onClick={() => answer(o)} className="rounded border px-3 py-1 text-left hover:bg-neutral-100 disabled:opacity-60">
-                {o}
-              </button>
-            ))}
+      <section aria-label="Topics" className={card}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-medium">Pick your topics and level</h2>
+            <p className="text-xs text-slate-500">Tick what you want to study and rate yourself. Or take the diagnostic and get a schedule planned from your measured level.</p>
           </div>
-          {result !== null && (
-            <div className="flex items-center gap-3">
-              <span className={`rounded px-2 py-0.5 text-xs ${result ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{result ? "Correct" : "Not quite"}</span>
-              <button type="button" onClick={() => loadNext(answered)} className="rounded bg-neutral-900 px-3 py-1 text-white">Next</button>
+          {!testing && <button type="button" onClick={() => setTesting(true)} className="rounded-xl bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white">Take the {DIAGNOSTIC_QUESTIONS}-question diagnostic</button>}
+        </div>
+        {testing && (
+          <LevelTest
+            studentId={ids.studentId} background={backgroundOf(picks)} examDate={examDate}
+            onClose={(tested) => { setTesting(false); mastery.reload(); if (tested) { setDiagnosed(true); setSource("backend"); } }}
+          />
+        )}
+        {graph.loading && !graph.data && <p className="text-sm text-slate-500">Loading topics…</p>}
+        {graph.data && topics.length === 0 && <Empty>No topics yet. Add course material and let the concepts stage finish.</Empty>}
+        <ul className="space-y-2">
+          {topics.map((t) => {
+            const pick = picks[t.node.id];
+            const measured = mastery.data ? topicLevel(t, mastery.data) : null;
+            return (
+              <li key={t.node.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+                <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800">
+                  <input type="checkbox" checked={!!pick} onChange={(e) => setPick(t.node.id, e.target.checked ? "beginner" : null)} />
+                  <span className="truncate">{t.node.name}</span>
+                  <span className="font-normal text-slate-500">· {t.concepts.length} concepts</span>
+                </label>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  {measured && measured.p !== null && (
+                    <span className="text-xs text-slate-500">Measured: {measured.level === "strong" ? "Strong" : "Shaky"} · {Math.round(measured.p * 100)}%</span>
+                  )}
+                  {pick && (
+                    <fieldset className="flex gap-3">
+                      <legend className="sr-only">Your level in {t.node.name}</legend>
+                      {PICKS.map(([value, label]) => (
+                        <label key={value} className="flex items-center gap-1">
+                          <input type="radio" name={`level-${t.node.id}`} checked={pick === value} onChange={() => setPick(t.node.id, value)} />
+                          {label}
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      </div>
+
+      <section aria-label="Your timetable" className={`${card} lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">Your timetable</h2>
+          {diagnosed && (
+            <div role="group" aria-label="Timetable source" className="flex gap-1 text-sm">
+              {([["mine", "From my levels"], ["backend", "From my diagnostic"]] as const).map(([value, label]) => (
+                <button key={value} type="button" aria-pressed={source === value} onClick={() => setSource(value)}
+                  className={`rounded-lg border px-3 py-1 ${source === value ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white hover:border-indigo-300"}`}>
+                  {label}
+                </button>
+              ))}
             </div>
           )}
-        </section>
-      )}
-
-      {phase === "done" && answered === 0 && (
-        <Empty>
-          No diagnostic questions exist yet; the item bank fills as quizzes are generated. Your starting level is saved.{" "}
-          <Link href="/quiz" className="underline">Take a practice quiz</Link>.
-        </Empty>
-      )}
-      {phase === "done" && answered > 0 && (
-        <div className="space-y-2 rounded border bg-white p-4">
-          <p className="font-medium">Diagnostic complete.</p>
-          <Link href="/dashboard" className="underline">See your mastery</Link>
         </div>
-      )}
+        {diagnosed && source === "backend" ? (
+          !minutesOk ? <Empty>Enter your study time per day to see your timetable.</Empty>
+          : schedule.error ? <ErrorNote message={schedule.error} />
+          : schedule.loading && !schedule.data ? <p className="text-sm text-slate-500">Building your schedule…</p>
+          : <OnboardingTimeline days={backendDays} left={0} empty="Nothing is scheduled for these topics yet." />
+        ) : (
+          <>
+            {!selected.length && <Empty>Tick at least one topic to see your timetable.</Empty>}
+            {selected.length > 0 && !minutesOk && <Empty>Enter your study time per day to see your timetable.</Empty>}
+            {plan && <OnboardingTimeline days={plan.days} left={plan.left.length} />}
+          </>
+        )}
+      </section>
+      </div>
     </div>
   );
 }

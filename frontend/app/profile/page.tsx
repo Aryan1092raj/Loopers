@@ -14,7 +14,7 @@ export default function ProfilePage() {
   if (!ids) return <p className="text-sm text-slate-500">Loading…</p>;
   return (
     <div className="max-w-xl space-y-4">
-      <h1 className="text-xl font-semibold">Profile</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
