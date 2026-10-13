@@ -9,7 +9,6 @@ import concept from "../mocks/ui_concept.json";
 import diagnostic from "../mocks/ui_diagnostic.json";
 import graph from "../mocks/ui_graph.json";
 import quizItem from "../mocks/ui_quiz_item.json";
-import quiz from "../mocks/quiz_q1.json";
 import sources from "../mocks/ui_sources.json";
 
 type Route = [method: string, pattern: RegExp, reply: (body: Record<string, unknown>) => unknown];
@@ -64,16 +63,16 @@ const routes: Route[] = [
   ["POST", /^\/api\/voice\/stt$/, () => ({ text: "what is an eigenvalue" })],
   ["GET", /^\/api\/eval\/runs$/, () => []],
   ["POST", /^\/api\/pipeline$/, () => { jobPolls = 0; return { job_id: "j1" }; }],
-  ["POST", /^\/api\/quizzes$/, () => ({ ...quiz, mode: "practice", skipped: [] })],
+  ["POST", /^\/api\/quizzes$/, () => ({ quiz_id: "quiz_mock", mode: "practice", items: [quizItem.item], skipped: [], time_limit_s: 90 })],
   ["POST", /^\/api\/quizzes\/[^/]+\/answers$/, (b) => ({
-    quiz_id: "q1",
+    quiz_id: "quiz_mock",
     student_id: "stu_mock",
     results: ((b.answers ?? []) as { item_id: string; response: string }[]).map((a) => ({
       item_id: a.item_id,
-      correct: a.response === "A scalar" ? 1.0 : 0.0,
+      correct: a.response === "det(A - λI) = 0" ? 1.0 : 0.0,
       misconception: null,
-      correct_answer: ["A scalar"],
-      explanation: "An eigenvalue is the scalar λ in Av = λv.",
+      correct_answer: ["det(A - λI) = 0"],
+      explanation: "Eigenvalues are the roots of the characteristic polynomial.",
       citations: chatGrounded.citations.slice(0, 1),
     })),
     mastery_updates: [{ concept_id: "eigenvalues", p_before: 0.4, p_after: 0.55 }],

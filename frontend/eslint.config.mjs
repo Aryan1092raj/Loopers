@@ -20,6 +20,15 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    // vendored from cult-ui via `npx shadcn add @cult-ui/expandable`
+    files: ["components/ui/expandable.tsx"],
+    rules: {
+      "react/display-name": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
