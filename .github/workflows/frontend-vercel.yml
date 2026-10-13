@@ -1,5 +1,5 @@
 # Deploys frontend/ to Vercel: production on push to main, preview on pull requests.
-# Needs repo secrets VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, and the Vercel project's
+# Needs secrets in the "Production" environment: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, and the Vercel project's
 # Root Directory set to "frontend". Build-time env (API_URL, NEXT_PUBLIC_MOCK) comes from the
 # Vercel project settings through `vercel pull`.
 name: Frontend → Vercel
@@ -15,14 +15,14 @@ concurrency:
   group: vercel-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: Production
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
