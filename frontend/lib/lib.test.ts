@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { splitAnswer } from "./answer";
 import { bboxStyle, chipLabel, citationTarget } from "./citation";
-import { layoutGraph } from "./layout";
+import { HONESTY_TARGET, OVER_REFUSAL_LIMIT, targetMark } from "./eval";
+import { faqFrom, mergeFaq } from "./faq";
+import { layoutGraph, revealOrder } from "./layout";
+import { buildPlan, horizonDays, startMastery } from "./plan";
 import { masteryColor } from "./mastery";
 import { parseOptions } from "./quiz";
-import { topicsOf } from "./topics";
+import { topicLevel, topicsOf } from "./topics";
 import type { Citation, GraphEdge, GraphNode } from "./types";
 
 const cite = (id: string, over: Partial<Citation> = {}): Citation => ({
@@ -69,6 +72,79 @@ describe("chipLabel", () => {
   });
 });
 
+describe("targetMark", () => {
+  it("compares against the target in the right direction and says none when the metric was not run", () => {
+    expect(targetMark(0.95, HONESTY_TARGET, "atLeast")).toBe("met");
+    expect(targetMark(0.94, HONESTY_TARGET, "atLeast")).toBe("missed");
+    expect(targetMark(0.05, OVER_REFUSAL_LIMIT, "atMost")).toBe("met");
+    expect(targetMark(0.074, OVER_REFUSAL_LIMIT, "atMost")).toBe("missed");
+    expect(targetMark(undefined, HONESTY_TARGET, "atLeast")).toBe("none");
+  });
+});
+
+describe("buildPlan", () => {
+  const today = new Date(2026, 9, 10); // 10 Oct 2026
+  const ids = (days: ReturnType<typeof buildPlan>["days"]) => days.map((d) => d.tasks.map((t) => t.concept.id));
+  const p = (v: Record<string, number>) => new Map(Object.entries(v));
+
+  it("puts prerequisites first and never schedules a concept before the one it builds on", () => {
+    const plan = buildPlan(["c", "b", "a"].map(node), [edge("a", "b"), edge("b", "c")], p({ a: 0.2, b: 0.2, c: 0.2 }), { examDate: "", minutes: 20, today });
+    expect(ids(plan.days)).toEqual([["a"], ["b"], ["c"]]);
+    expect(plan.days.map((d) => d.date)).toEqual(["2026-10-10", "2026-10-11", "2026-10-12"]);
+  });
+  it("keeps each day within the minutes the student set, 20 to learn and 10 to review", () => {
+    const plan = buildPlan(["a", "b", "c"].map(node), [], p({ a: 0.2, b: 0.2, c: 0.7 }), { examDate: "", minutes: 30, today });
+    expect(plan.days.every((d) => d.tasks.reduce((s, t) => s + t.minutes, 0) <= 30)).toBe(true);
+    expect(plan.days.map((d) => d.tasks.map((t) => [t.concept.id, t.minutes]))).toEqual([[["a", 20]], [["b", 20], ["c", 10]]]); // b does not fit beside a
+  });
+  it("puts mastered concepts last as a final review", () => {
+    const plan = buildPlan(["a", "b"].map(node), [], p({ a: 0.9, b: 0.2 }), { examDate: "", minutes: 60, today });
+    expect(plan.days[0].tasks.map((t) => [t.concept.id, t.reason])).toEqual([["b", "mastery gap (20%)"], ["a", "final review"]]);
+  });
+  it("stops at the exam date and reports what did not fit", () => {
+    const plan = buildPlan(["a", "b", "c"].map(node), [], p({ a: 0.2, b: 0.2, c: 0.2 }), { examDate: "2026-10-12", minutes: 20, today });
+    expect(plan.days.map((d) => d.date)).toEqual(["2026-10-10", "2026-10-11"]);
+    expect(plan.left.map((c) => c.id)).toEqual(["c"]);
+  });
+  it("plans a week without an exam date and at least one day for a past date", () => {
+    expect(horizonDays("", today)).toBe(7);
+    expect(horizonDays("2026-10-01", today)).toBe(1);
+    expect(horizonDays("2030-01-01", today)).toBe(60);
+  });
+});
+
+describe("startMastery", () => {
+  it("uses the measured value for tested concepts and the topic's pick for the rest", () => {
+    const topic = { node: node("t"), concepts: [node("a"), node("b")], mastery: 0 };
+    const tested = { concept_id: "a", p_know: 0.3, retrievability: null, n_obs: 2, last_review: null };
+    const untested = { concept_id: "b", p_know: 0.11, retrievability: null, n_obs: 0, last_review: null };
+    expect([...startMastery([topic], { t: "strong" }, [tested, untested])]).toEqual([["a", 0.3], ["b", 0.8]]);
+  });
+});
+
+describe("topicLevel", () => {
+  const topic = { node: node("t"), concepts: [node("a"), node("b")], mastery: 0 };
+  const row = (concept_id: string, p_know: number, n_obs = 1) => ({ concept_id, p_know, retrievability: null, n_obs, last_review: null });
+  it("is new when no concept of the topic was tested", () => {
+    expect(topicLevel(topic, [])).toEqual({ level: "new", p: null });
+    expect(topicLevel(topic, [row("a", 0.9, 0), row("other", 0.9)])).toEqual({ level: "new", p: null });
+  });
+  it("averages only tested concepts and splits strong from shaky at 70%", () => {
+    expect(topicLevel(topic, [row("a", 0.9), row("b", 0.5, 0)])).toEqual({ level: "strong", p: 0.9 });
+    expect(topicLevel(topic, [row("a", 0.5), row("b", 0.7)])).toMatchObject({ level: "shaky" });
+  });
+});
+
+describe("revealOrder", () => {
+  it("lists every prerequisite before the concepts that need it, however the input is ordered", () => {
+    const nodes = ["d", "c", "b", "a", "solo"].map(node);
+    const edges = [edge("a", "c"), edge("b", "c"), edge("c", "d")];
+    const order = revealOrder(nodes, edges).map((n) => n.id);
+    for (const e of edges) expect(order.indexOf(e.src)).toBeLessThan(order.indexOf(e.dst));
+    expect(order).toEqual(["a", "b", "solo", "c", "d"]);
+  });
+});
+
 describe("layoutGraph", () => {
   it("puts each node one column right of its deepest prerequisite", () => {
     const placed = layoutGraph([node("a"), node("b"), node("c")], [edge("a", "b"), edge("b", "c")]);
@@ -122,5 +198,19 @@ describe("topicsOf", () => {
     expect(t1.mastery).toBeCloseTo(0.4);
     expect(t2.concepts).toEqual([]);
     expect(t2.mastery).toBe(0);
+  });
+});
+
+describe("faq", () => {
+  const turn = (q: string, answer: string, mode = "grounded") => ({ q, r: { mode, answer } as never });
+
+  it("keeps answered questions, drops refusals and citation markers", () => {
+    const faq = faqFrom([turn("What is a limit?", "A limit is a value [E1] approached."), turn("Off topic", "", "refused"), { q: "pending" }]);
+    expect(faq).toEqual([{ q: "What is a limit?", a: "A limit is a value approached." }]);
+  });
+
+  it("replaces a repeated question with the newer answer and moves it last", () => {
+    const merged = mergeFaq([{ q: "A?", a: "old" }, { q: "B?", a: "b" }], [{ q: " a? ", a: "new" }]);
+    expect(merged.map((m) => m.a)).toEqual(["b", "new"]);
   });
 });
