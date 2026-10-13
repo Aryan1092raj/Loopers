@@ -1,6 +1,6 @@
 # Dependency set for Dockerfile.render (Render free tier, 512 MB): requirements.app.txt minus every model,
-# ASR, OCR and video-ingest package. Retrieval, ingest and voice return errors there; quizzes, mastery,
-# the concept graph and media serving work. Index locally and publish vectors with src/push_qdrant.py.
+# ASR, OCR and video-ingest package. Model calls go to a remote GPU service. Ingest and voice return errors
+# there; quizzes, mastery, the concept graph and media serving work. Publish vectors with src/push_qdrant.py.
 pymupdf==1.24.10
 pillow==10.4.0
 numpy==1.26.4

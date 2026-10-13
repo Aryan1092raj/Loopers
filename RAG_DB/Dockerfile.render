@@ -1,7 +1,7 @@
-# Loopers API for Render's free tier: no models, demo course baked in, vectors in Qdrant Cloud.
+# Loopers API for Render: no models, demo course baked in, vectors in Qdrant Cloud.
+# Models run on a separate GPU service (Google Cloud); this image only calls it.
 # Built locally (the course data is not in git) and pushed to a private registry; Render deploys the image.
 #   ./export_deploy_data.sh && docker build -f Dockerfile.render -t ghcr.io/<user>/loopers-api:latest . && docker push ...
-# Retrieval needs the query embedding model, so /api/chat fails here until one is hosted.
 FROM python:3.12-slim-bookworm
 
 WORKDIR /app

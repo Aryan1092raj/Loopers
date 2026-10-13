@@ -1,0 +1,32 @@
+# Render Blueprint for the Loopers API. Render pulls a prebuilt image; build and push it first:
+#   cd RAG_DB && ./export_deploy_data.sh && docker build -f Dockerfile.render -t ghcr.io/<user>/loopers-api:latest . && docker push ghcr.io/<user>/loopers-api:latest
+# For a private registry, add the pull credentials in the Render dashboard (Account Settings > Registry Credentials).
+# Secrets (sync: false) are entered in the dashboard on first sync; they never live in this file.
+services:
+  - type: web
+    name: loopers-api
+    runtime: image
+    image:
+      url: ghcr.io/REPLACE_USER/loopers-api:latest
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: EMBED_MODEL
+        value: google/embeddinggemma-2
+      - key: API_CORS_ORIGINS
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
