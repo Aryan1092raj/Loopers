@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
-import { get, post } from "@/lib/api";
+import { ApiError, get, post } from "@/lib/api";
 import { reducedMotion } from "@/lib/motion";
 import { parseOptions } from "@/lib/quiz";
 import { newQuizId, readQuizSets, recordAnswer, type QuizSet } from "@/lib/session";
@@ -17,13 +17,8 @@ type Phase = "setup" | "loading" | "answering" | "feedback" | "done";
 
 const MIXED_TYPES = ["mcq", "short", "numeric"] as const;
 
-async function generate(concept: GraphNode, itemType: string): Promise<QuizItem | null> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const r = await post<{ status: string; item?: QuizItem }>("/api/quiz/generate", { concept_id: concept.id, topic_id: concept.parent_id ?? "", item_type: itemType });
-    if (r.status === "success" && r.item) return r.item;
-  }
-  return null;
-}
+interface CreatedQuiz { quiz_id: string; items: QuizItem[]; skipped: string[]; time_limit_s?: number }
+interface AnsweredQuiz { results: { correct: number; correct_answer: string[]; explanation: string; citations: QuizFeedback["citations"] }[] }
 
 /** One topic as a selectable card: the card toggles the whole topic; "Pick concepts" opens per-concept chips. */
 function TopicCard({ name, concepts, mastery, picked, setPicked }: {
@@ -97,6 +92,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
   const skippedRef = useRef(0);
   const totalRef = useRef(4);
   const retryRef = useRef<QuizSet | null>(null); // set while replaying a saved quiz
+  const itemsRef = useRef<QuizItem[]>([]);
   const [phase, setPhase] = useState<Phase>("setup");
   const [picked, setPicked] = useState<Set<string>>(() => new Set(initialPicked));
   const [count, setCount] = useState(4);
@@ -112,6 +108,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
   const [skipped, setSkipped] = useState(0);
   const [answeredN, setAnsweredN] = useState(0);
   const [noQuestions, setNoQuestions] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [total, setTotal] = useState(4);
   const [done, setDone] = useState<{ answered: number; total: number; note: string | null } | null>(null);
   const [sets, setSets] = useState<QuizSet[]>([]);
@@ -187,7 +184,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
     setPhase("loading");
     setError(null);
     try {
-      const next = retryRef.current ? retryRef.current.items[i] : await generate(chosen[i % chosen.length], mixed ? MIXED_TYPES[i % MIXED_TYPES.length] : "mcq");
+      const next = itemsRef.current[i];
       if (!next) {
         skippedRef.current += 1;
         setSkipped((n) => n + 1);
@@ -220,10 +217,37 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
     setAnsweredN(0);
     setDone(null);
     setNoQuestions(false);
+    setStartError(null);
     setSkipped(0);
     setIndex(0);
-    if (mode === "mock") setLeft(n * 90);
-    await load(0);
+    if (retry) {
+      itemsRef.current = retry.items;
+      if (mode === "mock") setLeft(n * 90);
+      return load(0);
+    }
+    setPhase("loading");
+    try {
+      const mix: Record<string, number> = {};
+      for (let i = 0; i < n; i++) { const t = mixed ? MIXED_TYPES[i % MIXED_TYPES.length] : "mcq"; mix[t] = (mix[t] ?? 0) + 1; }
+      const r = await post<CreatedQuiz>("/api/quizzes", { student_id: studentId, mode, scope: { topic_ids: [], concept_ids: chosen.map((c) => c.id) }, mix });
+      if (r.items.length === 0) {
+        setNoQuestions(true);
+        setPhase("setup");
+        return;
+      }
+      quizId.current = r.quiz_id;
+      itemsRef.current = r.items;
+      totalRef.current = r.items.length;
+      skippedRef.current = r.skipped.length;
+      setTotal(r.items.length);
+      setSkipped(r.skipped.length);
+      if (mode === "mock") setLeft(r.time_limit_s ?? r.items.length * 90);
+      await load(0);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setNoQuestions(true); // no concept in scope has source material
+      else setStartError(e instanceof Error ? e.message : String(e));
+      setPhase("setup");
+    }
   }
   const start = () => begin(count, null);
   const retry = (set: QuizSet) => begin(set.items.length, set);
@@ -232,9 +256,19 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
     if (!item || !choice?.trim()) return;
     setError(null);
     try {
-      const r = await post<{ correct: boolean; feedback?: QuizFeedback }>(`/api/quiz/submit?student_id=${encodeURIComponent(studentId)}`, {
-        quiz_id: quizId.current, item_id: item.item_id, student_answer: [choice.trim()],
-      });
+      let r: { correct: boolean; feedback?: QuizFeedback };
+      if (retryRef.current) {
+        // a replay reuses saved items under a fresh id, which the batch API does not know, so it grades one answer at a time
+        r = await post(`/api/quiz/submit?student_id=${encodeURIComponent(studentId)}`, {
+          quiz_id: quizId.current, item_id: item.item_id, student_answer: [choice.trim()],
+        });
+      } else {
+        const { results } = await post<AnsweredQuiz>(`/api/quizzes/${encodeURIComponent(quizId.current)}/answers`, {
+          answers: [{ item_id: item.item_id, response: choice.trim() }],
+        });
+        const { correct, ...feedback } = results[0];
+        r = { correct: correct >= 0.5, feedback };
+      }
       setFeedback(r.feedback ?? null);
       answered.current += 1;
       setAnsweredN(answered.current);
@@ -262,7 +296,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
   if (phase === "setup") {
     return (
       <form onSubmit={(e) => { e.preventDefault(); start(); }} className="space-y-8">
-        <ErrorNote message={noQuestions ? "No new questions are available for these concepts yet. Pick other concepts or try again later." : null} />
+        <ErrorNote message={noQuestions ? "No new questions are available for these concepts yet. Pick other concepts or try again later." : startError} />
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <section aria-label="Scope" className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
@@ -362,7 +396,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
         {left !== null && <span role="timer" className={`rounded-full px-2 py-0.5 font-medium tabular-nums ${left < 60 ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}`}>{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left</span>}
       </div>
       <ErrorNote message={error} />
-      {phase === "loading" && <p className="text-sm text-neutral-500">Preparing a verified question…</p>}
+      {phase === "loading" && <p className="text-sm text-neutral-500">Preparing verified questions…</p>}
       {item && phase !== "loading" && (
         <>
           <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">{concepts.find((c) => c.id === item.concept_id)?.name ?? item.concept_id} · {item.type} · {item.bloom}</p>
