@@ -297,7 +297,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
     return (
       <form onSubmit={(e) => { e.preventDefault(); start(); }} className="space-y-8">
         <ErrorNote message={noQuestions ? "No new questions are available for these concepts yet. Pick other concepts or try again later." : startError} />
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section aria-label="Scope" className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="font-medium">Choose topics</h2>
@@ -306,7 +306,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
                 <button type="button" onClick={() => setPicked(new Set())} disabled={picked.size === 0} className="text-slate-500 hover:underline disabled:opacity-40">Clear</button>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {groups.map((g) => <TopicCard key={g.id} name={g.name} concepts={g.concepts} mastery={g.mastery} picked={picked} setPicked={setPicked} />)}
             </div>
           </section>
@@ -338,7 +338,7 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
               <h2 className="font-medium">Your quizzes</h2>
               <Link href="/report" className="text-sm text-indigo-700 hover:underline">All reports</Link>
             </div>
-            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[...sets].reverse().map((s) => (
                 <li key={s.n} className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-baseline justify-between">

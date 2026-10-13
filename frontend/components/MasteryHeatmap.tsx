@@ -14,13 +14,13 @@ export default function MasteryHeatmap({ graph, mastery }: { graph: Graph; maste
     <div className="space-y-4">
       {[...groups.entries()].map(([topic, items]) => (
         <section key={topic} aria-label={topics.get(topic) ?? "Other concepts"}>
-          <h3 className="mb-1 text-sm font-medium">{topics.get(topic) ?? "Other concepts"}</h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <h3 className="mb-1.5 text-sm font-semibold text-slate-700">{topics.get(topic) ?? "Other concepts"}</h3>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((c) => {
               const d = detail.get(c.id);
               const tip = `${Math.round(c.p_know * 100)}% known · ${d?.n_obs ?? 0} observations${d?.retrievability != null ? ` · recall ${Math.round(d.retrievability * 100)}%` : ""}`;
               return (
-                <div key={c.id} title={tip} style={{ background: masteryColor(c.p_know) }} className="rounded-xl border border-black/5 p-3 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow">
+                <div key={c.id} title={tip} style={{ background: masteryColor(c.p_know) }} className="rounded-xl border border-black/10 p-3 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <div className="font-medium">{c.name}</div>
                   <div className="text-xs text-neutral-700">{Math.round(c.p_know * 100)}%</div>
                 </div>

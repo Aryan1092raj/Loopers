@@ -8,7 +8,7 @@ import ConceptGraph from "./ConceptGraph";
 import { Empty } from "./Note";
 
 /** "Course map" button for the chat toolbar; opens the prerequisite graph full screen. */
-export default function CourseMap({ graph, names }: { graph: Graph | null; names: Map<string, string> }) {
+export default function CourseMap({ graph, names, onReload }: { graph: Graph | null; names: Map<string, string>; onReload: () => void }) {
   const [open, setOpen] = useState(false);
   const cite = useSearchParams().get("cite");
   useEffect(() => setOpen(false), [cite]); // a source link in the drawer opens the source viewer behind the map
@@ -22,12 +22,12 @@ export default function CourseMap({ graph, names }: { graph: Graph | null; names
       >
         Course map
       </button>
-      {open && graph && <Overlay graph={graph} names={names} onClose={() => setOpen(false)} />}
+      {open && graph && <Overlay graph={graph} names={names} onReload={onReload} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function Overlay({ graph, names, onClose }: { graph: Graph; names: Map<string, string>; onClose: () => void }) {
+function Overlay({ graph, names, onReload, onClose }: { graph: Graph; names: Map<string, string>; onReload: () => void; onClose: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const picked = useRef(selected);
@@ -54,13 +54,13 @@ function Overlay({ graph, names, onClose }: { graph: Graph; names: Map<string, s
       <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3">
         <div>
           <h2 className="font-semibold">Course map</h2>
-          <p className="text-xs text-slate-500">Arrows run from a prerequisite to the concept that needs it. Colour is your mastery. Click a concept for its sources.</p>
+          <p className="text-xs text-slate-500">Arrows run from a prerequisite to the concept that needs it. Swipe sideways on empty space, or press Next, to reveal the next concept. Swipe with two fingers to move the map. Click a concept for its sources.</p>
         </div>
         <button type="button" onClick={onClose} autoFocus className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm hover:border-indigo-300">Close</button>
       </header>
       <div className="flex min-h-0 flex-1 gap-4 p-4">
         {hasNodes
-          ? <ConceptGraph graph={graph} onSelect={setSelected} className="h-full min-w-0 flex-1" />
+          ? <ConceptGraph graph={graph} onSelect={setSelected} onReload={onReload} className="h-full min-w-0 flex-1" />
           : <Empty>No concepts yet. Add material and let the concepts stage finish.</Empty>}
         {selected && (
           <div className="w-96 shrink-0 overflow-y-auto">

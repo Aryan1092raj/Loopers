@@ -2,17 +2,20 @@
 import { animate, createDrawable, stagger } from "animejs";
 import { useEffect, useRef } from "react";
 import { reducedMotion } from "@/lib/motion";
-import { Bars, Ring, Stat } from "./Charts";
+import { Bars } from "./Charts";
 import type { EvalRun } from "@/lib/types";
 
 const pct = (v: unknown) => (typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "not run");
-const fix3 = (v: number) => v.toFixed(3); // stable formatters: CountUp restarts when its format changes
-const pct1 = (v: number) => `${(v * 100).toFixed(1)}%`;
 const num = (v: unknown) => (typeof v === "number" ? v.toFixed(3) : "not run");
+
+// ponytail: copied from `python -m evaluation.deepeval_check` (progress.md Run 18); store it as an eval run if it is rerun often.
+const DEEPEVAL: Record<string, [number, number]> = {
+  faithfulness: [1.0, 8], answer_relevancy: [0.971, 7], context_precision: [0.857, 6], context_recall: [1.0, 7],
+};
 
 function Table({ caption, rows }: { caption: string; rows: [string, string][] }) {
   return (
-    <table className="w-full rounded-2xl text-sm">
+    <table className="w-full text-sm">
       <caption className="pb-1 text-left font-medium">{caption}</caption>
       <tbody>
         {rows.map(([k, v]) => (
@@ -26,45 +29,73 @@ function Table({ caption, rows }: { caption: string; rows: [string, string][] })
   );
 }
 
-/** `judged` is the newest run made with --answers; retrieval-only runs leave the judge and refusal rows empty. */
-export function GoldenRun({ run, judged }: { run: EvalRun; judged?: EvalRun }) {
+/** Retrieval quality of the newest golden-set run, by question type, plus the refusal gate calibration. */
+export function RetrievalDetails({ run }: { run: EvalRun }) {
   const m = run.metrics;
-  const j = (judged ?? run).metrics;
   const k = (run.config.k as number) ?? 5;
   const types = Object.entries((m.by_type ?? {}) as Record<string, { n: number; mrr: number } & Record<string, number>>);
   return (
-    <section aria-label="Golden set results" className="space-y-4">
+    <div className="space-y-5">
       <p className="text-sm text-slate-600">
-        {m.n_in_scope} in-scope and {m.n_off_material} off-material questions · {new Date(run.created_at).toLocaleString()}
+        {m.n_in_scope} in-scope and {m.n_off_material} off-material questions · run of {new Date(run.created_at).toLocaleString()}
       </p>
-      <div className="flex flex-wrap justify-around gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        {([[`Retrieval hit@${k}`, m[`hit@${k}`], "#4f46e5"], ["Off-material refused", j.refusal_honesty, "#0891b2"],
-          ["Faithfulness", j.faithfulness, "#059669"], ["Answer relevancy", j.answer_relevancy, "#059669"],
-          ["Context precision", j.context_precision, "#d97706"], ["Context recall", j.context_recall, "#d97706"]] as [string, unknown, string][])
-          .filter(([, v]) => typeof v === "number")
-          .map(([label, v, color]) => <Ring key={label} label={label} value={v as number} color={color} />)}
-      </div>
-      <div className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2">
-        <Table caption="Retrieval" rows={[[`hit@${k}`, pct(m[`hit@${k}`])], ["MRR", num(m.mrr)], ["Locator precision", pct(m.locator_precision)]]} />
-        <Table caption={judged && judged !== run ? `Judge metrics (run of ${new Date(judged.created_at).toLocaleString()})` : "Judge metrics"} rows={[
-          ["Faithfulness", pct(j.faithfulness)], ["Answer relevancy", pct(j.answer_relevancy)],
-          ["Context precision", pct(j.context_precision)], ["Context recall", pct(j.context_recall)],
-          ["Citation accuracy", pct(j.citation_accuracy)]]} />
-        <Table caption="Refusals" rows={[["Refusal honesty (off-material refused)", pct(j.refusal_honesty)], ["Over-refusal (in-scope refused)", pct(j.over_refusal)]]} />
-        {m.calibration && (
-          <Table caption="Gate calibration" rows={[
-            ["tau low / high", `${m.calibration.tau_low} / ${m.calibration.tau_high}`],
-            ["Honesty at tau low", pct(m.calibration.refusal_honesty)], ["Over-refusal at tau low", pct(m.calibration.over_refusal)],
-            ["Targets met (honesty ≥ 95%, over-refusal ≤ 5%)", m.calibration.targets_met ? "yes" : "no"]]} />
-        )}
-      </div>
       {types.length > 0 && (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="font-medium">Retrieval by question type</h3>
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Hit@{k} by question type</h3>
           <Bars rows={types.map(([t, v]) => ({ label: `${t.replace("_", " ")} (${v.n})`, value: v[`hit@${k}`], hint: `MRR ${num(v.mrr)}` }))} />
         </div>
       )}
-    </section>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Table caption="All questions" rows={[[`Hit@${k}`, pct(m[`hit@${k}`])], ["MRR (rank of the first right source)", num(m.mrr)], ["Locator precision", pct(m.locator_precision)]]} />
+        {m.calibration && (
+          <Table caption="Refusal gate calibration" rows={[
+            ["Threshold, low / high", `${m.calibration.tau_low} / ${m.calibration.tau_high}`],
+            ["Honesty at the low threshold", pct(m.calibration.refusal_honesty)],
+            ["Over-refusal at the low threshold", pct(m.calibration.over_refusal)],
+            ["Targets met", m.calibration.targets_met ? "yes" : "no"]]} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+const JUDGE_ROWS: [string, string][] = [
+  ["faithfulness", "Faithfulness"], ["answer_relevancy", "Answer relevancy"], ["context_precision", "Context precision"], ["context_recall", "Context recall"],
+];
+
+/** The four judge metrics from our run next to the DeepEval cross-check, in one table. */
+export function AnswerQualityDetails({ run }: { run: EvalRun }) {
+  const m = run.metrics;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">
+        Judge run of {new Date(run.created_at).toLocaleString()}. The cross-check recomputes the same four metrics with DeepEval on 10 saved answers,
+        judged by Groq <code>gpt-oss-120b</code> on 12 Oct 2026; some calls returned no verdict, so each DeepEval mean covers 6 to 8 answers.
+      </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+            <th scope="col" className="pb-1 font-medium">Metric</th>
+            <th scope="col" className="pb-1 text-right font-medium">Our judge</th>
+            <th scope="col" className="pb-1 text-right font-medium">DeepEval cross-check</th>
+          </tr>
+        </thead>
+        <tbody>
+          {JUDGE_ROWS.map(([key, label]) => (
+            <tr key={key} className="border-t border-slate-200">
+              <th scope="row" className="py-1 pr-4 text-left font-normal text-slate-600">{label}</th>
+              <td className="py-1 text-right tabular-nums">{pct(m[key])}</td>
+              <td className="py-1 text-right tabular-nums">{pct(DEEPEVAL[key][0])} <span className="text-xs text-slate-500">({DEEPEVAL[key][1]} answers)</span></td>
+            </tr>
+          ))}
+          <tr className="border-t border-slate-200">
+            <th scope="row" className="py-1 pr-4 text-left font-normal text-slate-600">Citation accuracy</th>
+            <td className="py-1 text-right tabular-nums">{pct(m.citation_accuracy)}</td>
+            <td className="py-1 text-right text-slate-400">not measured</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -101,27 +132,47 @@ function Curves({ adaptive, control }: { adaptive: number[]; control: number[] }
   );
 }
 
-export function SimulationRun({ run }: { run: EvalRun }) {
+/** Simulated students: the mastery curves, then gain per persona and question repetition, adaptive against control. */
+export function SimulationDetails({ run }: { run: EvalRun }) {
   const m = run.metrics;
-  const d = m.paired_gain_difference;
+  const personas = Object.keys(m.adaptive.by_profile ?? {});
   return (
-    <section aria-label="Simulated students" className="space-y-4">
+    <div className="space-y-5">
       <p className="text-sm text-slate-600">
-        {m.students_per_profile} students per profile × 3 profiles, {m.sessions} sessions of {m.items_per_session} items · {new Date(run.created_at).toLocaleString()}
+        {m.students_per_profile} students per persona × {personas.length || 3} personas, {m.sessions} sessions of {m.items_per_session} items · run of {new Date(run.created_at).toLocaleString()}
       </p>
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Stat label="Gain, adaptive" value={m.adaptive.mean_gain} format={fix3} />
-        <Stat label="Gain, control" value={m.control.mean_gain} format={fix3} />
-        <Stat label="Repeats, adaptive" value={m.adaptive.repetition_rate} format={pct1} />
-        <Stat label="Repeats, control" value={m.control.repetition_rate} format={pct1} />
+      <Curves adaptive={m.adaptive.mean_curve} control={m.control.mean_curve} />
+      <div className="grid gap-6 md:grid-cols-2">
+        <div>
+          <table className="w-full text-sm">
+            <caption className="pb-1 text-left font-medium">Mean mastery gain by persona</caption>
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                <th scope="col" className="pb-1 font-medium">Persona</th>
+                <th scope="col" className="pb-1 text-right font-medium">Adaptive</th>
+                <th scope="col" className="pb-1 text-right font-medium">Control</th>
+              </tr>
+            </thead>
+            <tbody>
+              {personas.map((p) => (
+                <tr key={p} className="border-t border-slate-200">
+                  <th scope="row" className="py-1 pr-4 text-left font-normal capitalize text-slate-600">{p}</th>
+                  <td className="py-1 text-right tabular-nums">{num(m.adaptive.by_profile[p])}</td>
+                  <td className="py-1 text-right tabular-nums">{num(m.control.by_profile?.[p])}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-slate-300 font-medium">
+                <th scope="row" className="py-1 pr-4 text-left">All</th>
+                <td className="py-1 text-right tabular-nums">{num(m.adaptive.mean_gain)}</td>
+                <td className="py-1 text-right tabular-nums">{num(m.control.mean_gain)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <Table caption="Other measures" rows={[
+          ["Questions repeated, adaptive", pct(m.adaptive.repetition_rate)], ["Questions repeated, control", pct(m.control.repetition_rate)],
+          ["Mastery estimate error (BKT vs true)", num(m.adaptive.estimate_mae)]]} />
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><Curves adaptive={m.adaptive.mean_curve} control={m.control.mean_curve} /></div>
-      <div className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2">
-        <Table caption="Mean mastery gain" rows={[["Adaptive", num(m.adaptive.mean_gain)], ["Control", num(m.control.mean_gain)],
-          ["Paired difference (± s.e.)", `${num(d.mean)} ± ${num(d.se)}`], ["Students where adaptive gained more", pct(d.students_where_adaptive_won)]]} />
-        <Table caption="Question repetition" rows={[["Adaptive", pct(m.adaptive.repetition_rate)], ["Control", pct(m.control.repetition_rate)],
-          ["BKT estimate error vs true mastery", num(m.adaptive.estimate_mae)]]} />
-      </div>
-    </section>
+    </div>
   );
 }
