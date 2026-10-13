@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { get, post } from "@/lib/api";
 import { useJob } from "@/lib/useJob";
 import { ErrorNote } from "./Note";
@@ -11,7 +11,16 @@ export default function JobCard({ jobId, title, onFinished }: { jobId: string; t
   const done = job?.status === "done";
   const failed = job?.status === "failed";
 
-  useEffect(() => { if (done || failed) onFinished?.(); }, [done, failed, onFinished]);
+  // Fire onFinished exactly once per job. The callback is usually an inline arrow (a new identity on
+  // every parent render), so it must not sit in the deps unguarded: each call triggers parent
+  // setStates, which would re-run this effect and loop until "Maximum update depth exceeded".
+  const firedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!done && !failed) return;
+    if (firedFor.current === jobId) return;
+    firedFor.current = jobId;
+    onFinished?.();
+  }, [done, failed, onFinished, jobId]);
   useEffect(() => {
     if (failed) get<{ lines: string[] }>(`/api/jobs/${jobId}/log?tail=40`).then((r) => setLog(r.lines), () => setLog([]));
   }, [failed, jobId]);
