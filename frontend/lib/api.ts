@@ -1,4 +1,4 @@
-const MOCK = process.env.NEXT_PUBLIC_MOCK === "1";
+const MOCK = process.env.NEXT_MOCK === "1";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

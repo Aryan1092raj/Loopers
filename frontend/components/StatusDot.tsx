@@ -16,7 +16,7 @@ export default function StatusDot() {
     <span role="status" className="flex items-center gap-1 text-xs">
       <span className={`h-2 w-2 rounded-full ${color}`} />
       {label}
-      {process.env.NEXT_PUBLIC_MOCK === "1" && " · mock"}
+      {process.env.NEXT_MOCK === "1" && " · mock"}
     </span>
   );
 }

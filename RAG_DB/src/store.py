@@ -37,7 +37,7 @@ def client():
     if url:
         api_key = os.getenv("QDRANT_API_KEY")
         # No embedded fallback: the API and a pipeline subprocess would each open qdrant_db/ and write it at once.
-        c = QdrantClient(url=url, api_key=api_key or None, timeout=5.0)
+        c = QdrantClient(url=url, api_key=api_key or None, timeout=60.0)  # 5 s timed out upserts to a 0.5 vCPU Qdrant Cloud node
         try:
             c.get_collections()
         except Exception as e:
@@ -160,7 +160,7 @@ def upsert(
             models.PointStruct(id=_point_id(chunk_id), vector=vector, payload=payload)
         )
 
-    batch = 512
+    batch = 64  # 512-point requests ("write operation timed out") overran the proxy and a 0.5 vCPU cloud node
     for start in range(0, len(points), batch):
         c.upsert(collection_name=COLLECTION, points=points[start: start + batch])
 
