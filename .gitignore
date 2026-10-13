@@ -83,3 +83,5 @@ frontend/public/window.svg
 scripts/demo_smoke_test.sh
 RAG_DB/check_chunks.py
 RAG_DB/check_qdrant.py
+.vercel
+.env*
