@@ -1,6 +1,7 @@
 import os
 import logging
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -20,18 +21,6 @@ from worker_client import WorkerOffline
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Loopers Multimodal API")
-init_db()
-app.include_router(router)
-app.include_router(worker_router)
-app.middleware("http")(require_key)
-
-
-@app.exception_handler(WorkerOffline)
-async def worker_offline(request: Request, exc: WorkerOffline):
-    return JSONResponse({"detail": str(exc)}, status_code=503)
-
-
 def _try_sync() -> None:
     if not worker_client.WORKER_URL:
         return
@@ -41,8 +30,23 @@ def _try_sync() -> None:
         logger.warning("startup knowledge sync skipped: %s", e)
 
 
-# In a thread so a sleeping worker cannot delay Render's health check.
-app.add_event_handler("startup", lambda: threading.Thread(target=_try_sync, daemon=True).start())
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # In a thread so a sleeping worker cannot delay Render's health check.
+    threading.Thread(target=_try_sync, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Loopers Multimodal API", lifespan=lifespan)
+init_db()
+app.include_router(router)
+app.include_router(worker_router)
+app.middleware("http")(require_key)
+
+
+@app.exception_handler(WorkerOffline)
+async def worker_offline(request: Request, exc: WorkerOffline):
+    return JSONResponse({"detail": str(exc)}, status_code=503)
 
 # CORS configuration (Updated per TRD spec)
 cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000")
