@@ -26,7 +26,8 @@ SYSTEM = (
     "End every factual sentence with one or more evidence markers such as [E1] or [E1][E3]. "
     "Never write page numbers, slide numbers or timestamps, and never invent a marker. "
     "If the evidence only partly answers the question, say so plainly. Evidence marked background is "
-    "prerequisite material: use it to explain, not to answer. Reply in the language with code {lang}."
+    "prerequisite material: use it to explain, not to answer. Write plain prose sentences: no markdown, no asterisks, "
+    "no headings, no bullet or numbered lists. Reply in the language with code {lang}."
 )
 TRANSLATE_SYSTEM = (
     "Detect the language of the student's question; Hindi written in Latin letters (Hinglish) counts as hi. "
@@ -107,9 +108,16 @@ def learner_note(student_id: str, evidence: list[Evidence]) -> str:
     return f" The student partly knows this (mastery {p:.2f}): give a clear explanation with one worked example from the evidence."
 
 
+def _plain(text: str) -> str:
+    """Strip the markdown a model adds despite the prompt; the chat UI shows text as written, so `**x**` would print its asterisks."""
+    text = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), text, flags=re.S)
+    text = re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", text)
+    return re.sub(r"^\s{0,3}#{1,6}\s+", "", text, flags=re.M)
+
+
 def _generate(question: str, evidence: list[Evidence], history: list[dict], lang: str, note: str = "") -> str:
     user = f"Evidence:\n{_evidence_block(evidence)}\n\nQuestion: {question}"
-    return complete([{"role": "system", "content": SYSTEM.format(lang=lang) + note}, *_turns(history), {"role": "user", "content": user}])
+    return _plain(complete([{"role": "system", "content": SYSTEM.format(lang=lang) + note}, *_turns(history), {"role": "user", "content": user}]))
 
 
 def _repair(sentences: list[str], evidence: list[Evidence]) -> list[str]:

@@ -37,6 +37,7 @@ OCR_ZOOM = 1.5
 import multiprocessing
 USE_GPU = os.getenv("USE_GPU_OCR", "0") == "1"
 MAX_WORKERS = 1 if USE_GPU else min(multiprocessing.cpu_count(), 4)
+EXTRACT_MAX_MB = float(os.getenv("EXTRACT_MAX_MB", "40"))  # larger files are left in raw/ untouched and skipped
 
 
 def _slug(name: str) -> str:
@@ -896,7 +897,12 @@ def run() -> None:
             if (PROCESSED / f"{stem}.md").exists():
                 skipped_count += 1
                 continue
-        ftype = entry.get("type", classify(RAW / rel))
+        path = RAW / rel
+        # ponytail: size cap, not a per-file timeout; a file this big never finished inside the job's 600 s and failed every later upload too
+        if path.is_file() and path.stat().st_size > EXTRACT_MAX_MB * 1024 * 1024:
+            print(f"[extract] skip {rel}: {path.stat().st_size / 1048576:.0f} MB is over EXTRACT_MAX_MB={EXTRACT_MAX_MB:g}")
+            continue
+        ftype = entry.get("type", classify(path))
         work.append((rel, ftype, str(RAW), str(PROCESSED), str(IMAGES)))
 
     if skipped_count > 0:
