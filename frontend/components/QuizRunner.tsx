@@ -25,42 +25,54 @@ function TopicCard({ name, concepts, mastery, picked, setPicked }: {
   name: string; concepts: GraphNode[]; mastery: number | null; picked: Set<string>; setPicked: React.Dispatch<React.SetStateAction<Set<string>>>;
 }) {
   const n = concepts.filter((c) => picked.has(c.id)).length;
-  const [open, setOpen] = useState(n > 0 && n < concepts.length); // a deep link that picked part of a topic shows which part
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
   const all = n === concepts.length;
   const setAll = (on: boolean) => setPicked((s) => { const next = new Set(s); for (const c of concepts) { if (on) next.add(c.id); else next.delete(c.id); } return next; });
   const toggle = (id: string) => setPicked((s) => { const next = new Set(s); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   return (
-    <div className={`rounded-2xl border bg-white p-3 shadow-sm transition ${n ? "border-indigo-400 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-300"}`}>
+    <div className={`rounded-2xl border bg-white p-3 shadow-sm transition ${open ? "relative z-30" : ""} ${n ? "border-indigo-400 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-300"}`}>
       <button type="button" aria-pressed={all} onClick={() => setAll(!all)} className="flex w-full items-start gap-3 text-left">
         <span aria-hidden className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border text-xs ${all ? "border-indigo-600 bg-indigo-600 text-white" : n ? "border-indigo-600 bg-indigo-100 text-indigo-700" : "border-slate-300"}`}>
           {all ? "✓" : n ? "–" : ""}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-medium text-slate-900">{name}</span>
-          <span className="block text-xs text-slate-500">{n ? `${n} of ${concepts.length} concepts` : `${concepts.length} concept${concepts.length === 1 ? "" : "s"}`}</span>
+          <span className="block text-lg font-semibold leading-snug text-slate-900">{name}</span>
+          <span className="block text-sm text-slate-700">{n ? `${n} of ${concepts.length} concepts` : `${concepts.length} concept${concepts.length === 1 ? "" : "s"}`}</span>
         </span>
         {mastery !== null && (
-          <span className="flex flex-col items-end gap-1 text-[11px] text-slate-500" aria-label={`Mastery ${Math.round(mastery * 100)}%`}>
+          <span className="flex flex-col items-end gap-1 text-sm font-medium text-slate-700" aria-label={`Mastery ${Math.round(mastery * 100)}%`}>
             {Math.round(mastery * 100)}%
             <span className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full bg-indigo-500" style={{ width: `${Math.round(mastery * 100)}%` }} /></span>
           </span>
         )}
       </button>
-      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="mt-2 text-xs text-indigo-700 hover:underline">
-        {open ? "Hide concepts" : "Pick concepts"}
-      </button>
-      {open && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {concepts.map((c) => (
-            <button
-              key={c.id} type="button" aria-pressed={picked.has(c.id)} onClick={() => toggle(c.id)}
-              className={`rounded-full border px-2.5 py-1 text-xs transition ${picked.has(c.id) ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-200 bg-slate-50 text-slate-700 hover:border-indigo-300"}`}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="relative mt-2" ref={box}>
+        <button type="button" aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-left text-base font-medium text-indigo-800 hover:border-indigo-400">
+          <span>{n ? `${n} of ${concepts.length} concepts picked` : "Pick concepts"}</span>
+          <span aria-hidden className={`text-sm transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        </button>
+        {open && (
+          <div role="listbox" aria-multiselectable="true" aria-label={`Concepts in ${name}`} className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-300 bg-white p-1.5 shadow-lg">
+            {concepts.map((c) => (
+              <button
+                key={c.id} type="button" role="option" aria-selected={picked.has(c.id)} onClick={() => toggle(c.id)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-base text-slate-900 transition hover:bg-indigo-50 ${picked.has(c.id) ? "bg-indigo-50 font-medium" : ""}`}
+              >
+                <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-xs ${picked.has(c.id) ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-400 bg-white"}`}>{picked.has(c.id) ? "✓" : ""}</span>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -69,12 +81,12 @@ function TopicCard({ name, concepts, mastery, picked, setPicked }: {
 function Segmented<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
     <fieldset className="space-y-1.5">
-      <legend className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</legend>
+      <legend className="text-sm font-semibold uppercase tracking-wide text-slate-700">{label}</legend>
       <div className="flex rounded-xl bg-slate-100 p-1">
         {options.map(([v, text]) => (
           <button
             key={String(v)} type="button" aria-pressed={v === value} onClick={() => onChange(v)}
-            className={`flex-1 rounded-lg px-2 py-1.5 text-sm transition ${v === value ? "bg-white font-medium text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            className={`flex-1 rounded-lg px-2 py-2 text-base transition ${v === value ? "bg-white font-medium text-indigo-700 shadow-sm" : "text-slate-700 hover:text-slate-900"}`}
           >
             {text}
           </button>
@@ -300,10 +312,10 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section aria-label="Scope" className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 className="font-medium text-[#f6eeff]">Choose topics</h2>
-              <div className="flex gap-3 text-xs">
-                <button type="button" onClick={() => setPicked(new Set(concepts.map((c) => c.id)))} className="text-[#d6b8f5] hover:underline">Select all</button>
-                <button type="button" onClick={() => setPicked(new Set())} disabled={picked.size === 0} className="text-[#cdb3ea] hover:underline disabled:opacity-40">Clear</button>
+              <h2 className="text-xl font-semibold text-white">Choose topics</h2>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPicked(new Set(concepts.map((c) => c.id)))} className="rounded-lg border border-white/40 bg-white/15 px-4 py-2 text-base font-semibold text-white transition hover:bg-white/30">Select all</button>
+                <button type="button" onClick={() => setPicked(new Set())} disabled={picked.size === 0} className="rounded-lg border border-white/40 bg-white/15 px-4 py-2 text-base font-semibold text-white transition hover:bg-white/30 disabled:opacity-40">Clear</button>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -315,19 +327,19 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
             <Segmented label="Questions" value={[4, 8, 12].includes(count) ? count : 4} options={[[4, "4"], [8, "8"], [12, "12"]]} onChange={setCount} />
             <Segmented label="Mode" value={mode} options={[["practice", "Practice"], ["mock", "Mock exam"]]} onChange={setMode} />
             <Segmented label="Question types" value={mixed ? "mixed" : "mcq"} options={[["mcq", "Multiple choice"], ["mixed", "Mixed"]]} onChange={(v) => setMixed(v === "mixed")} />
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-700">
               {mode === "mock" ? `Timed: ${Math.round((count * 90) / 60)} min, feedback at the end.` : "Feedback with sources after each answer."}
               {mixed ? " Mixes multiple choice, short answer and numeric." : ""}
             </p>
-            <div className="rounded-xl bg-slate-50 p-3 text-sm">
+            <div className="rounded-xl bg-slate-50 p-3 text-base">
               <p><strong>{picked.size}</strong> concept{picked.size === 1 ? "" : "s"} · <strong>{count}</strong> questions</p>
-              <p className="text-xs text-slate-500">Every question is checked by a second model before you see it.</p>
+              <p className="text-sm text-slate-700">Every question is checked by a second model before you see it.</p>
             </div>
-            <button type="submit" disabled={picked.size === 0} className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 font-medium text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="submit" disabled={picked.size === 0} className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-lg font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40">
               {picked.size === 0 ? "Pick a topic to start" : "Start quiz"}
             </button>
             {noQuestions && picked.size > 0 && (
-              <button type="button" onClick={start} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm hover:border-indigo-300">Try again with the same concepts</button>
+              <button type="button" onClick={start} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base hover:border-indigo-300">Try again with the same concepts</button>
             )}
           </aside>
         </div>
@@ -335,18 +347,18 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
         {sets.length > 0 && (
           <section aria-label="Your quizzes" className="space-y-3">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-medium text-[#f6eeff]">Your quizzes</h2>
-              <Link href="/report" className="text-sm text-[#d6b8f5] hover:underline">All reports</Link>
+              <h2 className="text-xl font-semibold text-white">Your quizzes</h2>
+              <Link href="/report" className="text-base font-medium text-white underline-offset-2 hover:underline">All reports</Link>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[...sets].reverse().map((s) => (
                 <li key={s.n} className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-baseline justify-between">
-                    <span className="font-semibold">Quiz {s.n}</span>
-                    <span className="text-xs text-slate-500">{s.items.length} question{s.items.length === 1 ? "" : "s"} · {s.attempts.length} attempt{s.attempts.length === 1 ? "" : "s"}</span>
+                    <span className="text-lg font-semibold">Quiz {s.n}</span>
+                    <span className="text-sm text-slate-700">{s.items.length} question{s.items.length === 1 ? "" : "s"} · {s.attempts.length} attempt{s.attempts.length === 1 ? "" : "s"}</span>
                   </div>
-                  <p className="line-clamp-2 flex-1 text-xs text-slate-600">{covers(s)}</p>
-                  <div className="flex gap-2 text-sm">
+                  <p className="line-clamp-2 flex-1 text-sm text-slate-700">{covers(s)}</p>
+                  <div className="flex gap-2 text-base">
                     <button type="button" onClick={() => retry(s)} className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 hover:border-indigo-300">Retry</button>
                     <Link href={`/report?quiz=${encodeURIComponent(s.attempts[s.attempts.length - 1].id)}`} className="flex-1 rounded-lg bg-indigo-50 px-2 py-1.5 text-center text-indigo-700 hover:bg-indigo-100">Report</Link>
                   </div>
@@ -362,21 +374,21 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
   if (phase === "done" && done) {
     return (
       <section aria-label="Quiz result" className="mx-auto max-w-2xl space-y-4 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <p className="text-lg font-semibold text-emerald-700">Quiz complete</p>
-        <p className="text-sm">You answered {done.answered} of {done.total} question{done.total === 1 ? "" : "s"}.</p>
-        {done.note && <p className="text-sm text-neutral-600">{done.note}</p>}
+        <p className="text-3xl font-bold text-emerald-700">Quiz complete</p>
+        <p className="text-xl">You answered {done.answered} of {done.total} question{done.total === 1 ? "" : "s"}.</p>
+        {done.note && <p className="text-lg text-slate-700">{done.note}</p>}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
             onClick={() => router.push(`/report?quiz=${encodeURIComponent(quizId.current)}`)}
-            className="rounded-xl bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500"
+            className="rounded-xl bg-indigo-600 px-6 py-3 text-lg font-semibold text-white hover:bg-indigo-500"
           >
             View report
           </button>
           <button
             type="button"
             onClick={() => { setSets(readQuizSets()); setDone(null); setPhase("setup"); }}
-            className="rounded-xl border border-slate-200 px-4 py-2 hover:border-indigo-300"
+            className="rounded-xl border border-slate-200 px-6 py-3 text-lg hover:border-indigo-300"
           >
             Back to quizzes
           </button>
@@ -387,20 +399,20 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
 
   const last = index + 1 >= total;
   return (
-    <section ref={card} aria-label="Quiz question" className="mx-auto max-w-3xl space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section ref={card} aria-label="Quiz question" className="mx-auto max-w-4xl space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden>
         <div className="h-full rounded-full bg-indigo-500 transition-all duration-500" style={{ width: `${((index + (phase === "feedback" ? 1 : 0)) / total) * 100}%` }} />
       </div>
-      <div className="flex items-center justify-between text-xs text-slate-500">
+      <div className="flex items-center justify-between text-base text-slate-700">
         <span>Question {index + 1} of {total}{skipped > 0 ? ` · ${skipped} skipped` : ""}</span>
-        {left !== null && <span role="timer" className={`rounded-full px-2 py-0.5 font-medium tabular-nums ${left < 60 ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}`}>{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left</span>}
+        {left !== null && <span role="timer" className={`rounded-full px-3 py-1 text-lg font-semibold tabular-nums ${left < 60 ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"}`}>{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")} left</span>}
       </div>
       <ErrorNote message={error} />
-      {phase === "loading" && <p className="text-sm text-neutral-500">Preparing verified questions…</p>}
+      {phase === "loading" && <p className="text-lg text-slate-700">Preparing verified questions…</p>}
       {item && phase !== "loading" && (
         <>
-          <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">{concepts.find((c) => c.id === item.concept_id)?.name ?? item.concept_id} · {item.type} · {item.bloom}</p>
-          <p className="text-lg font-medium text-slate-900">{item.stem}</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-indigo-700">{concepts.find((c) => c.id === item.concept_id)?.name ?? item.concept_id} · {item.type} · {item.bloom}</p>
+          <p className="text-2xl font-semibold leading-snug text-slate-900">{item.stem}</p>
           {parseOptions(item.options_json).length > 0 ? (
             <div className="grid gap-2" role="radiogroup" aria-label="Answer options">
               {parseOptions(item.options_json).map((o, i) => (
@@ -411,42 +423,42 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
                   aria-checked={choice === o}
                   disabled={phase === "feedback"}
                   onClick={() => setChoice(o)}
-                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${choice === o ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"} disabled:cursor-default`}
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-4 text-left text-lg text-slate-900 transition ${choice === o ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"} disabled:cursor-default`}
                 >
-                  <span aria-hidden className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-sm font-semibold ${choice === o ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>{String.fromCharCode(65 + i)}</span>
+                  <span aria-hidden className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-base font-semibold ${choice === o ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}>{String.fromCharCode(65 + i)}</span>
                   {o}
                 </button>
               ))}
             </div>
           ) : (
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-2 text-lg font-medium text-slate-900">
               {item.type === "numeric" ? "Your answer (a number)" : "Your answer (a sentence or two)"}
               {item.type === "numeric" ? (
-                <input type="number" step="any" value={choice ?? ""} disabled={phase === "feedback"} onChange={(e) => setChoice(e.target.value)} className="w-48 rounded-xl border border-slate-300 px-3 py-2 disabled:opacity-60" />
+                <input type="number" step="any" value={choice ?? ""} disabled={phase === "feedback"} onChange={(e) => setChoice(e.target.value)} className="w-56 rounded-xl border border-slate-300 px-3 py-2 text-lg disabled:opacity-60" />
               ) : (
-                <textarea rows={3} value={choice ?? ""} disabled={phase === "feedback"} onChange={(e) => setChoice(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 disabled:opacity-60" />
+                <textarea rows={3} value={choice ?? ""} disabled={phase === "feedback"} onChange={(e) => setChoice(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-lg disabled:opacity-60" />
               )}
             </label>
           )}
           {phase === "answering" && (
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={submit} disabled={!choice?.trim()} className="rounded-xl bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500 disabled:opacity-40">Submit answer</button>
+              <button type="button" onClick={submit} disabled={!choice?.trim()} className="rounded-xl bg-indigo-600 px-6 py-3 text-lg font-semibold text-white hover:bg-indigo-500 disabled:opacity-40">Submit answer</button>
               {answeredN > 0 && (
-                <button type="button" onClick={() => finish("You ended the quiz early.")} className="rounded-xl border border-slate-200 px-4 py-2 hover:border-indigo-300">Finish quiz</button>
+                <button type="button" onClick={() => finish("You ended the quiz early.")} className="rounded-xl border border-slate-200 px-6 py-3 text-lg hover:border-indigo-300">Finish quiz</button>
               )}
             </div>
           )}
           {phase === "feedback" && (
             <div ref={verdict} className={`space-y-3 rounded-xl border p-4 ${correct ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
               <div role="status" aria-atomic="true">
-                <span className={`text-sm font-semibold ${correct ? "text-emerald-800" : "text-red-800"}`}>{correct ? "✓ Correct" : "✗ Not quite"}</span>
+                <span className={`text-xl font-bold ${correct ? "text-emerald-800" : "text-red-800"}`}>{correct ? "✓ Correct" : "✗ Not quite"}</span>
               </div>
               {feedback && (
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2 text-lg">
                   {!correct && feedback.correct_answer.length > 0 && <p>Correct answer: <strong>{feedback.correct_answer.join(", ")}</strong></p>}
-                  {feedback.explanation && <p className="text-neutral-700">{feedback.explanation}</p>}
+                  {feedback.explanation && <p className="text-slate-800">{feedback.explanation}</p>}
                   {feedback.citations.length > 0 && (
-                    <ul aria-label="Sources" className="space-y-1 rounded-lg bg-white/70 p-2 text-xs text-slate-600">
+                    <ul aria-label="Sources" className="space-y-1 rounded-lg bg-white/70 p-3 text-base text-slate-700">
                       {feedback.citations.map((c) => (
                         <li key={c.id + c.unit_id}><span className="font-medium">{chipLabel(c)}</span>: {c.excerpt}</li>
                       ))}
@@ -455,11 +467,11 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-3">
-                {!last && <button type="button" onClick={() => advance(index)} className="rounded-xl bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500">Next question</button>}
+                {!last && <button type="button" onClick={() => advance(index)} className="rounded-xl bg-indigo-600 px-6 py-3 text-lg font-semibold text-white hover:bg-indigo-500">Next question</button>}
                 <button
                   type="button"
                   onClick={() => (last ? finish() : finish("You ended the quiz early."))}
-                  className={last ? "rounded-xl bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500" : "rounded-xl border border-slate-200 bg-white px-4 py-2 hover:border-indigo-300"}
+                  className={last ? "rounded-xl bg-indigo-600 px-6 py-3 text-lg font-semibold text-white hover:bg-indigo-500" : "rounded-xl border border-slate-200 bg-white px-6 py-3 text-lg hover:border-indigo-300"}
                 >
                   Finish quiz
                 </button>

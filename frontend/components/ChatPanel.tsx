@@ -123,7 +123,7 @@ export default function ChatPanel({ studentId, sessionId, onCite, name, scope = 
 
   return (
     <HaloCard
-      aria-label="Tutor chat" padding="sm" className="h-full min-h-[32rem]"
+      aria-label="Tutor chat" padding="sm" alwaysGlow className="h-full min-h-[32rem]"
       fill="linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(240,224,250,0.84) 45%, rgba(224,196,245,0.72) 100%)" // white into light purple: a calm wash, text stays readable
     >
     <div className="relative flex min-h-0 flex-1 flex-col">

@@ -36,12 +36,12 @@ export function RetrievalDetails({ run }: { run: EvalRun }) {
   const types = Object.entries((m.by_type ?? {}) as Record<string, { n: number; mrr: number } & Record<string, number>>);
   return (
     <div className="space-y-5">
-      <p className="text-sm text-slate-600">
+      <p className="text-base text-slate-700">
         {m.n_in_scope} in-scope and {m.n_off_material} off-material questions · run of {new Date(run.created_at).toLocaleString()}
       </p>
       {types.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Hit@{k} by question type</h3>
+          <h3 className="text-base font-semibold">Hit@{k} by question type</h3>
           <Bars rows={types.map(([t, v]) => ({ label: `${t.replace("_", " ")} (${v.n})`, value: v[`hit@${k}`], hint: `MRR ${num(v.mrr)}` }))} />
         </div>
       )}
@@ -68,7 +68,7 @@ export function AnswerQualityDetails({ run }: { run: EvalRun }) {
   const m = run.metrics;
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-600">
+      <p className="text-base text-slate-700">
         Judge run of {new Date(run.created_at).toLocaleString()}. The cross-check recomputes the same four metrics with DeepEval on 10 saved answers,
         judged by Groq <code>gpt-oss-120b</code> on 12 Oct 2026; some calls returned no verdict, so each DeepEval mean covers 6 to 8 answers.
       </p>
@@ -138,7 +138,7 @@ export function SimulationDetails({ run }: { run: EvalRun }) {
   const personas = Object.keys(m.adaptive.by_profile ?? {});
   return (
     <div className="space-y-5">
-      <p className="text-sm text-slate-600">
+      <p className="text-base text-slate-700">
         {m.students_per_profile} students per persona × {personas.length || 3} personas, {m.sessions} sessions of {m.items_per_session} items · run of {new Date(run.created_at).toLocaleString()}
       </p>
       <Curves adaptive={m.adaptive.mean_curve} control={m.control.mean_curve} />

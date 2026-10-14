@@ -24,7 +24,7 @@ function Chip({ mark, children }: { mark: Mark; children: ReactNode }) {
 function Card({ title, value, format, sentence, children }: { title: string; value: unknown; format: (v: number) => string; sentence: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="text-sm font-medium text-slate-700">{title}</h3>
+      <h3 className="text-base font-semibold text-slate-700">{title}</h3>
       {typeof value === "number"
         ? <CountUp value={value} format={format} className="block text-3xl font-semibold tabular-nums text-slate-900" />
         : <p className="text-3xl font-semibold text-slate-400">Not run</p>}

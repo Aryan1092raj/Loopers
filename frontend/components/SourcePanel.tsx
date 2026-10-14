@@ -11,7 +11,7 @@ export default function SourcePanel({ active }: { active: { c: Citation; n: numb
   const target = citationTarget(c);
   return (
     <section aria-label="Source" className="space-y-3 rounded border bg-white p-4">
-      <h2 className="font-medium">{chipLabel(c)}</h2>
+      <h2 className="text-xl font-semibold">{chipLabel(c)}</h2>
       {target.video && <VideoPlayer key={target.video.src} src={target.video.src} t={target.video.t} n={n} />}
       {target.link && (
         <a href={target.link} target="_blank" rel="noopener noreferrer" className="inline-block rounded border px-3 py-1 text-sm underline hover:bg-neutral-100">

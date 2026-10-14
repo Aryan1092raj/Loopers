@@ -72,14 +72,14 @@ function Workspace() {
         <aside aria-label="Course" className="flex min-w-0 flex-col gap-4">
           <section aria-label="Add course material" className="space-y-3 rounded-2xl border border-indigo-200 bg-white/70 p-4 shadow-sm">
             <div>
-              <h2 className="font-semibold">Add course material</h2>
-              <p className="text-xs text-slate-500">PDFs, slides, lecture videos or a YouTube link</p>
+              <h2 className="text-xl font-semibold">Add course material</h2>
+              <p className="text-sm text-slate-700">PDFs, slides, lecture videos or a YouTube link</p>
             </div>
             <UploadPanel onJob={(j) => { setJob(j); setSourcesTick((n) => n + 1); }} />
             {job && <JobCard key={job.id} jobId={job.id} title={job.title} onFinished={() => { setSourcesTick((n) => n + 1); graph.reload(); }} />}
           </section>
           <section aria-label="Uploaded files" className="space-y-3 rounded-2xl border border-indigo-200 bg-white/70 p-4 shadow-sm">
-            <h2 className="font-semibold">Uploaded files</h2>
+            <h2 className="text-xl font-semibold">Uploaded files</h2>
             <SourcesTable refresh={sourcesTick} onRemoved={graph.reload} />
           </section>
         </aside>

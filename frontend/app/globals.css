@@ -171,8 +171,8 @@ body > header[class*="bg-white"] {
    right after it) sits directly on the dark page background, outside any card — the exact class string
    below is unique to that one spot on every page (verified against the whole codebase), so this can't
    catch a heading that's actually inside a light card. Dark ink there was invisible on dark purple. */
-[class="text-2xl font-semibold tracking-tight"] { color: #f6eeff !important; }
-[class="text-2xl font-semibold tracking-tight"] + p { color: #cdb3ea !important; }
+[class="text-2xl font-semibold tracking-tight"] { color: #f6eeff !important; font-size: 2.25rem !important; line-height: 1.2 !important; font-weight: 700 !important; }
+[class="text-2xl font-semibold tracking-tight"] + p { color: #eadcff !important; font-size: 1.125rem !important; line-height: 1.5 !important; }
 
 /* The action colour: a gentle lift on hover, a press on click. */
 .bg-indigo-600 {

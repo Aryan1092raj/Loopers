@@ -250,6 +250,8 @@ export interface HaloCardProps extends ComponentProps<"div"> {
   padding?: keyof typeof paddingClass
   /** CSS background for the surface, replacing the default fill. Keep it partly transparent so the moving glow still reads through. */
   fill?: string
+  /** Keep the travelling rim glow running, not only while hovered or focused. */
+  alwaysGlow?: boolean
 }
 
 const HaloCard = forwardRef<HTMLDivElement, HaloCardProps>(function HaloCard(
@@ -260,6 +262,7 @@ const HaloCard = forwardRef<HTMLDivElement, HaloCardProps>(function HaloCard(
     interactive = true,
     padding = "md",
     fill,
+    alwaysGlow = false,
     "aria-label": ariaLabel = "Card",
     onBlur,
     onFocus,
@@ -286,7 +289,7 @@ const HaloCard = forwardRef<HTMLDivElement, HaloCardProps>(function HaloCard(
   )
 
   const showTrailChrome = interactive && !reduceMotion
-  const trailActive = isHovered || isFocusedWithin
+  const trailActive = alwaysGlow || isHovered || isFocusedWithin
 
   return (
     // biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover drives animated rim; focusable controls render in children.

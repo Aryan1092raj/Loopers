@@ -34,7 +34,7 @@ export default function DashboardPage() {
     <div ref={root} className="space-y-5">
       <header className="space-y-0.5">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-slate-600">{name ?? "Student"} · <span className="font-mono text-xs">{ids?.studentId ?? "…"}</span></p>
+        <p className="text-base">{name ?? "Student"} · <span className="font-mono text-xs">{ids?.studentId ?? "…"}</span></p>
       </header>
       <ErrorNote message={graph.error ?? mastery.error} />
       {touched === 0 && graph.data && (
@@ -51,8 +51,8 @@ export default function DashboardPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section aria-label="Mastery by topic" className={card}>
           <div>
-            <h2 className="font-semibold">Mastery by topic</h2>
-            <p className="text-xs text-slate-500">Every concept, coloured from red to green by how well you know it</p>
+            <h2 className="text-xl font-semibold">Mastery by topic</h2>
+            <p className="text-sm text-slate-700">Every concept, coloured from red to green by how well you know it</p>
           </div>
           {graph.data ? <MasteryHeatmap graph={graph.data} mastery={mastery.data ?? []} /> : <p className="text-sm text-slate-500">Loading…</p>}
         </section>
@@ -60,10 +60,10 @@ export default function DashboardPage() {
         <div className="space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto lg:pr-1">
           <section aria-label="Weak spots" className={card}>
             <div>
-              <h2 className="font-semibold">Weak spots</h2>
-              <p className="text-xs text-slate-500">Concepts below 50% and what to quiz next</p>
+              <h2 className="text-xl font-semibold">Weak spots</h2>
+              <p className="text-sm text-slate-700">Concepts below 50% and what to quiz next</p>
             </div>
-            {weak.length === 0 ? <p className="text-sm text-slate-600">Nothing below 50% yet.</p> : (
+            {weak.length === 0 ? <p className="text-base text-slate-700">Nothing below 50% yet.</p> : (
               <div className="space-y-4">
                 <Bars rows={weak.slice(0, 6).map((c) => ({ label: c.name, value: c.p_know }))} />
                 <div className="flex flex-wrap gap-2 text-sm">
@@ -78,8 +78,8 @@ export default function DashboardPage() {
           </section>
           <section aria-label="Revision" className={card}>
             <div>
-              <h2 className="font-semibold">Revision</h2>
-              <p className="text-xs text-slate-500">Flashcards and a 30-second brief for weak spots</p>
+              <h2 className="text-xl font-semibold">Revision</h2>
+              <p className="text-sm text-slate-700">Flashcards and a 30-second brief for weak spots</p>
             </div>
             {ids && <RevisionPanel studentId={ids.studentId} />}
           </section>

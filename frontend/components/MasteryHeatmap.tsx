@@ -14,7 +14,7 @@ export default function MasteryHeatmap({ graph, mastery }: { graph: Graph; maste
     <div className="space-y-4">
       {[...groups.entries()].map(([topic, items]) => (
         <section key={topic} aria-label={topics.get(topic) ?? "Other concepts"}>
-          <h3 className="mb-1.5 text-sm font-semibold text-slate-700">{topics.get(topic) ?? "Other concepts"}</h3>
+          <h3 className="mb-1.5 text-base font-semibold text-slate-700">{topics.get(topic) ?? "Other concepts"}</h3>
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((c) => {
               const d = detail.get(c.id);

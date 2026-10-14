@@ -20,11 +20,11 @@ function Quiz() {
   return (
     <div ref={root} className="space-y-5">
       <header className="space-y-0.5">
-        <h1 className="text-2xl font-semibold tracking-tight">Quiz</h1>
-        <p className="text-sm text-slate-600">Pick what to practise, choose how many questions, and every answer comes back with its source.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-white">Quiz</h1>
+        <p className="text-base text-[#eadcff]">Pick what to practise, choose how many questions, and every answer comes back with its source.</p>
       </header>
       <ErrorNote message={error} />
-      {(loading || !ids) && !data && <p className="text-sm text-[#cdb3ea]">Loading…</p>}
+      {(loading || !ids) && !data && <p className="text-base text-[#eadcff]">Loading…</p>}
       {ids && data && (
         <QuizRunner key={topic ?? ""} studentId={ids.studentId} concepts={concepts} topics={data ? topicsOf(data) : []} names={new Map(data.nodes.map((n) => [n.id, n.name]))} initialPicked={picked} />
       )}

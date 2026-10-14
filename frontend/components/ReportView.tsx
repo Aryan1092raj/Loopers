@@ -20,7 +20,7 @@ export default function ReportView({ report, names }: { report: QuizReport; name
       <div className="grid gap-6 md:grid-cols-2">
         {m && (
           <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="font-medium">Answers</h2>
+            <h2 className="text-xl font-semibold">Answers</h2>
             <Pie parts={[
               { label: "Correct", value: m.correct_items, color: "#059669" },
               { label: "Wrong", value: m.total_items - m.correct_items, color: "#dc2626" },
@@ -28,23 +28,23 @@ export default function ReportView({ report, names }: { report: QuizReport; name
           </section>
         )}
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium">Mastery change</h2>
-          <p className="text-xs text-slate-500">The thin line marks mastery before the quiz.</p>
+          <h2 className="text-xl font-semibold">Mastery change</h2>
+          <p className="text-sm text-slate-700">The thin line marks mastery before the quiz.</p>
           <Bars rows={report.mastery_delta.map((d) => ({ label: label(d.concept_id), value: d.after, before: d.before }))} />
         </section>
       </div>
 
       {report.weak_topics.length > 0 && (
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium">Weak topics</h2>
+          <h2 className="text-xl font-semibold">Weak topics</h2>
           <Bars rows={report.weak_topics.map((t) => ({ label: label(t.topic_id), value: t.p_know }))} />
         </section>
       )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-          <h2 className="font-medium text-amber-900">Likely misconceptions</h2>
-          {report.misconceptions.length === 0 ? <p className="text-sm text-slate-600">None spotted in this quiz.</p> : (
+          <h2 className="text-xl font-semibold text-amber-900">Likely misconceptions</h2>
+          {report.misconceptions.length === 0 ? <p className="text-base text-slate-700">None spotted in this quiz.</p> : (
             <ul className="space-y-2 text-sm">
               {report.misconceptions.map((x, i) => (
                 <li key={i} className="rounded-lg bg-white p-2 shadow-sm">
@@ -59,8 +59,8 @@ export default function ReportView({ report, names }: { report: QuizReport; name
           )}
         </section>
         <section className="space-y-2 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
-          <h2 className="font-medium text-indigo-900">What to study next</h2>
-          {report.next_steps.length === 0 ? <p className="text-sm text-slate-600">Nothing to review right now.</p> : (
+          <h2 className="text-xl font-semibold text-indigo-900">What to study next</h2>
+          {report.next_steps.length === 0 ? <p className="text-base text-slate-700">Nothing to review right now.</p> : (
             <ul className="space-y-2 text-sm">
               {report.next_steps.map((s) => (
                 <li key={s.concept_id} className="rounded-lg bg-white p-2 shadow-sm">

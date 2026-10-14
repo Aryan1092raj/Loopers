@@ -32,7 +32,7 @@ export default function OnboardingTimeline({ days, left, empty = "Nothing fits y
         {days.map((d) => (
           <li key={d.date} data-tl="day" className="relative">
             <span aria-hidden className="absolute -left-[31px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-indigo-500 ring-2 ring-indigo-200" />
-            <h3 className="text-sm font-semibold text-slate-800">{dayLabel(d.date)} <span className="font-normal text-slate-500">· {d.tasks.reduce((s, t) => s + t.minutes, 0)} min</span></h3>
+            <h3 className="text-base font-semibold text-slate-800">{dayLabel(d.date)} <span className="font-normal text-slate-500">· {d.tasks.reduce((s, t) => s + t.minutes, 0)} min</span></h3>
             <ul className="mt-1.5 space-y-1.5">
               {d.tasks.map((t) => (
                 <li key={t.concept.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">

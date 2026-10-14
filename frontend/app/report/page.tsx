@@ -47,7 +47,7 @@ function Overview({ sets, studentId, graph }: { sets: QuizSet[]; studentId: stri
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-2xl border border-indigo-200 bg-white/70 px-6 py-12 text-center shadow-sm">
         <span aria-hidden className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-100 text-xl text-indigo-700">✦</span>
         <h2 className="text-lg font-semibold">No quizzes yet</h2>
-        <p className="text-sm text-slate-600">Take a quiz and your report appears here: a score for every attempt, how you did by topic, and what to practise next.</p>
+        <p className="text-base text-slate-700">Take a quiz and your report appears here: a score for every attempt, how you did by topic, and what to practise next.</p>
         <Link href="/quiz" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Take a quiz</Link>
       </div>
     );
@@ -70,24 +70,24 @@ function Overview({ sets, studentId, graph }: { sets: QuizSet[]; studentId: stri
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium">All answers</h2>
+          <h2 className="text-xl font-semibold">All answers</h2>
           <Pie parts={[{ label: "Correct", value: right, color: "#059669" }, { label: "Wrong", value: total - right, color: "#dc2626" }]} />
         </section>
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium">Score per attempt</h2>
+          <h2 className="text-xl font-semibold">Score per attempt</h2>
           <Bars rows={done.map((a) => ({ label: `Quiz ${a.quiz} · attempt ${a.number}`, value: reports.get(a.id)!.score, hint: new Date(a.at).toLocaleDateString() }))} />
         </section>
       </div>
       {topics.length > 0 && (
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium">Mastery by topic</h2>
+          <h2 className="text-xl font-semibold">Mastery by topic</h2>
           <Bars rows={[...topics].sort((a, b) => a.mastery - b.mastery).map((t) => ({ label: t.node.name, value: t.mastery, hint: `${t.concepts.length} concepts` }))} />
         </section>
       )}
       {latest && (
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-medium text-[#f6eeff]">Latest attempt</h2>
+            <h2 className="text-xl font-semibold text-[#f6eeff]">Latest attempt</h2>
             <Link href={`/report?quiz=${encodeURIComponent(latest.id)}`} className="text-sm text-[#d6b8f5] underline">Open full report</Link>
           </div>
           <ReportView report={reports.get(latest.id)!} names={new Map((graph?.nodes ?? []).map((n) => [n.id, n.name]))} />
@@ -129,7 +129,7 @@ function Report() {
   if (!quiz) {
     return (
       <div className="space-y-5">
-        <header className="space-y-0.5"><h1 className="text-2xl font-semibold tracking-tight">Your report</h1><p className="text-sm text-slate-600">Every quiz attempt, how you scored, and where to focus next.</p></header>
+        <header className="space-y-0.5"><h1 className="text-2xl font-semibold tracking-tight">Your report</h1><p className="text-base text-slate-700">Every quiz attempt, how you scored, and where to focus next.</p></header>
         <ErrorNote message={graph.error} />
         {ids && <Overview sets={sets} studentId={ids.studentId} graph={graph.data} />}
       </div>
@@ -143,7 +143,7 @@ function Report() {
       {report.data && <ReportView report={report.data} names={names} />}
       {ids && others.length > 0 && (
         <section aria-label="Other attempts" className="space-y-2">
-          <h2 className="font-medium text-[#f6eeff]">Other attempts of Quiz {set?.n}</h2>
+          <h2 className="text-xl font-semibold text-[#f6eeff]">Other attempts of Quiz {set?.n}</h2>
           {others.map((a) => <PastAttempt key={a.id} id={a.id} number={a.number} at={a.at} studentId={ids.studentId} names={names} />)}
         </section>
       )}

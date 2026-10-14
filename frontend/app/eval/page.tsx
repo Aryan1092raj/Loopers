@@ -25,7 +25,7 @@ export default function EvalPage() {
       </p>
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Evaluation</h1>
-        <p className="text-sm text-slate-600">
+        <p className="text-base text-slate-700">
           How well the tutor finds sources, answers, refuses and personalizes. Retrieval run {when(run)}, answer quality run {when(judged)}, simulation run {when(simRun)}.
         </p>
       </header>
@@ -47,7 +47,7 @@ export default function EvalPage() {
       </div>
 
       <section aria-label="Caveats" className="space-y-1 rounded-2xl border border-indigo-200 bg-white/70 p-4 text-sm text-slate-600 shadow-sm">
-        <h2 className="font-medium text-slate-900">How to read these numbers</h2>
+        <h2 className="text-xl font-semibold text-slate-900">How to read these numbers</h2>
         <ul className="list-disc space-y-1 pl-5">
           <li>The golden questions were generated from the indexed sources by an LLM and have not all been checked by a person. Gold locators come from stored page, slide and timestamp fields.</li>
           <li>Judge metrics use a different model (Groq or Gemini) from the answer generator (DeepSeek), and are computed on a limited sample of answers.</li>

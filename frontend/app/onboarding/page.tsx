@@ -61,7 +61,7 @@ export default function OnboardingPage() {
     <div className="space-y-5">
       <header className="space-y-0.5">
         <h1 className="text-2xl font-semibold tracking-tight">Plan your study</h1>
-        <p className="text-sm text-slate-600">Tell us your exam date, how long you can study each day and where you stand. Your timetable builds itself on the right.</p>
+        <p className="text-base text-slate-700">Tell us your exam date, how long you can study each day and where you stand. Your timetable builds itself on the right.</p>
       </header>
       <ErrorNote message={graph.error ?? mastery.error} />
 
@@ -89,8 +89,8 @@ export default function OnboardingPage() {
       <section aria-label="Topics" className={card}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="font-medium">Pick your topics and level</h2>
-            <p className="text-xs text-slate-500">Tick what you want to study and rate yourself. Or take the diagnostic and get a schedule planned from your measured level.</p>
+            <h2 className="text-xl font-semibold">Pick your topics and level</h2>
+            <p className="text-sm text-slate-700">Tick what you want to study and rate yourself. Or take the diagnostic and get a schedule planned from your measured level.</p>
           </div>
           {!testing && <button type="button" onClick={() => setTesting(true)} className="rounded-xl bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white">Take the {DIAGNOSTIC_QUESTIONS}-question diagnostic</button>}
         </div>
@@ -139,7 +139,7 @@ export default function OnboardingPage() {
 
       <section aria-label="Your timetable" className={`${card} lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-medium">Your timetable</h2>
+          <h2 className="text-xl font-semibold">Your timetable</h2>
           {diagnosed && (
             <div role="group" aria-label="Timetable source" className="flex gap-1 text-sm">
               {([["mine", "From my levels"], ["backend", "From my diagnostic"]] as const).map(([value, label]) => (
