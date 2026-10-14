@@ -6,20 +6,6 @@
   },
   "paths": {
     "/api/sources": {
-      "get": {
-        "summary": "List Sources",
-        "operationId": "list_sources_api_sources_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      },
       "post": {
         "summary": "Create Source",
         "description": "Save a document under raw/<subject>/ and run ingest -> extract -> label -> embed as a job.\n\nSend either `file` or `url` (a YouTube or other http(s) video link).",
@@ -35,6 +21,43 @@
         },
         "responses": {
           "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Sources",
+        "description": "Visible sources; include_hidden=true also returns removed ones (each row carries `hidden`) so they can be restored.",
+        "operationId": "list_sources_api_sources_get",
+        "parameters": [
+          {
+            "name": "include_hidden",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Hidden"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -152,6 +175,44 @@
               "type": "integer",
               "default": 200,
               "title": "Tail"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/{source_id}/restore": {
+      "post": {
+        "summary": "Restore Source",
+        "description": "Undo a soft remove: the source returns to lists, retrieval and the concept graph.",
+        "operationId": "restore_source_api_sources__source_id__restore_post",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
             }
           }
         ],

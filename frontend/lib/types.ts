@@ -21,6 +21,7 @@ export interface SourceRow {
   status: Status;
   created_at: string;
   unit_count: number;
+  hidden?: number;
 }
 
 export interface Job {

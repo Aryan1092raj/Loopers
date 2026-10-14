@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { del } from "@/lib/api";
+import { del, post } from "@/lib/api";
 import { useGet } from "@/lib/useGet";
 import type { SourceRow } from "@/lib/types";
 import { Empty, ErrorNote } from "./Note";
@@ -32,15 +32,17 @@ function formatDate(iso: string) {
 function SourceCard({
   s,
   onRemove,
+  onRestore,
 }: {
   s: SourceRow;
   onRemove: (s: SourceRow) => void;
+  onRestore: (s: SourceRow) => void;
 }) {
   return (
     <Expandable
       expandBehavior="push"
       transitionDuration={0.3}
-      className="rounded-xl border border-slate-200 bg-white transition hover:border-slate-300"
+      className={cn("rounded-xl border border-slate-200 bg-white transition hover:border-slate-300", s.hidden && "opacity-60")}
     >
       {({ isExpanded }) => (
         <>
@@ -112,9 +114,15 @@ function SourceCard({
               </div>
               <p className="truncate text-xs text-slate-500" title={s.file_name}>File: {s.file_name}</p>
               <div className="flex justify-end pt-1">
-                <button type="button" onClick={() => onRemove(s)} aria-label={`Remove ${s.title}`} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
-                  Remove
-                </button>
+                {s.hidden ? (
+                  <button type="button" onClick={() => onRestore(s)} aria-label={`Restore ${s.title}`} className="rounded px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+                    Restore
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => onRemove(s)} aria-label={`Remove ${s.title}`} className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
           </ExpandableContent>
@@ -125,7 +133,8 @@ function SourceCard({
 }
 
 export default function SourcesTable({ refresh, onRemoved }: { refresh: number; onRemoved?: () => void }) {
-  const { data, error, loading, reload } = useGet<SourceRow[]>("/api/sources");
+  const [showRemoved, setShowRemoved] = useState(false);
+  const { data, error, loading, reload } = useGet<SourceRow[]>(showRemoved ? "/api/sources?include_hidden=true" : "/api/sources");
   const [removeError, setRemoveError] = useState<string | null>(null);
   useEffect(() => { if (refresh > 0) reload(); }, [refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -141,12 +150,30 @@ export default function SourcesTable({ refresh, onRemoved }: { refresh: number; 
     }
   }
 
+  async function restore(s: SourceRow) {
+    try {
+      await post(`/api/sources/${s.source_id}/restore`);
+      setRemoveError(null);
+      reload();
+      onRemoved?.();
+    } catch (e) {
+      setRemoveError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   if (error) return <ErrorNote message={error} />;
   if (loading && !data) return <p className="text-sm text-neutral-500">Loading sources…</p>;
-  if (!data?.length) return <Empty>No sources yet. Drop a file above to build the knowledge base.</Empty>;
+  const toggle = (
+    <label className="flex items-center gap-1.5 px-1 text-xs text-slate-500">
+      <input type="checkbox" checked={showRemoved} onChange={(e) => setShowRemoved(e.target.checked)} />
+      Show removed files
+    </label>
+  );
+  if (!data?.length) return <><Empty>No sources yet. Drop a file above to build the knowledge base.</Empty>{toggle}</>;
   return (
     <div className="space-y-2">
       {removeError && <ErrorNote message={removeError} />}
+      {toggle}
       <div aria-hidden className="hidden grid-cols-[minmax(0,1fr)_7rem_5rem_1.5rem] gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:grid">
         <span>Name</span>
         <span>Kind</span>
@@ -154,7 +181,7 @@ export default function SourcesTable({ refresh, onRemoved }: { refresh: number; 
         <span />
       </div>
       {data.map((s) => (
-        <SourceCard key={s.source_id} s={s} onRemove={remove} />
+        <SourceCard key={s.source_id} s={s} onRemove={remove} onRestore={restore} />
       ))}
     </div>
   );

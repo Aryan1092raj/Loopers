@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Sources */
+        /**
+         * List Sources
+         * @description Visible sources; include_hidden=true also returns removed ones (each row carries `hidden`) so they can be restored.
+         */
         get: operations["list_sources_api_sources_get"];
         put?: never;
         /**
@@ -78,6 +81,26 @@ export interface paths {
         get: operations["get_job_log_api_jobs__job_id__log_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources/{source_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Source
+         * @description Undo a soft remove: the source returns to lists, retrieval and the concept graph.
+         */
+        post: operations["restore_source_api_sources__source_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -894,7 +917,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     list_sources_api_sources_get: {
         parameters: {
-            query?: never;
+            query?: {
+                include_hidden?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -908,6 +933,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1017,6 +1051,37 @@ export interface operations {
             header?: never;
             path: {
                 job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_source_api_sources__source_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
             };
             cookie?: never;
         };

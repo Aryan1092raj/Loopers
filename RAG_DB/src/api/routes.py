@@ -272,11 +272,29 @@ def get_job_log(job_id: str, tail: int = 200):
 
 
 @router.get("/sources")
-def list_sources():
+def list_sources(include_hidden: bool = False):
+    """Visible sources; include_hidden=true also returns removed ones (each row carries `hidden`) so they can be restored."""
     return _rows(
         "SELECT s.*, (SELECT COUNT(*) FROM units u WHERE u.source_id = s.source_id) AS unit_count"
-        " FROM sources s WHERE s.hidden = 0 ORDER BY s.lecture_no, s.created_at"
+        f" FROM sources s {'' if include_hidden else 'WHERE s.hidden = 0'} ORDER BY s.hidden, s.lecture_no, s.created_at"
     )
+
+
+@router.post("/sources/{source_id}/restore")
+def restore_source(source_id: str):
+    """Undo a soft remove: the source returns to lists, retrieval and the concept graph."""
+    remote = bool(worker_client.WORKER_URL)
+    if remote:
+        _relay(worker_client.call("POST", f"/api/sources/{source_id}/restore"))
+    conn = get_connection()
+    try:
+        restored = conn.execute("UPDATE sources SET hidden = 0 WHERE source_id = ? AND hidden = 1", (source_id,)).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if not restored and not remote:
+        raise HTTPException(404, "Removed source not found")
+    return {"source_id": source_id, "restored": True}
 
 
 @router.delete("/sources/{source_id}")
