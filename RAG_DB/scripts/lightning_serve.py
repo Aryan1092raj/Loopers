@@ -2,7 +2,7 @@
 
 Run inside the Studio, from RAG_DB:  python scripts/lightning_serve.py
 Reads from the environment: NGROK_AUTHTOKEN, NGROK_DOMAIN, QDRANT_URL, QDRANT_API_KEY, DEEPSEEK_API_KEY, HF_TOKEN,
-and optionally GROQ_API_KEY, GEMINI_API_KEY, API_CORS_ORIGINS. Stop it with Ctrl+C.
+WORKER_KEY (shared with Render and Vercel; every route except /api/health needs it), and optionally GROQ_API_KEY, GEMINI_API_KEY, API_CORS_ORIGINS. Stop it with Ctrl+C.
 """
 import os
 import subprocess
@@ -13,7 +13,7 @@ import requests
 from pyngrok import ngrok
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REQUIRED = ["NGROK_AUTHTOKEN", "NGROK_DOMAIN", "QDRANT_URL", "QDRANT_API_KEY", "DEEPSEEK_API_KEY", "HF_TOKEN"]
+REQUIRED = ["NGROK_AUTHTOKEN", "NGROK_DOMAIN", "QDRANT_URL", "QDRANT_API_KEY", "DEEPSEEK_API_KEY", "HF_TOKEN", "WORKER_KEY"]
 missing = [k for k in REQUIRED if not os.environ.get(k)]
 if missing:
     sys.exit(f"Missing environment variables: {', '.join(missing)}")
@@ -24,7 +24,11 @@ env = {
     "MPLBACKEND": "Agg",
     "COLLECTION": os.environ.get("COLLECTION", "multimodal_hackathon"),
     "EMBED_MODEL": "google/embeddinggemma-2",
+    "IS_WORKER": "1",
+    "WHISPER_DEVICE": os.environ.get("WHISPER_DEVICE", "cuda"),
+    "WHISPER_COMPUTE_TYPE": os.environ.get("WHISPER_COMPUTE_TYPE", "float16"),
 }
+env.pop("WORKER_URL", None)  # the worker runs models locally
 
 
 def start_api():
