@@ -1,6 +1,7 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePopIn } from "@/lib/motion";
 import type { Graph } from "@/lib/types";
 import ConceptDrawer from "./ConceptDrawer";
@@ -22,7 +23,7 @@ export default function CourseMap({ graph, names, onReload }: { graph: Graph | n
       >
         Course map
       </button>
-      {open && graph && <Overlay graph={graph} names={names} onReload={onReload} onClose={() => setOpen(false)} />}
+      {open && graph && createPortal(<Overlay graph={graph} names={names} onReload={onReload} onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
@@ -33,6 +34,12 @@ function Overlay({ graph, names, onReload, onClose }: { graph: Graph; names: Map
   const picked = useRef(selected);
   picked.current = selected;
   usePopIn(root);
+  // leave the site navbar visible: the map starts right below it
+  const [top, setTop] = useState(0);
+  useLayoutEffect(() => {
+    const nav = document.querySelector("body > header");
+    setTop(nav ? Math.round(nav.getBoundingClientRect().bottom) : 0);
+  }, []);
 
   // Escape closes the concept first, then the map; the page behind does not scroll while open
   useEffect(() => {
@@ -50,17 +57,10 @@ function Overlay({ graph, names, onReload, onClose }: { graph: Graph; names: Map
 
   const hasNodes = graph.nodes.length > 0;
   return (
-    <div ref={root} role="dialog" aria-modal="true" aria-label="Course map" className="fixed inset-0 z-50 flex flex-col bg-slate-50">
-      <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3">
-        <div>
-          <h2 className="font-semibold">Course map</h2>
-          <p className="text-xs text-slate-500">Arrows run from a prerequisite to the concept that needs it. Swipe sideways on empty space, or press Next, to reveal the next concept. Swipe with two fingers to move the map. Click a concept for its sources.</p>
-        </div>
-        <button type="button" onClick={onClose} autoFocus className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm hover:border-indigo-300">Close</button>
-      </header>
+    <div ref={root} role="dialog" aria-modal="true" aria-label="Course map" style={{ top }} className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-slate-50">
       <div className="flex min-h-0 flex-1 gap-4 p-4">
         {hasNodes
-          ? <ConceptGraph graph={graph} onSelect={setSelected} onReload={onReload} className="h-full min-w-0 flex-1" />
+          ? <ConceptGraph graph={graph} onSelect={setSelected} onReload={onReload} onClose={onClose} className="h-full min-w-0 flex-1" />
           : <Empty>No concepts yet. Add material and let the concepts stage finish.</Empty>}
         {selected && (
           <div className="w-96 shrink-0 overflow-y-auto">

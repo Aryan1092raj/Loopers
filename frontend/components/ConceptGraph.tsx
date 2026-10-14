@@ -57,7 +57,7 @@ function travel(edge: Element, color: string, dots: boolean) {
 
 const DOT_LIMIT = 12; // "Show all" reveals hundreds of edges at once: fade them in, skip the dots
 
-export default function ConceptGraph({ graph, onSelect, onReload, className = "h-[70vh]" }: { graph: Graph; onSelect: (id: string) => void; onReload?: () => void; className?: string }) {
+export default function ConceptGraph({ graph, onSelect, onReload, onClose, className = "h-[70vh]" }: { graph: Graph; onSelect: (id: string) => void; onReload?: () => void; onClose?: () => void; className?: string }) {
   const box = useRef<HTMLDivElement>(null);
   const flow = useRef<ReactFlowInstance<Node<ConceptData>> | null>(null);
   const [topicId, setTopicId] = useState("");
@@ -129,24 +129,10 @@ export default function ConceptGraph({ graph, onSelect, onReload, className = "h
     return () => clearTimeout(t);
   }, [scope, n]);
 
-  // One-finger (or left-button) drag on empty space: a horizontal swipe in either direction = next concept. Two-finger swipes pan the map instead.
-  const swipe = useRef<{ x: number; y: number } | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => {
-    const onPane = (e.target as HTMLElement).classList.contains("react-flow__pane");
-    swipe.current = onPane && e.isPrimary && e.button === 0 ? { x: e.clientX, y: e.clientY } : null;
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const s = swipe.current;
-    swipe.current = null;
-    if (!s) return;
-    const dx = e.clientX - s.x, dy = e.clientY - s.y;
-    if (Math.abs(dx) >= 80 && Math.abs(dy) < Math.abs(dx) / 2) next();
-  };
-
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => onSelect(node.id), [onSelect]);
 
   return (
-    <div ref={box} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null; }} className={`${className} relative overflow-hidden rounded-xl border border-slate-200 bg-white`}>
+    <div ref={box} data-static-gradient className={`${className} relative overflow-hidden rounded-xl border border-slate-200 bg-white`}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -155,10 +141,11 @@ export default function ConceptGraph({ graph, onSelect, onReload, className = "h
         minZoom={0.2}
         nodesDraggable={false}
         nodesConnectable={false}
-        panOnDrag={[1, 2]}
+        panOnDrag
         panOnScroll
         zoomOnScroll={false}
         onNodeClick={onNodeClick}
+        onPaneClick={next}
       >
         <Background gap={20} color="#e2e8f0" />
         <Controls showInteractive={false} />
@@ -172,6 +159,11 @@ export default function ConceptGraph({ graph, onSelect, onReload, className = "h
         <span aria-live="polite" className="tabular-nums">{n} of {total}</span>
         <button type="button" onClick={showAll} disabled={n >= total} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 transition hover:border-indigo-300 disabled:opacity-40">Show all</button>
       </div>
+      {onClose && (
+        <button type="button" onClick={onClose} aria-label="Close course map" title="Close course map" className="absolute right-3 top-3 z-10 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:border-indigo-300">
+          <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      )}
       <div className="absolute bottom-3 right-3 z-10 flex flex-col items-end gap-2">
         <button type="button" onClick={next} disabled={n >= total} className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-40">Next</button>
         <button type="button" onClick={reload} aria-label="Reload concepts and rebuild the graph" title="Reload concepts and rebuild the graph" className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition hover:border-indigo-300 disabled:opacity-40">
@@ -186,7 +178,7 @@ export default function ConceptGraph({ graph, onSelect, onReload, className = "h
           </span>
         ))}
       </div>
-      <div aria-hidden className="pointer-events-none absolute right-3 top-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] text-slate-600 shadow-sm">
+      <div aria-hidden className="pointer-events-none absolute right-16 top-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] text-slate-600 shadow-sm">
         Mastery
         <span className="h-1.5 w-20 rounded-full" style={{ background: `linear-gradient(90deg, ${masteryColor(0).replace("85%", "55%")}, ${masteryColor(0.5).replace("85%", "55%")}, ${masteryColor(1).replace("85%", "55%")})` }} />
         <span>0 → 100%</span>

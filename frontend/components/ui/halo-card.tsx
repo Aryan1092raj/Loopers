@@ -82,15 +82,15 @@ function HaloCardBorderTrail({ active }: { active: boolean }) {
 
   /** Feathered ends + same hue family as `borderGlowConfig` so it reads as one rim system. */
   const ambientGradient =
-    "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0) 6%, rgba(99,102,241,0.3) 24%, rgba(129,140,248,0.42) 50%, rgba(148,163,184,0.34) 76%, rgba(148,163,184,0) 94%, transparent 100%)"
+    "linear-gradient(90deg, transparent 0%, rgba(168,85,236,0) 6%, rgba(168,85,236,0.3) 24%, rgba(192,132,252,0.42) 50%, rgba(214,180,245,0.34) 76%, rgba(214,180,245,0) 94%, transparent 100%)"
 
   const coreGradient =
-    "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.6) 20%, rgba(165,180,252,0.9) 50%, rgba(148,163,184,0.65) 80%, transparent 100%)"
+    "linear-gradient(90deg, transparent 0%, rgba(168,85,236,0.6) 20%, rgba(216,180,254,0.9) 50%, rgba(214,180,245,0.65) 80%, transparent 100%)"
 
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-0 rounded-[inherit] border border-transparent [mask-clip:padding-box,border-box] [mask-composite:intersect] [mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)]",
+        "pointer-events-none absolute inset-0 rounded-[inherit] border-[5px] border-transparent [mask-clip:padding-box,border-box] [mask-composite:intersect] [mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)]",
         active ? "visible opacity-100" : "invisible opacity-0"
       )}
     >
@@ -143,10 +143,10 @@ function borderGlowConfig(translucent: boolean, rimEmphasis: boolean) {
   }
   return {
     opacityIdle: idleOpacity,
-    // the site's own indigo and slate, in place of the original pink, purple and cyan
-    primaryBg: "linear-gradient(90deg, #6366f1, #818cf8, #94a3b8, #4f46e5)",
-    secondaryBg: "linear-gradient(90deg, #a5b4fc, #c7d2fe, #94a3b8)",
-    tertiaryBg: "linear-gradient(90deg, #4f46e5, #818cf8, #cbd5e1)",
+    // the site's own light purple and orchid, in place of the original pink, purple and cyan
+    primaryBg: "linear-gradient(90deg, #a855ec, #c084fc, #94a3b8, #9333ea)",
+    secondaryBg: "linear-gradient(90deg, #d8b4fe, #e9d5ff, #94a3b8)",
+    tertiaryBg: "linear-gradient(90deg, #9333ea, #c084fc, #cbd5e1)",
     primaryLeft: ["-5%", "75%", "-5%"],
     secondaryLeft: ["65%", "10%", "65%"],
     tertiaryLeft: ["25%", "55%", "25%"],
@@ -387,7 +387,7 @@ const HaloCard = forwardRef<HTMLDivElement, HaloCardProps>(function HaloCard(
         <div
           className={cn(
             // overflow-hidden: a child's glow (the beam round the composer) must not spill past the card and change the page height
-            "relative z-0 flex h-full flex-col gap-6 overflow-hidden rounded-[15px] border border-border/90",
+            "relative z-0 flex h-full flex-col gap-6 overflow-hidden rounded-[15px] border-2 border-border",
             "shadow-[0_1px_0_rgba(255,255,255,0.1)_inset,0_1px_2px_rgba(0,0,0,0.04),0_4px_14px_rgba(0,0,0,0.05)]",
             "dark:border-border dark:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_1px_2px_rgba(0,0,0,0.35),0_4px_20px_rgba(0,0,0,0.35)]",
             "outline-none transition-[background-color,backdrop-filter,border-color,box-shadow] duration-200 ease-out",

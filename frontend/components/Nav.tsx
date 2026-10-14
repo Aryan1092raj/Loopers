@@ -25,7 +25,7 @@ export default function Nav() {
             key={href}
             href={href}
             aria-current={path === href ? "page" : undefined}
-            className={`rounded-full px-3.5 py-1.5 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${path === href ? "bg-indigo-600 font-medium text-white shadow-sm" : "text-slate-700 hover:bg-white/80 hover:text-indigo-700"}`}
+            className={`px-2 py-1.5 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 ${path === href ? "font-semibold text-indigo-700 underline decoration-2 underline-offset-4" : "text-slate-700 hover:text-indigo-700"}`}
           >
             {text}
           </Link>

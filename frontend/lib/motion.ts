@@ -27,7 +27,12 @@ export function usePopIn(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const el = ref.current;
     if (!el || reducedMotion()) return;
-    const a = animate(el, { opacity: [0, 1], scale: [0.97, 1], duration: 260, ease: "out(3)" });
+    const a = animate(el, {
+      opacity: [0, 1], scale: [0.97, 1], duration: 260, ease: "out(3)",
+      // anime.js can settle a hair short of scale(1); that residue blurs small text/icons
+      // (e.g. React Flow's zoom controls) for the rest of the overlay's life, so drop it explicitly.
+      onComplete: () => { el.style.transform = ""; },
+    });
     return () => { a.revert(); };
   }, [ref]);
 }

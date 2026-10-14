@@ -4,5 +4,5 @@ export function ErrorNote({ message }: { message: string | null }) {
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded border border-dashed border-neutral-300 px-3 py-6 text-center text-sm text-neutral-600">{children}</p>;
+  return <p className="rounded border border-dashed border-neutral-300 bg-white/80 px-3 py-6 text-center text-sm text-neutral-600">{children}</p>;
 }

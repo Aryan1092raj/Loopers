@@ -13,8 +13,8 @@
   --card-foreground: #1e2140;
   --muted: #eceffa;
   --muted-foreground: #6a7096;
-  --border: #d3d7f3;
-  --ring: #8588e3;
+  --border: #7d66e9; /* the "∞" logo badge's indigo-to-violet gradient, as one solid accent */
+  --ring: #8b5cf6;
   --accent: #e4e5fb;
   --accent-foreground: #3d3da0;
 }
@@ -77,10 +77,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* One fixed gradient behind every page: lavender into sky into lilac. Static on purpose, so it never repaints. */
+/* One fixed gradient behind every page: a dark orchid/lilac, deep enough that the white-into-lilac
+   cards read as clearly lit surfaces above it. Static on purpose, so it never repaints. */
 body {
   min-height: 100vh;
-  background: linear-gradient(135deg, #eef0ff 0%, #e6ecfb 42%, #f1e9fa 100%) fixed;
+  background: linear-gradient(135deg, #241a3b 0%, #3a2156 40%, #522d73 72%, #612f82 100%) fixed;
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -90,29 +91,88 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  /* orchid sheen highlights */
   background:
-    radial-gradient(60rem 38rem at 6% -8%, rgb(129 140 248 / 0.2), transparent 62%),
-    radial-gradient(52rem 36rem at 102% 104%, rgb(196 181 253 / 0.3), transparent 62%);
+    radial-gradient(60rem 38rem at 6% -8%, rgb(216 130 255 / 0.3), transparent 62%),
+    radial-gradient(52rem 36rem at 102% 104%, rgb(186 85 211 / 0.3), transparent 62%);
 }
-::selection { background: #cfd1f7; }
+::selection { background: #d9b8f5; }
 
-/* Cards: frosted white over the gradient. Overlays, menus and fields stay solid so text behind never shows through. */
-.bg-white { background-color: rgb(255 255 255 / 0.72); }
-.bg-white.shadow-lg, .bg-white.shadow-xl, .bg-white.shadow-2xl,
-.bg-white[role="menu"], input.bg-white, select.bg-white, textarea.bg-white { background-color: #fff; }
+/* Tier 1 (default): every plain white surface — small pills, dropdown items, table rows, popovers — stays
+   a calm, flat frosted white. No gradient here on purpose: a gradient on every little chip is what made
+   nested blocks look messy. Substring selectors catch every opacity variant components use (`bg-white`,
+   `bg-white/70`, `bg-white/55`, …), with !important to beat Tailwind's own generated utility for that class. */
+[class*="bg-white"] { background-color: rgb(255 255 255 / 0.8) !important; }
+[class*="bg-white"].shadow-lg, [class*="bg-white"].shadow-xl, [class*="bg-white"].shadow-2xl,
+[class*="bg-white"][role="menu"], input[class*="bg-white"], select[class*="bg-white"], textarea[class*="bg-white"] {
+  background-color: #fff !important;
+}
 
-/* An outline on every block: a clear indigo edge plus a faint halo ring, so cards read as designed surfaces. */
-[class*="rounded-2xl"][class*="bg-white"],
-[class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea) {
-  border-color: #bfc3f0;
-  box-shadow: 0 0 0 3px rgb(91 91 214 / 0.06), var(--shadow-sm);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+/* The navbar: light purple blended into white, opaque enough that the dark page behind it does not grey it. */
+body > header[class*="bg-white"] {
+  background-color: rgb(241 232 252 / 0.96) !important;
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.85), rgb(228 212 250 / 0.7)) !important;
 }
-[class*="rounded-2xl"][class*="bg-white"]:hover,
-[class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):hover {
-  border-color: #9fa4e6;
-  box-shadow: 0 0 0 3px rgb(91 91 214 / 0.1), var(--shadow-md);
+
+/* Tier 2: the gradient goes on every top-level block — a card, the chat panel, a stat tile, and this
+   includes `sticky` panels (the quiz-settings sidebar, the onboarding timetable): this fill/border trick
+   never touches `position`, so sticky positioning is untouched and there's no reason to leave those two
+   looking like the one uncoloured block on the page. Dropdowns/popovers (`absolute`/`fixed`, menus and
+   listboxes) stay out, so their own stacking and a crisp, flat background aren't disturbed. White-into-
+   light-purple fill, clipped to the inside of a matching gradient ring so the whole outline reads as one
+   lit edge all the way round. */
+[class*="rounded-2xl"][class*="bg-white"]:not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]),
+[class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]) {
+  border: 1px solid transparent !important;
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  background-image:
+    linear-gradient(165deg, rgb(255 255 255 / 0.92) 0%, rgb(214 180 245 / 0.55) 100%),
+    linear-gradient(135deg, rgb(255 255 255 / 0.9), rgb(168 85 236 / 0.55)) !important;
+  box-shadow: var(--shadow-sm);
+  transition: background-image 0.15s ease, box-shadow 0.15s ease;
 }
+[class*="rounded-2xl"][class*="bg-white"]:not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]):hover,
+[class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]):hover {
+  background-image:
+    linear-gradient(165deg, rgb(255 255 255 / 0.95) 0%, rgb(214 180 245 / 0.65) 100%),
+    linear-gradient(135deg, rgb(255 255 255 / 1), rgb(152 60 220 / 0.85)) !important;
+  box-shadow: 0 0 0 3px rgb(168 85 236 / 0.14), var(--shadow-md);
+}
+/* [data-static-gradient] (the course map pane): the pointer leaves it constantly while panning or
+   clicking through concepts, and the plain look read as the colour "going" each time. Pin the richer
+   look at all times, hovered or not. */
+[data-static-gradient][class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]) {
+  background-image:
+    linear-gradient(165deg, rgb(255 255 255 / 0.95) 0%, rgb(214 180 245 / 0.65) 100%),
+    linear-gradient(135deg, rgb(255 255 255 / 1), rgb(152 60 220 / 0.85)) !important;
+  box-shadow: 0 0 0 3px rgb(168 85 236 / 0.14), var(--shadow-md) !important;
+}
+
+/* Tier 3: undo the gradient for a block that is itself sitting inside another block (a table row inside
+   a "card" section, a result tile inside a panel) — one gradient card is a nice lit surface; a gradient
+   card full of gradient chips is the messy look that prompted this. Falls back to tier 1's flat fill.
+   The ancestor side is wrapped in :where() so it adds no specificity, keeping this equal to (and, by
+   coming later, winning over) the tier-2 rule for the same element. */
+:where([class*="bg-white"], [data-slot="halo-card-surface"]) [class*="rounded-2xl"][class*="bg-white"]:not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]),
+:where([class*="bg-white"], [data-slot="halo-card-surface"]) [class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]) {
+  border-color: #e4d6fb !important;
+  background-image: none !important;
+  background-color: rgb(255 255 255 / 0.85) !important;
+  box-shadow: 0 1px 2px rgb(60 60 140 / 0.06) !important;
+}
+:where([class*="bg-white"], [data-slot="halo-card-surface"]) [class*="rounded-2xl"][class*="bg-white"]:not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]):hover,
+:where([class*="bg-white"], [data-slot="halo-card-surface"]) [class*="rounded-xl"][class*="bg-white"]:not(input):not(select):not(textarea):not([class*="absolute"]):not([class*="fixed"]):not([role="menu"]):not([role="listbox"]):hover {
+  border-color: #c9a8ef !important;
+  box-shadow: 0 1px 2px rgb(60 60 140 / 0.08) !important;
+}
+
+/* Every page's title header (`<h1 className="text-2xl font-semibold tracking-tight">` plus the subtitle
+   right after it) sits directly on the dark page background, outside any card — the exact class string
+   below is unique to that one spot on every page (verified against the whole codebase), so this can't
+   catch a heading that's actually inside a light card. Dark ink there was invisible on dark purple. */
+[class="text-2xl font-semibold tracking-tight"] { color: #f6eeff !important; }
+[class="text-2xl font-semibold tracking-tight"] + p { color: #cdb3ea !important; }
 
 /* The action colour: a gentle lift on hover, a press on click. */
 .bg-indigo-600 {
@@ -123,10 +183,42 @@ body::before {
 .bg-indigo-600:not(:disabled):active { transform: translateY(0) scale(0.98); }
 .bg-indigo-600:disabled { box-shadow: none; }
 
+/* Custom cursor (see components/TargetCursor.jsx). The dot is a hollow ring, not a filled dot: a solid
+   circle sitting over a button looked like a block covering it, especially once sized up. The ring has
+   nothing in its middle, so whatever's under it keeps reading, and normal blend mode (set via `blendMode`
+   in layout.tsx) means it tints rather than inverting the text's colour. The four corner brackets are
+   restored — they stay invisible while idle (that "square" in idle spin is gone, per the opacity the
+   component now drives off the lock spring in TargetCursor.jsx) and snap into view only once the pointer
+   actually locks onto a link or button. */
+.target-cursor__dot {
+  box-sizing: border-box;
+  background: transparent !important;
+  border: 2px solid var(--target-cursor-color, #7d66e9);
+  opacity: 0.9;
+  box-shadow: 0 0 10px 1px rgb(125 102 233 / 0.3);
+}
+
 /* Ripple (see components/Ripple.tsx): a quiet circle from the pointer, clipped to the element. */
 .ripple-layer { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
 .ripple-dot { position: absolute; border-radius: 9999px; pointer-events: none; transform: scale(0); }
 
 @media (prefers-reduced-motion: reduce) {
   .bg-indigo-600, .bg-indigo-600:not(:disabled):hover, .bg-indigo-600:not(:disabled):active { transform: none; transition: none; }
+}
+
+/* Science icons drifting behind the page (see components/ScienceBackground.tsx). */
+.science-bg-sprite {
+  animation-name: science-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes science-drift {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  33%  { transform: translate(var(--dx1), var(--dy1)) rotate(var(--r1)); }
+  66%  { transform: translate(var(--dx2), var(--dy2)) rotate(var(--r2)); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .science-bg-sprite { animation: none; }
 }

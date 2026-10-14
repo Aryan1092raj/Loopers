@@ -300,10 +300,10 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section aria-label="Scope" className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
-              <h2 className="font-medium">Choose topics</h2>
+              <h2 className="font-medium text-[#f6eeff]">Choose topics</h2>
               <div className="flex gap-3 text-xs">
-                <button type="button" onClick={() => setPicked(new Set(concepts.map((c) => c.id)))} className="text-indigo-700 hover:underline">Select all</button>
-                <button type="button" onClick={() => setPicked(new Set())} disabled={picked.size === 0} className="text-slate-500 hover:underline disabled:opacity-40">Clear</button>
+                <button type="button" onClick={() => setPicked(new Set(concepts.map((c) => c.id)))} className="text-[#d6b8f5] hover:underline">Select all</button>
+                <button type="button" onClick={() => setPicked(new Set())} disabled={picked.size === 0} className="text-[#cdb3ea] hover:underline disabled:opacity-40">Clear</button>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -335,8 +335,8 @@ export default function QuizRunner({ studentId, concepts, topics = [], names, in
         {sets.length > 0 && (
           <section aria-label="Your quizzes" className="space-y-3">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-medium">Your quizzes</h2>
-              <Link href="/report" className="text-sm text-indigo-700 hover:underline">All reports</Link>
+              <h2 className="font-medium text-[#f6eeff]">Your quizzes</h2>
+              <Link href="/report" className="text-sm text-[#d6b8f5] hover:underline">All reports</Link>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[...sets].reverse().map((s) => (

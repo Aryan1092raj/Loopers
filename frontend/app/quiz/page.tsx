@@ -24,7 +24,7 @@ function Quiz() {
         <p className="text-sm text-slate-600">Pick what to practise, choose how many questions, and every answer comes back with its source.</p>
       </header>
       <ErrorNote message={error} />
-      {(loading || !ids) && !data && <p className="text-sm text-neutral-500">Loading…</p>}
+      {(loading || !ids) && !data && <p className="text-sm text-[#cdb3ea]">Loading…</p>}
       {ids && data && (
         <QuizRunner key={topic ?? ""} studentId={ids.studentId} concepts={concepts} topics={data ? topicsOf(data) : []} names={new Map(data.nodes.map((n) => [n.id, n.name]))} initialPicked={picked} />
       )}

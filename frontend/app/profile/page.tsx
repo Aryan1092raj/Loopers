@@ -11,7 +11,7 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   useEffect(() => setDraft(name ?? ""), [name]);
 
-  if (!ids) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!ids) return <p className="text-sm text-[#cdb3ea]">Loading…</p>;
   return (
     <div className="max-w-xl space-y-4">
       <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
@@ -47,7 +47,7 @@ export default function ProfilePage() {
         <dt className="text-slate-500">Joined</dt><dd>{student ? new Date(student.created_at).toLocaleDateString() : "Save a name to create your profile"}</dd>
         <dt className="text-slate-500">Exam date</dt><dd>{student?.exam_date ?? "Not set"}</dd>
       </dl>
-      <p className="text-sm"><Link href="/dashboard" className="underline">Go to dashboard</Link></p>
+      <p className="text-sm text-[#d6b8f5]"><Link href="/dashboard" className="underline">Go to dashboard</Link></p>
     </div>
   );
 }

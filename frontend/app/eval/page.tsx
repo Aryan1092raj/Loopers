@@ -20,6 +20,9 @@ export default function EvalPage() {
   useStaggerIn(root, !!golden.data && !!sim.data);
   return (
     <div ref={root} className="space-y-6">
+      <p role="alert" className="rounded-lg border-2 border-red-500 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm">
+        Only for judges
+      </p>
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Evaluation</h1>
         <p className="text-sm text-slate-600">
@@ -28,7 +31,7 @@ export default function EvalPage() {
       </header>
       <ErrorNote message={golden.error ?? sim.error} />
 
-      {(golden.loading || sim.loading) && !golden.data && <p className="text-sm text-slate-500">Loading results…</p>}
+      {(golden.loading || sim.loading) && !golden.data && <p className="text-sm text-[#cdb3ea]">Loading results…</p>}
       {(run || simRun) && <Scorecard run={run} judged={judged} sim={simRun} />}
 
       <div className="space-y-3">

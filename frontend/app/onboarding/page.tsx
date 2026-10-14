@@ -55,7 +55,7 @@ export default function OnboardingPage() {
     setPicks(next);
   }
 
-  if (!ids) return <p className="text-sm text-neutral-500">Loading…</p>;
+  if (!ids) return <p className="text-sm text-[#cdb3ea]">Loading…</p>;
   const card = "space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm";
   return (
     <div className="space-y-5">

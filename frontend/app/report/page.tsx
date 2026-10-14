@@ -87,8 +87,8 @@ function Overview({ sets, studentId, graph }: { sets: QuizSet[]; studentId: stri
       {latest && (
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-medium">Latest attempt</h2>
-            <Link href={`/report?quiz=${encodeURIComponent(latest.id)}`} className="text-sm text-indigo-700 underline">Open full report</Link>
+            <h2 className="font-medium text-[#f6eeff]">Latest attempt</h2>
+            <Link href={`/report?quiz=${encodeURIComponent(latest.id)}`} className="text-sm text-[#d6b8f5] underline">Open full report</Link>
           </div>
           <ReportView report={reports.get(latest.id)!} names={new Map((graph?.nodes ?? []).map((n) => [n.id, n.name]))} />
         </section>
@@ -139,15 +139,15 @@ function Report() {
     <div className="space-y-5">
       <h1 className="text-2xl font-semibold tracking-tight">{set ? `Quiz ${set.n} · attempt ${current}` : "Quiz report"}</h1>
       <ErrorNote message={report.error} />
-      {report.loading && !report.data && <p className="text-sm text-neutral-500">Building your report…</p>}
+      {report.loading && !report.data && <p className="text-sm text-[#cdb3ea]">Building your report…</p>}
       {report.data && <ReportView report={report.data} names={names} />}
       {ids && others.length > 0 && (
         <section aria-label="Other attempts" className="space-y-2">
-          <h2 className="font-medium">Other attempts of Quiz {set?.n}</h2>
+          <h2 className="font-medium text-[#f6eeff]">Other attempts of Quiz {set?.n}</h2>
           {others.map((a) => <PastAttempt key={a.id} id={a.id} number={a.number} at={a.at} studentId={ids.studentId} names={names} />)}
         </section>
       )}
-      <div className="flex gap-4 text-sm">
+      <div className="flex gap-4 text-sm text-[#d6b8f5]">
         <Link href="/quiz" className="underline">Back to quizzes</Link>
         <Link href="/report" className="underline">All quizzes</Link>
         <Link href="/dashboard" className="underline">Go to dashboard</Link>

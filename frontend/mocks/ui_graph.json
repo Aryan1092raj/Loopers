@@ -5,12 +5,20 @@
     {"id":"matrix_inverse","name":"Matrix inverse","level":"concept","parent_id":"linear_algebra","p_know":0.62},
     {"id":"characteristic_polynomial","name":"Characteristic polynomial","level":"concept","parent_id":"linear_algebra","p_know":0.31},
     {"id":"eigenvalues","name":"Eigenvalues","level":"concept","parent_id":"linear_algebra","p_know":0.22},
-    {"id":"diagonalization","name":"Diagonalization","level":"concept","parent_id":"linear_algebra","p_know":0.15}
+    {"id":"diagonalization","name":"Diagonalization","level":"concept","parent_id":"linear_algebra","p_know":0.15},
+    {"id":"probability","name":"Probability","level":"topic","parent_id":null,"p_know":0.5},
+    {"id":"sample_space","name":"Sample space","level":"concept","parent_id":"probability","p_know":0.7},
+    {"id":"conditional_probability","name":"Conditional probability","level":"concept","parent_id":"probability","p_know":0.5},
+    {"id":"bayes_theorem","name":"Bayes' theorem","level":"concept","parent_id":"probability","p_know":0.35},
+    {"id":"random_variables","name":"Random variables","level":"concept","parent_id":"probability","p_know":0.45}
   ],
   "edges": [
     {"src":"determinant","dst":"matrix_inverse","weight":0.7},
     {"src":"determinant","dst":"characteristic_polynomial","weight":0.83},
     {"src":"characteristic_polynomial","dst":"eigenvalues","weight":0.9},
-    {"src":"eigenvalues","dst":"diagonalization","weight":0.88}
+    {"src":"eigenvalues","dst":"diagonalization","weight":0.88},
+    {"src":"sample_space","dst":"conditional_probability","weight":0.75},
+    {"src":"conditional_probability","dst":"bayes_theorem","weight":0.8},
+    {"src":"sample_space","dst":"random_variables","weight":0.6}
   ]
 }

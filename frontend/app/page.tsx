@@ -49,7 +49,7 @@ function Workspace() {
     return () => document.removeEventListener("keydown", esc);
   }, [active]);
 
-  if (!ids) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!ids) return <p className="text-sm text-[#cdb3ea]">Loading…</p>;
   return (
     <div className="space-y-3">
       <ErrorNote message={note ?? graph.error} />
