@@ -1,7 +1,7 @@
 # Deploys frontend/ to Vercel: production on push to main, preview on pull requests.
 # Needs secrets in the "Production" environment: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, and the Vercel project's
-# Root Directory set to "frontend". Build-time env (API_URL, NEXT_MOCK) comes from the
-# Vercel project settings through `vercel pull`.
+# Root Directory set to "frontend". Vercel builds the app itself, so build-time env (API_URL, MEDIA_URL, NEXT_MOCK) is
+# read from the project settings, including variables saved as secrets. `vercel pull` cannot read those and fails the build.
 name: Frontend → Vercel
 
 on:
@@ -44,12 +44,8 @@ jobs:
       - name: Deploy
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            vercel pull --yes --environment=production
-            vercel build --prod
-            url=$(vercel deploy --prebuilt --prod)
+            url=$(vercel deploy --prod --yes)
           else
-            vercel pull --yes --environment=preview
-            vercel build
-            url=$(vercel deploy --prebuilt)
+            url=$(vercel deploy --yes)
           fi
           echo "Deployed: $url" >> "$GITHUB_STEP_SUMMARY"
