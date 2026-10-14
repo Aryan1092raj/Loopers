@@ -100,6 +100,12 @@ def run(llm=None, encode=None, qdrant: bool = True) -> dict:
     if not mentions:
         raise RuntimeError("the LLM extracted no concepts from any unit")
     concepts, owner = cluster.cluster_mentions(mentions, encode)
+    conn = get_connection()
+    try:
+        old = [(r[0], r[1], json.loads(r[2])) for r in conn.execute("SELECT concept_id, name, aliases_json FROM concepts WHERE level != 'topic'")]
+    finally:
+        conn.close()
+    reused = cluster.keep_old_ids(concepts, old)
     topics = hierarchy.build_hierarchy(concepts, encode, llm, course=units[0]["title"] or "Course")
     edges = prereq.score_edges(concepts, mentions, owner, llm)
     kept, removed = dag.make_acyclic([(s, d, w) for s, d, w, _ in edges])
@@ -108,7 +114,7 @@ def run(llm=None, encode=None, qdrant: bool = True) -> dict:
     if qdrant:
         _tag_qdrant(tags, topic_of)
     report = {
-        "units": len(units), "topics": len(topics), "concepts": len(concepts), "edges": len(kept),
+        "units": len(units), "topics": len(topics), "concepts": len(concepts), "ids_reused": reused, "edges": len(kept),
         "removed_cycle_edges": [{"src": s, "dst": d, "weight": w} for s, d, w in removed], "weak_tags": weak,
     }
     REPORT.parent.mkdir(parents=True, exist_ok=True)

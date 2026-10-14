@@ -23,6 +23,31 @@ def slug(name: str, prefix: str = "c_") -> str:
 
 
 
+def keep_old_ids(concepts: list[dict], old: list[tuple[str, str, list[str]]]) -> int:
+    """Rebuilds name concepts afresh, so a different top mention name would mint a new id and orphan the mastery and
+    quiz rows that point at the old one. Give a concept the old id of a concept whose name or alias it shares.
+    `old` is [(concept_id, name, aliases)]; returns how many ids were reused through a name match."""
+    norm = lambda s: re.sub(r"\s+", " ", s.strip().lower())  # noqa: E731
+    old_ids = {cid for cid, _, _ in old}
+    by_name = {}
+    for cid, name, aliases in old:
+        for n in [name, *aliases]:
+            by_name.setdefault(norm(n), cid)
+    claimed = {c["id"] for c in concepts if c["id"] in old_ids}  # same name as before: already the old id
+    moved = 0
+    for c in concepts:
+        if c["id"] in old_ids:
+            continue
+        for n in [c["name"], *c["aliases"]]:
+            cid = by_name.get(norm(n))
+            if cid and cid not in claimed:
+                c["id"] = cid
+                claimed.add(cid)
+                moved += 1
+                break
+    return moved
+
+
 def unit_vectors(vectors) -> np.ndarray:
     v = np.array(vectors, dtype=float)
     return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
