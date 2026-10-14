@@ -6,6 +6,7 @@ import re
 from config import METADATA
 
 WINDOW_CHARS = 1500
+SAVE_EVERY = 10  # new LLM results between cache writes
 CACHE = METADATA / "concept_cache.json"
 
 PROMPT = (
@@ -56,6 +57,9 @@ def extract(units: list[dict], llm) -> list[dict]:
                 key = hashlib.sha1((PROMPT + window).encode()).hexdigest()
                 if key not in cache:
                     cache[key] = parse_concepts(llm(PROMPT.format(text=window)))
+                    if len(cache) % SAVE_EVERY == 0:  # the job runner SIGKILLs a stage on timeout, so `finally` below never runs
+                        CACHE.parent.mkdir(parents=True, exist_ok=True)
+                        CACHE.write_text(json.dumps(cache))
                 mentions += [{**c, "unit_id": unit["unit_id"], "pos": pos} for c in cache[key]]
                 pos += 1
     finally:

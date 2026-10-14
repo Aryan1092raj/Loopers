@@ -38,6 +38,7 @@ image = (
         "WHISPER_DEVICE": "cuda",
         "WHISPER_COMPUTE_TYPE": "float16",
         "HF_HOME": f"{DATA}/hf",
+        "JOB_STAGE_TIMEOUT": "3600",  # the concepts stage makes one LLM call per 1500 characters of every unit
     })
     .add_local_dir(HERE / "src", "/app/src", ignore=["**/__pycache__"])
     .add_local_dir(HERE / "templates", "/app/templates")

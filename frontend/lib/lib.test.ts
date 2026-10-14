@@ -21,9 +21,9 @@ describe("splitAnswer", () => {
   it("turns markers into cite parts in order, including adjacent and repeated ones", () => {
     const c1 = cite("E1"), c2 = cite("E2");
     expect(splitAnswer("A [E1]. B [E2][E1]", [c1, c2])).toEqual([
-      { kind: "text", text: "A " },
+      { kind: "text", text: "A." },
       { kind: "cite", citation: c1 },
-      { kind: "text", text: ". B " },
+      { kind: "text", text: " B " },
       { kind: "cite", citation: c2 },
       { kind: "cite", citation: c1 },
     ]);
