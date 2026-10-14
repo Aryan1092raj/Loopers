@@ -97,32 +97,50 @@ cd src && LOOPERS_NO_REEXEC=1 uvicorn api.main:app   # no --reload: it orphans a
 cd frontend && npm run dev
 ```
 
-**Deployed** (Vercel UI, Render API with no models, Lightning GPU worker behind ngrok):
+**Deployed** (Vercel UI, Render API with no models, Modal GPU worker):
 
 ```mermaid
 flowchart LR
     B[Browser] --> V[Vercel<br/>Next.js]
     V -->|/api| R[Render API<br/>tutor, quiz, learner]
-    V -->|/media + key| W[Lightning GPU worker<br/>EmbeddingGemma 2, bge-reranker,<br/>Whisper, Piper, ingest]
+    V -->|/media + key| W[Modal GPU worker, T4<br/>EmbeddingGemma 2, bge-reranker,<br/>Whisper, Piper, ingest]
     R -->|embed, rerank, voice,<br/>uploads, jobs| W
     W --> Q[(Qdrant Cloud)]
     R --> Q
+    W --- VOL[(Modal Volume<br/>raw, processed, metadata, HF cache)]
     W -.->|knowledge tables,<br/>copied after each job| R
 ```
 
 Render sends model calls and uploads to the worker when `WORKER_URL` is set and copies the worker's knowledge tables
 after each job and at boot. If the worker is down, chat answers `503 GPU worker offline`. A shared `WORKER_KEY`
-protects every worker route except `/api/health`.
+protects every worker route except `/api/health`. The Modal worker has a stable HTTPS URL and needs no tunnel.
 
 | Where | Variables |
 |---|---|
-| Lightning Studio (`python RAG_DB/scripts/lightning_serve.py`) | `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `QDRANT_URL`, `QDRANT_API_KEY`, `DEEPSEEK_API_KEY`, `HF_TOKEN`, `WORKER_KEY` |
-| Render | `WORKER_URL`, `WORKER_KEY`, `COLLECTION`, `QDRANT_URL`, `QDRANT_API_KEY`, LLM keys, `API_CORS_ORIGINS` |
-| Vercel | `API_URL` (Render), `MEDIA_URL` (ngrok URL), `WORKER_KEY` |
-| GitHub Actions variables | `RENDER_API_URL`, `WORKER_URL` (keep-alive pings) |
+| Modal secret `loopers-worker` | `WORKER_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`, `DEEPSEEK_API_KEY`, `HF_TOKEN`, optional `GROQ_API_KEY`, `GEMINI_API_KEY` |
+| Render | `WORKER_URL` (the Modal URL), `WORKER_KEY`, `COLLECTION`, `QDRANT_URL`, `QDRANT_API_KEY`, LLM keys, `API_CORS_ORIGINS` |
+| Vercel | `API_URL` (Render), `MEDIA_URL` (the Modal URL), `WORKER_KEY` |
+| GitHub Actions variables | `RENDER_API_URL` (keep-alive ping). Leave `WORKER_URL` unset: pinging Modal keeps the GPU running and billed |
 
-Seed the Studio with the demo course first (`RAG_DB/export_deploy_data.sh` builds `deploy_data/`). Render's free plan
-resets students, mastery and chats on every deploy; knowledge comes back from the worker.
+Set up the worker from `RAG_DB` (`pip install modal && modal setup` first):
+
+```bash
+modal secret create loopers-worker WORKER_KEY=... QDRANT_URL=... QDRANT_API_KEY=... DEEPSEEK_API_KEY=... HF_TOKEN=...
+modal volume create loopers-data
+for d in metadata processed raw; do modal volume put loopers-data deploy_data/$d /$d; done   # demo course
+modal deploy modal_worker.py          # WARM=1 modal deploy modal_worker.py keeps one container always on
+```
+
+`modal deploy` prints the worker URL; put it in Render's `WORKER_URL` and Vercel's `MEDIA_URL`, then redeploy Vercel
+(rewrites are baked in at build time). `RAG_DB/export_deploy_data.sh` builds `deploy_data/`. The worker scales to zero
+after 10 idle minutes; the first request then takes about a minute while models load. It runs one container because its
+state is SQLite plus files on the volume, and it commits the volume every 20 seconds. Render's free plan resets
+students, mastery and chats on every deploy; knowledge comes back from the worker.
+
+`deploy_data/` carries metadata and files but no vectors. To put a source's vectors into Qdrant without touching other
+sources, run `modal run modal_worker.py::reindex_cli --source-ids <id1>,<id2>`. A single job's stages time out after
+`JOB_STAGE_TIMEOUT` seconds (3600 on Modal), and `extract` skips files over `EXTRACT_MAX_MB` (default 40) and leaves them
+in place.
 
 ## Test it
 
@@ -166,11 +184,36 @@ Demo course *Limits and Continuity*: OpenStax *Calculus Volume 1* ch. 2 (64 page
 scored on. The adaptive gain depends on a simulated student model. BKT drifts over sessions because it does not model
 forgetting.
 
+## Coverage of the problem statement
+
+Checked against the code on 2026-10-14. Backend tests: 80 pass, 2 fail (`test_golden_set_valid` and one scheduler test).
+Frontend: 30 vitest cases pass and `tsc` is clean.
+
+| PS | Requirement | Status |
+|---|---|---|
+| 1a-1c | Ingest video, PDFs and slides; topics, concepts, prerequisites; every unit tagged and linked to page, slide or second | Done |
+| 1d | Use figures and diagrams | Partial: figures are captioned and retrieved, but kept out of the refusal gate |
+| 2a-2b | Cited excerpts that open the exact source; decline or flag uncovered questions | Done |
+| 3a | MCQ, short and numeric quizzes and mock exams on a chosen scope, tagged | Done; a mock exam is a quiz mode (timer, deferred feedback) |
+| 3b | Verified items, no repeats | Partial: blind solver done, duplicate check is fuzzy, and `/api/quiz/generate` can repeat |
+| 3c | Cited feedback, weak-topic and misconception report | Partial: misconceptions only for MCQ |
+| 4a | Mastery updated by quizzes and conversation | Partial: chat applies one BKT step, quizzes also update the review schedule |
+| 4b | Diagnostic and intake for new students | Partial: form plus a five-question diagnostic, not a conversation |
+| 5a-5c | Evaluation framework, metrics on a test set, simulated students | Done, with caveats: RAGAS definitions on our own judge calls, DeepEval as a cross-check, parametric (not LLM-played) students |
+| 6a | Course flow map | Done |
+| 6b | Revision material | Partial: flashcards and a cited text brief; no generated slides |
+| 6c | Study schedule | Partial: exam date and review due dates, no forgetting curve drawn |
+| 6d | Hindi | Partial: works when the first retrieval is refused; the chat box always sends `lang: "en"` |
+| 6e | Audio tutoring | Partial: speech to text for questions, text to speech for the brief, chat answers not spoken |
+| Deliverables | Prototype, documentation, evaluation results | Done |
+| Deliverables | 3-10 minute demo video | Not made yet |
+
 ## Repo layout
 
 ```
 RAG_DB/src/       pipeline modules + core/ api/ ingest/ concepts/ tutor/ assess/ learner/ revision/ evaluation/
 RAG_DB/tests/     one small test file per package
+RAG_DB/modal_worker.py   GPU worker for the deployed stack (Modal)
 frontend/         Next.js web app (/, /quiz, /report, /dashboard, /eval)
 whisper-server/   local transcription
 ```
