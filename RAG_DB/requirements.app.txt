@@ -6,6 +6,7 @@ numpy==1.26.4
 pyarrow==21.0.0
 
 transformers>=5
+torchvision  # EmbeddingGemma 2's processor imports it; Dockerfile.app already installs it from the torch index
 sentence-transformers>=6
 peft  # vidore/colSmol-500M ships as a LoRA adapter (ingest/page_embed.py)
 librosa
