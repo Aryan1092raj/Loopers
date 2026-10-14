@@ -58,12 +58,13 @@ function Overlay({ graph, names, onReload, onClose }: { graph: Graph; names: Map
   const hasNodes = graph.nodes.length > 0;
   return (
     <div ref={root} role="dialog" aria-modal="true" aria-label="Course map" style={{ top }} className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-slate-50">
-      <div className="flex min-h-0 flex-1 gap-4 p-4">
+      <div className="relative flex min-h-0 flex-1 gap-4 p-4">
         {hasNodes
           ? <ConceptGraph graph={graph} onSelect={setSelected} onReload={onReload} onClose={onClose} className="h-full min-w-0 flex-1" />
           : <Empty>No concepts yet. Add material and let the concepts stage finish.</Empty>}
         {selected && (
-          <div className="w-96 shrink-0 overflow-y-auto">
+          // phones: the concept drawer covers the map instead of squeezing it to nothing next to a 24 rem column
+          <div className="absolute inset-0 z-10 overflow-y-auto bg-slate-50 p-4 md:static md:inset-auto md:w-96 md:shrink-0 md:bg-transparent md:p-0">
             <ConceptDrawer key={selected} id={selected} names={names} onClose={() => setSelected(null)} />
           </div>
         )}

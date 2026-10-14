@@ -37,8 +37,28 @@ async def lifespan(_: FastAPI):
     yield
 
 
+def _seed_eval_runs() -> None:
+    """Render's database is rebuilt on every deploy and never saw an evaluation run, so the Evaluation page would be
+    empty. Insert the saved runs quoted in README.md; INSERT OR IGNORE leaves runs a real evaluation has written."""
+    import json
+    from core.db import get_connection
+
+    seed = Path(__file__).resolve().parents[1] / "evaluation" / "seed_runs.json"
+    if not seed.is_file():
+        return
+    conn = get_connection()
+    try:
+        conn.executemany(
+            "INSERT OR IGNORE INTO eval_runs (run_id, kind, config_json, metrics_json, created_at)"
+            " VALUES (:run_id, :kind, :config_json, :metrics_json, :created_at)", json.loads(seed.read_text()))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 app = FastAPI(title="Loopers Multimodal API", lifespan=lifespan)
 init_db()
+_seed_eval_runs()
 app.include_router(router)
 app.include_router(worker_router)
 app.middleware("http")(require_key)
