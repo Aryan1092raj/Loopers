@@ -28,14 +28,62 @@ resolves them from stored fields.
 
 ## Run it
 
+Every mode starts from the same file. Copy it and fill in at least one LLM key (`DEEPSEEK_API_KEY` or
+`GEMINI_API_KEY`) and `HF_TOKEN`. EmbeddingGemma 2 is a gated model, so the Hugging Face account behind the token
+must have accepted its license on huggingface.co.
+
 ```bash
-cp RAG_DB/.env.example RAG_DB/.env    # add LLM keys
+cp RAG_DB/.env.example RAG_DB/.env
+```
+
+**CPU, any machine.** Give Docker at least 8 GB of memory. The first start downloads the models into a volume.
+
+```bash
+docker compose -f docker-compose.app.yml --profile asr up -d --build
+```
+
+**NVIDIA GPU.** Needs the native Docker Engine with the NVIDIA Container Toolkit.
+
+```bash
 docker compose -f docker-compose.app.yml -f docker-compose.gpu.yml --profile asr up -d --build
 ```
 
-The UI is at http://localhost:3000 and the API at http://localhost:8000. This needs the native Docker Engine with
-the NVIDIA Container Toolkit. Without a GPU, drop `-f docker-compose.gpu.yml` and give Docker at least 8 GB of
-memory.
+The UI is at http://localhost:3000 and the API at http://localhost:8000. Change the ports with `WEB_PORT` and
+`API_PORT`. Upload a PDF, deck or video on the home page and wait for the job to reach `done`; chat, quizzes and the
+dashboard use whatever has been uploaded.
+
+**Deployed.** The site is split in three. Vercel serves `frontend/`. Render runs the API (tutor, quizzes, learner
+model) from `Dockerfile.render` with no models in it. A Lightning Studio with a GPU runs the same code as a worker
+(`RAG_DB/scripts/lightning_serve.py`, exposed through an ngrok domain) and does the heavy work.
+
+```mermaid
+flowchart LR
+    B[Browser] --> V[Vercel<br/>Next.js]
+    V -->|/api| R[Render API<br/>tutor, quiz, learner]
+    V -->|/media + key| W[Lightning GPU worker<br/>models, ingest, media]
+    R -->|embed, rerank, voice,<br/>uploads, jobs| W
+    W --> Q[(Qdrant Cloud)]
+    R --> Q
+    W -.->|knowledge tables,<br/>copied after each job| R
+```
+
+Render sends embedding, reranking, speech and upload calls to the worker when `WORKER_URL` is set. When the job
+finishes, Render copies the worker's knowledge tables (sources, units, concepts) into its own SQLite, and again at
+boot. If the worker is down, chat answers `503 GPU worker offline` and never answers without retrieval. A shared
+`WORKER_KEY` protects every worker route except `/api/health`.
+
+| Where | Variables |
+|---|---|
+| Lightning Studio | `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `QDRANT_URL`, `QDRANT_API_KEY`, `DEEPSEEK_API_KEY`, `HF_TOKEN`, `WORKER_KEY` |
+| Render | `WORKER_URL` (the ngrok URL), `WORKER_KEY`, `COLLECTION`, `QDRANT_URL`, `QDRANT_API_KEY`, LLM keys, `API_CORS_ORIGINS` (the Vercel origin) |
+| Vercel | `API_URL` (Render), `MEDIA_URL` (the ngrok URL), `WORKER_KEY` |
+| GitHub Actions variables | `RENDER_API_URL`, `WORKER_URL` (keep-alive pings) |
+
+Before the first upload, copy the demo course into the Studio (`RAG_DB/export_deploy_data.sh` builds
+`deploy_data/`), so the concept rebuild sees the whole course. Render's free plan keeps students, mastery, quizzes and
+chats on an ephemeral disk, so they reset on every deploy; the knowledge tables come back from the worker at boot.
+`RENDER_API_URL=<api> bash RAG_DB/scripts/e2e_worker.sh doc.pdf "a question it answers"` uploads through Render, waits
+for the GPU job and asks one question.
 
 To run without Docker:
 
