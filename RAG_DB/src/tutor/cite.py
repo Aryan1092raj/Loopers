@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 
 import config
+import worker_client
 from core.db import get_connection
 from core.models import Citation, Locator
 
@@ -25,7 +26,8 @@ def body(text: str, heading: str | None) -> str:
 
 def _page_image_url(source_id: str, loc: Locator) -> str | None:
     n = loc.page_no or loc.slide_no or loc.matched_slide_page
-    if n and (config.PAGES_DIR / source_id / f"{n}.webp").is_file():
+    # With a GPU worker the page images live there (Vercel routes /media to it), so this host cannot check for them.
+    if n and (worker_client.WORKER_URL or (config.PAGES_DIR / source_id / f"{n}.webp").is_file()):
         return f"/media/pages/{source_id}/{n}.webp"
     return None
 

@@ -49,7 +49,10 @@ def _save(units, mentions, owner, topics, concepts, kept, why, tags) -> dict[str
     topic_of = {uid: parent[picks[0][0]] for uid, picks in tags.items()}
     conn = get_connection()
     try:
-        # children before parents; fails loudly if a student's mastery still points at a concept
+        # Every upload rebuilds the graph, so learner rows (mastery, items) may still point at a concept this run
+        # drops; keep_old_ids limits that, and a foreign-key error here would fail the whole upload job.
+        conn.execute("PRAGMA foreign_keys=OFF")
+        # children before parents
         for table in ("unit_concepts", "concept_edges", "concepts"):
             conn.execute(f"DELETE FROM {table}")
         for node in [*topics, *concepts]:  # topics first: parent_id is a foreign key
