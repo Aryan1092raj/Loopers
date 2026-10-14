@@ -165,6 +165,9 @@ def rerank_scores(query: str, texts: list[str]) -> list[float]:
     """Sigmoid cross-encoder scores in [0, 1]. The model sits in CPU memory between calls and visits the GPU only
     while scoring, so the 6 GB card is free for the embedder, Whisper and ingest jobs the rest of the time.
     RERANK_KEEP_ON_GPU=1 keeps it resident (saves ~0.2 s per query on a bigger card)."""
+    import worker_client
+    if worker_client.WORKER_URL:
+        return worker_client.rerank(query, texts)
     import os
     import torch
 

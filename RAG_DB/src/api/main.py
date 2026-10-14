@@ -2,14 +2,16 @@ import os
 import logging
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from api.routes import router
+from api.worker import router as worker_router, require_key
 from config import PAGES_DIR, RAW
 from core.db import init_db
+from worker_client import WorkerOffline
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +20,13 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Loopers Multimodal API")
 init_db()
 app.include_router(router)
+app.include_router(worker_router)
+app.middleware("http")(require_key)
+
+
+@app.exception_handler(WorkerOffline)
+async def worker_offline(request: Request, exc: WorkerOffline):
+    return JSONResponse({"detail": str(exc)}, status_code=503)
 
 # CORS configuration (Updated per TRD spec)
 cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000")

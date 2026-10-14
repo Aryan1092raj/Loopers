@@ -13,6 +13,7 @@ max_length capped at 512 tokens — sufficient for ~350-word chunks.
 """
 from functools import lru_cache
 
+import worker_client
 from config import EMBED_MODEL
 
 
@@ -50,6 +51,8 @@ def encode(texts, is_query: bool = False) -> list[list[float]]:
     EmbeddingGemma 2 also takes {"text": "... <|image|>", "image": [path]} items and uses
     is_query to pick its SearchQuery/Document prompt; BGE-M3 ignores is_query.
     """
+    if worker_client.WORKER_URL:
+        return worker_client.embed([texts] if isinstance(texts, str) else texts, is_query)[0]
     import torch
     from config import EMBED_MODEL
 
@@ -91,6 +94,8 @@ def encode_hybrid(texts, is_query: bool = False) -> tuple[list[list[float]], lis
 
     Falls back to (dense_vectors, None) for non-BGE-M3 models. Pass is_query=True at retrieval time.
     """
+    if worker_client.WORKER_URL:
+        return worker_client.embed([texts] if isinstance(texts, str) else texts, is_query)
     import torch
     from config import EMBED_MODEL
 
