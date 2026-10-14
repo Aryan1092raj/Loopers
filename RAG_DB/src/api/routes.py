@@ -15,7 +15,8 @@ from typing import Literal
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from api import runner
+import worker_client
+from api import runner, sync
 from concepts import api as concepts
 from core.db import REMOVED_CONCEPTS, get_connection
 from core.models import Citation, TutorResponse
@@ -33,6 +34,16 @@ def _mock(name: str):
 
 def _todo():
     raise HTTPException(501, "Not implemented yet")
+
+
+_synced_jobs: set[str] = set()
+
+
+def _relay(r) -> dict:
+    """The worker's JSON, or its error with the same status so the UI shows the real reason."""
+    if r.status_code >= 400:
+        raise HTTPException(r.status_code, r.json().get("detail", r.text))
+    return r.json()
 
 
 def _rows(sql: str, args: tuple = ()) -> list[dict]:
@@ -145,6 +156,10 @@ def create_source(
 
     Send either `file` or `url` (a YouTube or other http(s) video link).
     """
+    if worker_client.WORKER_URL:
+        form = {k: str(v) for k, v in dict(url=url, kind=kind, title=title, lecture_no=lecture_no, lang=lang, subject=subject).items() if v is not None}
+        files = {"file": (file.filename, file.file, file.content_type)} if file else None
+        return _relay(worker_client.call("POST", "/api/sources", timeout=600, data=form, files=files))
     if (file is None) == (url is None):
         raise HTTPException(422, "Send either file or url")
     if url is not None:
@@ -239,6 +254,8 @@ def run_pipeline(body: PipelineRun):
 @router.post("/jobs/{job_id}/cancel")
 def cancel_job(job_id: str):
     """Kill a running job so a stuck one stops blocking uploads."""
+    if worker_client.WORKER_URL:
+        return _relay(worker_client.call("POST", f"/api/jobs/{job_id}/cancel"))
     if not runner.cancel(job_id):
         raise HTTPException(404, "No running job with that id")
     return {"job_id": job_id, "status": "cancelling"}
@@ -246,6 +263,8 @@ def cancel_job(job_id: str):
 
 @router.get("/jobs/{job_id}/log")
 def get_job_log(job_id: str, tail: int = 200):
+    if worker_client.WORKER_URL:
+        return _relay(worker_client.call("GET", f"/api/jobs/{job_id}/log", params={"tail": tail}))
     path = runner.log_path(job_id)
     if not re.fullmatch(r"j_[0-9a-f]{12}", job_id) or not path.is_file():
         raise HTTPException(404, "Log not found")
@@ -264,19 +283,28 @@ def list_sources():
 def remove_source(source_id: str):
     """Soft remove: the source leaves lists, retrieval and the concept graph, but its units stay so old
     citations and quiz items still resolve. Undo with UPDATE sources SET hidden = 0."""
+    remote = bool(worker_client.WORKER_URL)
+    if remote:  # the worker's copy is the source of truth; ours is hidden below so the UI updates before the next sync
+        _relay(worker_client.call("DELETE", f"/api/sources/{source_id}"))
     conn = get_connection()
     try:
         removed = conn.execute("UPDATE sources SET hidden = 1 WHERE source_id = ? AND hidden = 0", (source_id,)).rowcount
         conn.commit()
     finally:
         conn.close()
-    if not removed:
+    if not removed and not remote:
         raise HTTPException(404, "Source not found")
     return {"source_id": source_id, "removed": True}
 
 
 @router.get("/jobs/{job_id}")
 def get_job(job_id: str):
+    if worker_client.WORKER_URL:
+        job = _relay(worker_client.call("GET", f"/api/jobs/{job_id}"))
+        if job["status"] == "done" and job_id not in _synced_jobs:
+            sync.sync_knowledge()
+            _synced_jobs.add(job_id)
+        return job
     rows = _rows("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
     if not rows:
         raise HTTPException(404, "Job not found")

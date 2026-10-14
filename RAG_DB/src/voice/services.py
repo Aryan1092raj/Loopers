@@ -7,6 +7,7 @@ import wave
 from functools import lru_cache
 from pathlib import Path
 
+import worker_client
 from ingest.video_worker import get_transcript
 
 VOICE = os.getenv("PIPER_VOICE", "en_US-lessac-medium")
@@ -17,6 +18,11 @@ def transcribe_audio(file_path: str) -> dict:
     """{"text", "language", "duration"}; raises when neither the server nor the local model can transcribe."""
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Audio file {file_path} not found.")
+    if worker_client.WORKER_URL:
+        with open(file_path, "rb") as f:
+            r = worker_client.call("POST", "/api/voice/stt", timeout=600, files={"audio": (Path(file_path).name, f)})
+        r.raise_for_status()
+        return r.json()
     segments = get_transcript(Path(file_path))
     return {
         "text": " ".join(s["text"].strip() for s in segments).strip(),
@@ -41,6 +47,11 @@ def synthesize_speech(text: str, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{hashlib.md5(f'{VOICE}:{text}'.encode()).hexdigest()}.wav"
     if not output_path.exists():
+        if worker_client.WORKER_URL:
+            r = worker_client.call("POST", "/api/voice/tts", json={"text": text})
+            r.raise_for_status()
+            output_path.write_bytes(r.content)
+            return output_path
         tmp = output_path.with_suffix(".part")
         with wave.open(str(tmp), "wb") as f:
             _voice().synthesize_wav(text, f)

@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -7,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
+import worker_client
+from api import sync
 from api.routes import router
 from api.worker import router as worker_router, require_key
 from config import PAGES_DIR, RAW
@@ -27,6 +30,19 @@ app.middleware("http")(require_key)
 @app.exception_handler(WorkerOffline)
 async def worker_offline(request: Request, exc: WorkerOffline):
     return JSONResponse({"detail": str(exc)}, status_code=503)
+
+
+def _try_sync() -> None:
+    if not worker_client.WORKER_URL:
+        return
+    try:
+        sync.sync_knowledge()
+    except Exception as e:  # the worker may be asleep; the next finished job syncs again
+        logger.warning("startup knowledge sync skipped: %s", e)
+
+
+# In a thread so a sleeping worker cannot delay Render's health check.
+app.add_event_handler("startup", lambda: threading.Thread(target=_try_sync, daemon=True).start())
 
 # CORS configuration (Updated per TRD spec)
 cors_origins_env = os.getenv("API_CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000")
@@ -51,7 +67,7 @@ def get_status():
 
 # Keepalive target for the cron that stops Render's free tier sleeping. HEAD too: uptime pingers send it.
 # ponytail: no DB or Qdrant check, so a ping stays cheap; add one if this becomes a readiness probe.
-@app.api_route("/api/health", methods=["GET", "HEAD"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], include_in_schema=False)  # GET+HEAD share an operationId whose pick varies per process
 def health():
     return {"ok": True}
 
