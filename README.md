@@ -208,7 +208,17 @@ Frontend: 30 vitest cases pass and `tsc` is clean.
 | Deliverables | Prototype, documentation, evaluation results | Done |
 | Deliverables | 3-10 minute demo video | Not made yet |
 
-## Repo layout
+## Built with
+
+Python (FastAPI, uvicorn), Next.js, Qdrant, SQLite, Docker, Modal, Render and Vercel, plus the models listed under
+[Models](#models).
+
+**AI tools used:** Claude (Claude Code) and Cline. No other AI coding assistant was used.
+
+**AI-assisted parts.** Claude and Cline helped write and edit code across the project: the backend packages in
+`RAG_DB/src/` (ingest, retrieval, tutor, quiz, learner model, evaluation), the Next.js frontend, the Modal worker and
+Docker setup, the tests, and this README. The project design, requirements and decisions were ours, and we reviewed
+and ran the AI-written code before keeping it.
 
 ```
 RAG_DB/src/       pipeline modules + core/ api/ ingest/ concepts/ tutor/ assess/ learner/ revision/ evaluation/
